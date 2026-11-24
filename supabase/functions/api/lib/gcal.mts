@@ -505,10 +505,23 @@ async function pullCalendar(ctx: any, cal: any) {
   const calId: string = cal.calendar_id;
   const tz = ctx.settings.timezone;
   const ownPrefix = googleIdFor(0, userId, ctx.settings.secret).slice(0, -1); // App 写进 Google 的活动 ID 开头
-  let pageToken: string | null = cal.sync_token?.startsWith("p:") ? cal.sync_token.slice(2) : null;
-  let syncToken: string | null = cal.sync_token?.startsWith("p:") ? null : cal.sync_token;
+  // 重复的行程（每星期一次等）要展开成每一次（singleEvents），不然只会读到第一次。
+  // 以前读的位置（没有 "v2:"）是没展开的 → 清掉这本日历读进来的行程（只清 App，Google 不动），重新读一次
+  const V = "v2:";
+  let saved: string = cal.sync_token || "";
+  if (saved && !saved.startsWith(V)) {
+    for (const { event_id } of await db.eventsFromCalendar(userId, calId)) {
+      const photos = await db.listPhotos(event_id);
+      if (await db.deleteEvent(event_id)) for (const p of photos) await deletePhotoData(p.blob_key);
+    }
+    await db.setCalSync(userId, calId, null);
+    saved = "";
+  }
+  saved = saved.slice(V.length);
+  let pageToken: string | null = saved.startsWith("p:") ? saved.slice(2) : null;
+  let syncToken: string | null = saved && !saved.startsWith("p:") ? saved : null;
   for (;;) {
-    const q = new URLSearchParams({ maxResults: "250", showDeleted: "true" });
+    const q = new URLSearchParams({ maxResults: "250", showDeleted: "true", singleEvents: "true" });
     if (pageToken) q.set("pageToken", pageToken);
     else if (syncToken) q.set("syncToken", syncToken);
     const res = await gfetch(l, `/calendars/${encodeURIComponent(calId)}/events?${q}`);
@@ -558,10 +571,10 @@ async function pullCalendar(ctx: any, cal: any) {
     }
     if (data.nextPageToken) {
       pageToken = data.nextPageToken;
-      if (Date.now() > deadline) { await db.setCalSync(userId, calId, "p:" + pageToken); return false; } // 下次从这一页继续
+      if (Date.now() > deadline) { await db.setCalSync(userId, calId, V + "p:" + pageToken); return false; } // 下次从这一页继续
       continue;
     }
-    if (data.nextSyncToken) await db.setCalSync(userId, calId, data.nextSyncToken);
+    if (data.nextSyncToken) await db.setCalSync(userId, calId, V + data.nextSyncToken);
     return true;
   }
 }
