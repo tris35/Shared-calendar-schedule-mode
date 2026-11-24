@@ -46,7 +46,7 @@ function outEvent(e: any) {
     ...e, start: iso(e.start), end: iso(e.end), created_at: iso(e.created_at),
     all_day: e.all_day ? 1 : 0, remind: e.remind ? 1 : 0,
     customer_auto: e.customer_auto === false ? 0 : 1, customer_sent_at: iso(e.customer_sent_at), done_at: iso(e.done_at),
-    color: e.label && LABELS[e.label] ? LABELS[e.label].hex : null,
+    color: e.label && LABELS[e.label] ? LABELS[e.label].hex : e.source_color || null, // 自己的颜色，或 Google 日历的颜色
     photo_count: Number(e.photo_count ?? 0), memo_count: Number(e.memo_count ?? 0),
     amount_total: e.amount_total == null ? null : Number(e.amount_total), amount_paid: e.amount_paid == null ? null : Number(e.amount_paid),
     check_total: Number(e.check_total ?? 0), check_done: Number(e.check_done ?? 0),
@@ -328,9 +328,15 @@ export async function findEventGoogle(userId: number, googleEventId: string, cal
 export async function listGoogleCals(userId: number) {
   return sql`SELECT * FROM google_calendars WHERE user_id = ${userId} ORDER BY calendar_id`;
 }
-export async function upsertGoogleCal(userId: number, calendarId: string, name: string | null) {
-  await sql`INSERT INTO google_calendars (user_id, calendar_id, name) VALUES (${userId}, ${calendarId}, ${name})
-    ON CONFLICT (user_id, calendar_id) DO UPDATE SET name = EXCLUDED.name`;
+export async function upsertGoogleCal(userId: number, calendarId: string, name: string | null, color: string | null = null) {
+  await sql`INSERT INTO google_calendars (user_id, calendar_id, name, color) VALUES (${userId}, ${calendarId}, ${name}, ${color})
+    ON CONFLICT (user_id, calendar_id) DO UPDATE SET name = EXCLUDED.name, color = EXCLUDED.color`;
+}
+/** 行程来自哪个 Google 日历 → 记下那个日历的颜色 */
+export async function applyCalendarColors(userId: number) {
+  await sql`UPDATE events e SET source_color = gc.color
+    FROM event_google eg JOIN google_calendars gc ON gc.user_id = eg.user_id AND gc.calendar_id = eg.calendar_id
+    WHERE eg.event_id = e.id AND eg.user_id = ${userId} AND e.source_color IS DISTINCT FROM gc.color`;
 }
 /** 日历在 Google 被删除了：只拿掉对应（App 里的行程保留） */
 export async function removeGoogleCal(userId: number, calendarId: string) {

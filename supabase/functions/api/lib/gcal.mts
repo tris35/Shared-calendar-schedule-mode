@@ -267,8 +267,12 @@ async function syncOne(l: Link, e: any, body: any, s: Settings) {
   }
 }
 
+// Schedule Mode：只从 Google 日历读进来，绝不写回 Google（新增、修改、删除都不会改到 Google 日历）
+export const WRITE_TO_GOOGLE = false;
+
 /** 把一个行程写入/更新到每个已连接的人的 Google 日历（onlyUserId：只同步某个人） */
 export async function syncEvent(eventId: number, siteUrl: string, onlyUserId?: number, exceptUserId?: number) {
+  if (!WRITE_TO_GOOGLE) return { skipped: true };
   const e = await db.getEvent(eventId);
   if (!e) return { skipped: true };
   // 只同步到「选了这个 App 日历」的人的 Google 日历
@@ -289,7 +293,7 @@ export async function syncEvent(eventId: number, siteUrl: string, onlyUserId?: n
 
 /** 行程被删除前先取对应，删除后再删掉每个人 Google 日历上的那一笔 */
 export async function deleteGoogleEvents(mappings: { user_id: number; google_event_id: string; calendar_id?: string | null }[]) {
-  if (!mappings.length) return;
+  if (!WRITE_TO_GOOGLE || !mappings.length) return;
   const links = new Map((await db.listGoogleLinks()).map((l: any) => [l.user_id, l]));
   for (const m of mappings) {
     const l: any = links.get(m.user_id);
@@ -392,7 +396,7 @@ export async function pullFromGoogle(userId: number, siteUrl: string, opts: { mi
 
 // 这个 Gmail「我的日历」里的日历（自己是拥有者；不包括节日、生日、联系人这类特殊日历）
 async function ownedCalendars(l: Link) {
-  const out: { id: string; name: string; primary: boolean }[] = [];
+  const out: { id: string; name: string; primary: boolean; color?: string | null }[] = [];
   let pageToken = "";
   do {
     const q = new URLSearchParams({ minAccessRole: "owner", maxResults: "250" });
@@ -402,7 +406,7 @@ async function ownedCalendars(l: Link) {
     const data: any = await res.json();
     for (const c of data.items || []) {
       if (c.deleted || String(c.id).includes("#")) continue; // 节日 / 生日 / 联系人 / 周数
-      out.push({ id: c.id, name: c.summaryOverride || c.summary || c.id, primary: !!c.primary || c.id === l.calendar_id });
+      out.push({ id: c.id, name: c.summaryOverride || c.summary || c.id, primary: !!c.primary || c.id === l.calendar_id, color: c.backgroundColor || null });
     }
     pageToken = data.nextPageToken || "";
   } while (pageToken);
@@ -423,7 +427,7 @@ export async function listSyncCalendars(userId: number) {
 async function refreshCalendars(l: any) {
   const cals = await ownedCalendars(l);
   const known = new Map((await db.listGoogleCals(l.user_id)).map((c: any) => [c.calendar_id, c]));
-  for (const c of cals) if (!known.has(c.id) || (known.get(c.id) as any).name !== c.name) await db.upsertGoogleCal(l.user_id, c.id, c.name);
+  for (const c of cals) if (!known.has(c.id) || (known.get(c.id) as any).name !== c.name || (known.get(c.id) as any).color !== (c.color ?? null)) await db.upsertGoogleCal(l.user_id, c.id, c.name, c.color ?? null);
   for (const id of known.keys()) if (!cals.some((c) => c.id === id) && id !== l.calendar_id) {
     // 这个日历在 Google 被删掉了 → 从它来的行程也从 App 删掉（以及其他人 Google 里的副本）
     await stopCalWatch(l, known.get(id));
@@ -437,6 +441,7 @@ async function refreshCalendars(l: any) {
     }
     await db.removeGoogleCal(l.user_id, id);
   }
+  await db.applyCalendarColors(l.user_id); // 没有自己颜色的行程 → 用 Google 日历本身的颜色（和 Google 上看到的一样）
   return db.listGoogleCals(l.user_id);
 }
 
@@ -483,6 +488,7 @@ async function pullOnce(userId: number, siteUrl: string, deadline: number) {
       if (!(await pullCalendar(ctx, cal))) { done = false; break; } // 还没读完 → 下次继续
     }
     if (done) await db.setLinkSync(userId, { sync_token: "multi" }); // 旧栏位：标记已读过
+    await db.applyCalendarColors(userId); // 刚读进来的行程也用日历颜色
     // 推给其他人的 Google 日历（这个人的 Google 本来就有这一笔，不用再写，否则会重复）
     for (const id of ctx.createdIds) { if (Date.now() > deadline + 8_000) break; await syncEvent(id, siteUrl, undefined, userId); }
     for (const id of ctx.touched) { if (Date.now() > deadline + 8_000) break; await syncEvent(id, siteUrl, undefined, userId); }
