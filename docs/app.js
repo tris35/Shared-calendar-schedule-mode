@@ -1,5 +1,5 @@
 // ===================== Shared Calendar / 共享日历 =====================
-import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=104";
+import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=106";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -230,19 +230,44 @@ function eventsByDay() {
   for (const e of state.events) for (const k of eventDays(e)) (map[k] ||= []).push(e);
   return map;
 }
+// 月历：每星期一行；跨好几天的行程画成一条横跨的长条（和 Google 日历一样），每天最多 3 条，其他的显示「+N」
+const MONTH_LANES = 3;
 function renderMonth() {
   if (state.view === "calendar") $("#title").textContent = monthTitle();
-  const byDay = eventsByDay();
   const todayK = dayKey(new Date()), selK = dayKey(state.selected);
+  const spans = state.events.map((e) => ({ e, days: eventDays(e) }));
   let html = "";
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(state.gridStart); d.setDate(d.getDate() + i);
-    const k = dayKey(d), evs = byDay[k] || [];
-    const cls = ["day", d.getMonth() !== state.month.getMonth() && "other", k === todayK && "today",
-      k === selK && "selected", d.getDay() === 0 && "sun", d.getDay() === 6 && "sat"].filter(Boolean).join(" ");
-    html += `<div class="${cls}" data-day="${k}"><span class="num">${d.getDate()}</span>
-      ${evs.slice(0, 3).map((e) => `<div class="chip" style="--c:${esc(eventColor(e))}">${esc(e.title)}</div>`).join("")}
-      ${evs.length > 3 ? `<div class="more">+${evs.length - 3}</div>` : ""}</div>`;
+  for (let w = 0; w < 6; w++) {
+    const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(state.gridStart); d.setDate(d.getDate() + w * 7 + i); return d; });
+    const keys = dates.map(dayKey), col = new Map(keys.map((k, i) => [k, i]));
+    // 这星期里每个行程占哪几天
+    const segs = [];
+    for (const { e, days } of spans) {
+      const cols = days.map((k) => col.get(k)).filter((c) => c !== undefined);
+      if (!cols.length) continue;
+      const s = Math.min(...cols), t = Math.max(...cols);
+      segs.push({ e, s, t, total: days.length, contL: days[0] !== keys[s], contR: days[days.length - 1] !== keys[t] });
+    }
+    // 先摆早开始的；同一天开始的，长的先摆（和 Google 一样）
+    segs.sort((a, b) => a.s - b.s || b.t - b.s - (a.t - a.s) || b.total - a.total || new Date(a.e.start) - new Date(b.e.start));
+    const lanes = Array.from({ length: MONTH_LANES }, () => new Array(7).fill(false));
+    const more = new Array(7).fill(0);
+    let bars = "";
+    for (const g of segs) {
+      const lane = lanes.findIndex((row) => row.slice(g.s, g.t + 1).every((x) => !x));
+      if (lane < 0) { for (let c = g.s; c <= g.t; c++) more[c]++; continue; }
+      for (let c = g.s; c <= g.t; c++) lanes[lane][c] = true;
+      const other = dates.slice(g.s, g.t + 1).every((d) => d.getMonth() !== state.month.getMonth());
+      bars += `<div class="chip bar${g.contL ? " cl" : ""}${g.contR ? " cr" : ""}${other ? " other" : ""}" style="--c:${esc(eventColor(g.e))};grid-column:${g.s + 1} / ${g.t + 2};grid-row:${lane + 2}">${esc(g.e.title)}</div>`;
+    }
+    const cells = dates.map((d, i) => {
+      const k = keys[i];
+      const cls = ["day", d.getMonth() !== state.month.getMonth() && "other", k === todayK && "today",
+        k === selK && "selected", d.getDay() === 0 && "sun", d.getDay() === 6 && "sat"].filter(Boolean).join(" ");
+      return `<div class="${cls}" data-day="${k}" style="grid-column:${i + 1}"><span class="num">${d.getDate()}</span></div>`;
+    }).join("");
+    const moreHtml = more.map((n, i) => (n ? `<div class="more" style="grid-column:${i + 1};grid-row:${MONTH_LANES + 2}">+${n}</div>` : "")).join("");
+    html += `<div class="week-row">${cells}${bars}${moreHtml}</div>`;
   }
   $("#monthGrid").innerHTML = html;
   renderDay();
@@ -296,7 +321,9 @@ function openDayDialog() {
   if (!$("#dayDialog").open) $("#dayDialog").showModal();
   // 卷到「现在」或第一个行程（没有就早上 8 点）
   const focus = isToday ? mins(new Date()) / 60 - 1 : items.length ? items[0].s0 / 60 - 0.5 : 8;
-  $("#ddHours").scrollTop = Math.max(0, focus) * HOUR_PX;
+  // 全天行程和时间轴在同一个滑动区：全天行程很多 → 从最上面开始；不多 → 卷到「现在」或第一个行程
+  const sc = $("#ddScroll"), allDayH = $("#ddAllDay").offsetHeight;
+  sc.scrollTop = allDayH > sc.clientHeight / 3 ? 0 : allDayH + Math.max(0, focus) * HOUR_PX;
 }
 function ddClick(ev) {
   const evBtn = ev.target.closest(".dd-ev");
