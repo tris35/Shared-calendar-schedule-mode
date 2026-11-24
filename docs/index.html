@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>Shared Calendar Schedule Mode</title>
-  <link rel="stylesheet" href="style.css?v=100" />
+  <link rel="stylesheet" href="style.css?v=101" />
 </head>
 <body class="locked">
   <!-- 登录 / 注册（打开 App 前） -->
@@ -136,6 +136,26 @@
 
     <!-- 这星期：摘要 + 任务清单 -->
     <section id="view-week" class="view">
+      <!-- WhatsApp 提醒：发送时间 + 讯息（所有行程都发一样的讯息） -->
+      <section id="schedCard" class="card sched-card">
+        <h3 data-i18n="sc_time_title"></h3>
+        <div class="sc-row">
+          <span data-i18n="sc_day_before"></span>
+          <select id="scHour"></select>
+          <button type="button" class="btn primary small" id="scHourSave" data-i18n="save"></button>
+        </div>
+        <h3 data-i18n="sc_msg_title"></h3>
+        <textarea id="scText" rows="5" maxlength="1000"></textarea>
+        <p class="sc-tip" data-i18n="sc_tip"></p>
+        <div class="sc-row"><button type="button" class="btn primary small" id="scTextSave" data-i18n="save"></button></div>
+        <h3 data-i18n="sc_test_title"></h3>
+        <div class="sc-row">
+          <input id="scTestPhone" type="tel" inputmode="tel" autocomplete="off" placeholder="011-5660 4342" />
+          <button type="button" class="btn small" id="scTestSend" data-i18n="send"></button>
+        </div>
+      </section>
+
+      <div hidden><!-- 旧的 WhatsApp 排程画面（保留元素，程序不会出错） -->
       <div class="week-head">
         <button type="button" class="icon-btn" id="weekPrev" aria-label="‹">‹</button>
         <div class="week-range" id="weekRange"></div>
@@ -146,27 +166,6 @@
       <div id="weekDays" class="week-days" hidden></div>
       <div id="weekWa" class="week-wa" hidden></div>
 
-      <!-- Schedule Mode（管理员）：booking number → Google 通讯录找电话 → 前一天自动发中文提醒 -->
-      <section id="schedCard" class="card week-wa wa-card sched-card" hidden>
-        <h3 data-i18n="sc_title"></h3>
-        <p class="hint" style="padding:0" data-i18n="sc_hint"></p>
-        <p id="scStatus" class="hint" style="padding:0"></p>
-        <p id="scPreviewNote" class="hint warn" style="padding:0" data-i18n="sc_preview_note" hidden></p>
-        <label class="check"><input type="checkbox" id="scEnabled" /><span data-i18n="sc_enabled"></span></label>
-        <label class="check"><input type="checkbox" id="scPreview" /><span data-i18n="sc_preview"></span></label>
-        <label class="sc-field"><span data-i18n="sc_hour"></span><select id="scHour"></select></label>
-        <label class="sc-field"><span data-i18n="sc_text"></span><textarea id="scText" rows="4" maxlength="1000"></textarea></label>
-        <p class="hint" style="padding:0" data-i18n="sc_vars"></p>
-        <p class="wa-sub" data-i18n="sc_sample"></p>
-        <pre id="scSample" class="digest-preview"></pre>
-        <div class="sc-actions">
-          <button type="button" class="btn primary small" id="scSave" data-i18n="save"></button>
-          <button type="button" class="btn small" id="scRefresh" data-i18n="sc_refresh"></button>
-          <button type="button" class="btn small" id="scReset" data-i18n="sc_reset"></button>
-        </div>
-        <h4 data-i18n="sc_list"></h4>
-        <ul id="scList" class="sc-list"></ul>
-      </section>
 
       <!-- WhatsApp 自动化设定（管理员）：填好 → 看预览 → 保存 -->
       <section id="waAuto" class="week-wa wa-auto" hidden>
@@ -231,6 +230,7 @@
             <ul id="waUsers" class="wa-users"></ul>
           </div>
         </section>
+      </div>
     </section>
 
     <!-- Claude 助手 -->
@@ -377,11 +377,11 @@
   </main>
 
   <nav class="tabbar">
-    <button data-view="home" class="active"><span>🏠</span><b data-i18n="tab_home"></b></button>
-    <button data-view="calendar"><span>📅</span><b data-i18n="tab_calendar"></b></button>
+    <button data-view="home" hidden><span>🏠</span><b data-i18n="tab_home"></b></button>
+    <button data-view="calendar" class="active"><span>📅</span><b data-i18n="tab_calendar"></b></button>
     <button data-view="board" hidden><span>📋</span><b data-i18n="tab_board"></b></button>
     <button data-view="members"><span>🎨</span><b data-i18n="tab_members"></b></button>
-    <button data-view="week" id="waTab" hidden><span>📲</span><b data-i18n="tab_week"></b></button>
+    <button data-view="week" id="waTab"><span>📲</span><b data-i18n="tab_week"></b></button>
     <button data-view="claude" id="claudeTab" hidden><span>💬</span><b data-i18n="tab_claude"></b></button>
     <button data-view="settings"><span>⚙️</span><b data-i18n="tab_settings"></b></button>
   </nav>
@@ -592,8 +592,8 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="config.js?v=100"></script>
-  <script src="app.js?v=100" type="module"></script>
+  <script src="config.js?v=101"></script>
+  <script src="app.js?v=101" type="module"></script>
   <script>
     if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
   </script>

@@ -9,7 +9,7 @@ import { getSettings, saveSettings, sign } from "./lib/settings.mts";
 import { chat, claudeEnabled } from "./lib/claude.mts";
 import { syncEvent, deleteGoogleEvents, authUrl, handleCallback, disconnect, clientCredentials, redirectUri, mainUrl, listGoogleCalendars, listSyncCalendars, setCalendarEnabled, switchSyncCalendar, retryFailedSyncs, pullFromGoogle, ensureWatch, pushTarget } from "./lib/gcal.mts";
 import { AuthError, signup, login, forgotPassword, resetPassword, currentUser, changePassword, publicUser, isAdmin, canWhatsApp, fixedAdmins } from "./lib/auth.mts";
-import { waConfig, sendCustomerMessage, sendTimeFor, waUsage, buildDigest, sendHourOf, isPreview, fillText, DEFAULT_SEND_HOUR } from "./lib/whatsapp.mts";
+import { waConfig, sendCustomerMessage, sendTimeFor, waUsage, buildDigest, sendHourOf, isPreview, fillText, DEFAULT_SEND_HOUR, sendTest } from "./lib/whatsapp.mts";
 import { autoFillUpcoming, scheduleOverview, refreshContacts, DEFAULT_TEXT } from "./lib/schedule.mts";
 import { tr, langFrom, normLang, LANG_CODES, desc } from "./lib/i18n.mts";
 
@@ -405,6 +405,37 @@ export async function handleApi(req: Request): Promise<Response> {
       }
     }
 
+    // ---------- WhatsApp 提醒（每个人都可以设定）：前一天几点发 + 讯息（所有行程一样） ----------
+    if (r === "schedule") {
+      const s = await getSettings();
+      const sc: any = { ...(s.schedule || {}) };
+      if (!seg[1] && method === "GET") return Response.json({ sendHour: sendHourOf(s), text: sc.text || DEFAULT_TEXT, whatsapp: !!waConfig() });
+      if (!seg[1] && method === "PUT") {
+        mustEdit();
+        const b = await body();
+        if (b.sendHour !== undefined) {
+          const h = Math.floor(Number(b.sendHour));
+          sc.sendHour = h >= 0 && h <= 23 ? h : DEFAULT_SEND_HOUR;
+        }
+        if (b.text !== undefined) {
+          const text = String(b.text || "").trim().slice(0, 1000);
+          if (!text) throw new Error("请填写讯息");
+          sc.text = text;
+          await db.updateAutoNotes(text);
+        }
+        await saveSettings({ schedule: sc });
+        return Response.json({ ok: true });
+      }
+      // 测试发送：现在的讯息发到这个电话
+      if (seg[1] === "test" && method === "POST") {
+        mustEdit();
+        return Response.json(await sendTest(String((await body()).phone || ""), sc.text || DEFAULT_TEXT));
+      }
+      // 立即检查通讯录（不用等排程）
+      if (seg[1] === "refresh" && method === "POST") { await refreshContacts(true); return Response.json(await autoFillUpcoming()); }
+      if (seg[1] === "list" && method === "GET") return Response.json(await scheduleOverview((e, tz) => sendTimeFor(e, tz, sendHourOf(s))));
+    }
+
     // WhatsApp 这个月用了几则（所有人都看得到）
     if (r === "whatsapp" && seg[1] === "usage" && method === "GET") return Response.json(await waUsage());
 
@@ -417,41 +448,6 @@ export async function handleApi(req: Request): Promise<Response> {
       if (seg[1] === "wa-text" && method === "PUT") {
         await saveSettings({ waDefault: String((await body()).text ?? "").slice(0, 2000), waIntro: "", waOutro: "" });
         return Response.json({ ok: true });
-      }
-      // ---------- Schedule Mode：通讯录找电话 + 自动提醒 ----------
-      if (seg[1] === "schedule" && !seg[2] && method === "GET") {
-        const s = await getSettings();
-        const sc = s.schedule || {};
-        return Response.json({
-          enabled: sc.enabled !== false, preview: isPreview(s), sendHour: sendHourOf(s), text: sc.text || DEFAULT_TEXT, defaultText: DEFAULT_TEXT,
-          contactsAt: sc.contactsAt || null, contactsCount: sc.contactsCount ?? 0, contactsError: sc.contactsError || null,
-          whatsapp: !!waConfig(), googleLinks: (await db.listGoogleLinks()).length,
-          items: await scheduleOverview((e, tz) => sendTimeFor(e, tz, sendHourOf(s))),
-        });
-      }
-      if (seg[1] === "schedule" && !seg[2] && method === "PUT") {
-        const b = await body();
-        const s = await getSettings();
-        const sc: any = { ...(s.schedule || {}) };
-        if (b.enabled !== undefined) sc.enabled = !!b.enabled;
-        if (b.preview !== undefined) sc.preview = !!b.preview;
-        if (b.sendHour !== undefined) {
-          const h = Math.floor(Number(b.sendHour));
-          sc.sendHour = h >= 0 && h <= 23 ? h : DEFAULT_SEND_HOUR;
-        }
-        if (b.text !== undefined) {
-          const text = String(b.text || "").trim().slice(0, 1000);
-          if (!text) throw new Error("请填写提醒内容");
-          sc.text = text;
-          await db.updateAutoNotes(text); // 还没发出的自动提醒也换成新内容
-        }
-        await saveSettings({ schedule: sc });
-        return Response.json({ ok: true });
-      }
-      // 立即重新读通讯录 + 填客户电话（不用等排程）
-      if (seg[1] === "schedule" && seg[2] === "refresh" && method === "POST") {
-        await refreshContacts(true);
-        return Response.json(await autoFillUpcoming());
       }
       // 管理员名单：固定的（Supabase 密钥）＋ App 里加的
       if (seg[1] === "admins" && method === "GET") return Response.json({ fixed: fixedAdmins(), extra: (await getSettings()).adminEmails || [] });

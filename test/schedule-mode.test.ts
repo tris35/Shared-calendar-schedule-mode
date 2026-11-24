@@ -81,7 +81,8 @@ check("all-day: no time, has name", textB.startsWith("您好 Joey，") && textB.
 const sendAt = wa.sendTimeFor({ start: a.start.toISOString() }, tz, wa.sendHourOf(s));
 check("send time = day before 14:00 MYT", sendAt.toLocaleString("en-GB", { timeZone: tz }).startsWith(new Date(Date.parse(today + "T00:00:00Z")).toLocaleDateString("en-GB", { timeZone: "UTC" })) && sendAt.toLocaleTimeString("en-GB", { timeZone: tz }) === "14:00:00", sendAt.toISOString());
 
-// 4. 预览模式（默认开）：不发
+// 4. 预览模式（打开时）：不发
+await saveSettings({ schedule: { ...(s.schedule || {}), preview: true } });
 const nowMy = Number(new Date().toLocaleString("en-GB", { timeZone: tz, hour: "2-digit", hourCycle: "h23" }));
 const p = await wa.sendDueCustomerMessages();
 check("preview mode → nothing sent", (p as any).preview === true && sent.length === 0, { p, sent });
@@ -101,7 +102,16 @@ if (nowMy >= 14) {
   check("before 2pm → nothing due yet", (res as any).sent === 0, res);
 }
 
-// 6. 员工改了电话 → 不再被通讯录覆盖
+// 6. 改了讯息 → 自动提醒都用新的讯息；测试发送
+await saveSettings({ schedule: { preview: false, text: "新讯息 {booking}" } });
+const n0 = sent.length;
+await db.query("UPDATE events SET customer_sent_at = NULL WHERE id = $1", [A]);
+await wa.sendCustomerMessage(A, { force: true });
+check("auto event uses current message", sent.length === n0 + 1 && sent.at(-1).text.body === "新讯息 6961", sent.at(-1));
+const tr = await wa.sendTest("011-5660 4342", "测试 {booking} {date}");
+check("test send", tr.to === "601156604342" && sent.at(-1).text.body.startsWith("测试 6961 "), sent.at(-1));
+
+// 7. 员工改了电话 → 不再被通讯录覆盖
 await db.query("UPDATE events SET customer_phone = '0177777777', customer_source = 'manual' WHERE id = $1", [B]);
 await autoFillUpcoming({ forceContacts: true });
 check("staff edit not overwritten", (await row(B)).customer_phone === "0177777777");

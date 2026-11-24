@@ -12,8 +12,8 @@ export const sendHourOf = (s: any) => {
   const h = Number(s?.schedule?.sendHour);
   return Number.isInteger(h) && h >= 0 && h <= 23 ? h : DEFAULT_SEND_HOUR;
 };
-/** 预览模式：只显示会发给谁，不真的发（默认开，Meta 验证通过后在设定关掉） */
-export const isPreview = (s: any) => s?.schedule?.preview !== false;
+/** 预览模式：只显示会发给谁，不真的发（默认关：WhatsApp 设定好就会发） */
+export const isPreview = (s: any) => s?.schedule?.preview === true;
 
 // 两种接法：Kapso（KAPSO_API_KEY，推荐）或直接用 Meta（WHATSAPP_TOKEN）
 export function waConfig() {
@@ -120,7 +120,8 @@ async function sendTemplate(to: string, text: string) {
     headers: { ...c.headers, "Content-Type": "application/json" } as unknown as Record<string, string>,
     body: JSON.stringify({
       messaging_product: "whatsapp", to, type: "template",
-      template: { name: c.template, language: { code: c.lang }, components: [{ type: "body", parameters: [{ type: "text", text }] }] },
+      template: { name: c.template, language: { code: c.lang },
+        ...(c.template === "hello_world" ? {} : { components: [{ type: "body", parameters: [{ type: "text", text }] }] }) }, // Meta 测试模板 hello_world 没有变量
     }),
   });
   const data: any = await res.json().catch(() => ({}));
@@ -131,12 +132,29 @@ async function sendTemplate(to: string, text: string) {
   return data?.messages?.[0]?.id as string | undefined;
 }
 
+/** 测试：把现在的讯息（用范例资料）发到这个电话 */
+export async function sendTest(phone: string, text: string) {
+  const c = waConfig();
+  if (!c) throw new Error("WhatsApp 还没设定");
+  const to = normPhone(phone, c.cc);
+  if (!to) throw new Error("电话号码不正确");
+  const { timezone } = await getSettings();
+  const start = new Date(Date.now() + 86400_000);
+  const body = fillText(text, { title: "6961 测试", start: start.toISOString(), customer_name: "", all_day: false }, timezone);
+  try { await sendPlainText(to, body); return { ok: true, to, mode: "text" }; }
+  catch { await sendTemplate(to, flattenNote(body)); return { ok: true, to, mode: "template" }; }
+}
+
 /** 发送某个行程给客户的讯息；force = 手动立即发送（就算已经发过） */
 export async function sendCustomerMessage(eventId: number, opts: { force?: boolean; author?: string | null } = {}) {
   const c = waConfig();
   if (!c) throw new Error("WhatsApp 还没设定");
   const e: any = await db.getEvent(eventId);
   if (!e) throw new Error("找不到");
+  if (e.customer_source === "auto") { // 所有自动提醒都用「WhatsApp 提醒」页签现在的讯息
+    const s = await getSettings();
+    e.customer_note = s.schedule?.text || e.customer_note;
+  }
   if (!e.customer_phone) throw new Error("请填写客户电话");
   if (!e.customer_note) throw new Error("请填写给客户的讯息");
   const to = normPhone(e.customer_phone, c.cc);

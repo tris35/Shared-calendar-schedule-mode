@@ -1,5 +1,5 @@
 // ===================== Shared Calendar / 共享日历 =====================
-import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=100";
+import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=101";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -192,6 +192,7 @@ $("#langSelect").addEventListener("change", (ev) => changeLang(ev.target.value, 
 // ---------- 页签 ----------
 document.querySelectorAll(".tabbar button").forEach((b) => b.addEventListener("click", () => showView(b.dataset.view)));
 function showView(v) {
+  if (v === "home") v = "calendar"; // 「今天」页签已拿掉
   state.view = v;
   document.querySelectorAll(".view").forEach((s) => s.classList.toggle("active", s.id === `view-${v}`));
   document.querySelectorAll(".tabbar button").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
@@ -1068,7 +1069,8 @@ function weekStart(offset) { // 星期一开始
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + offset * 7);
   return d;
 }
-async function renderWeek() {
+async function renderWeek() { loadSchedule(); }
+async function renderWeekOld() {
   const start = weekStart(state.weekOffset), end = new Date(start); end.setDate(end.getDate() + 7);
   const fmt = (d) => d.toLocaleDateString(locale(), { day: "numeric", month: "short" });
   const last = new Date(end); last.setDate(last.getDate() - 1);
@@ -1118,84 +1120,38 @@ async function renderWeek() {
   renderWeekWa(evs);
   $("#waAuto").hidden = !state.me?.admin;
   if (state.me?.admin && !waAutoLoaded) loadWaAuto();
-  $("#schedCard").hidden = !state.me?.admin;
-  if (state.me?.admin) loadSchedule();
   renderWaCard();
 }
 
-// ---------- Schedule Mode（管理员）：booking number → 通讯录电话 → 前一天自动发中文提醒 ----------
+// ---------- WhatsApp 提醒：前一天几点发 + 讯息（所有行程一样） ----------
 $("#scHour").innerHTML = Array.from({ length: 24 }, (_, h) => `<option value="${h}">${esc(timeLabel(`${pad(h)}:00`))}</option>`).join("");
-let scDefault = "";
 async function loadSchedule() {
-  let d;
-  try { d = await api("/api/admin/schedule"); } catch (e) { $("#scStatus").textContent = e.message; return; }
-  scDefault = d.defaultText || "";
-  $("#scEnabled").checked = d.enabled;
-  $("#scPreview").checked = d.preview;
-  $("#scPreviewNote").hidden = !d.preview;
-  $("#scHour").value = String(d.sendHour);
-  if (document.activeElement !== $("#scText")) $("#scText").value = d.text || "";
-  const lines = [];
-  if (!d.googleLinks) lines.push(t("sc_no_google"));
-  else if (d.contactsError) lines.push("⚠️ " + d.contactsError);
-  else lines.push(t("sc_contacts", { n: d.contactsCount, time: d.contactsAt ? fmtDateTime(d.contactsAt) : "—" }));
-  if (!d.whatsapp) lines.push(t("sc_no_wa"));
-  $("#scStatus").textContent = lines.join("  ·  ");
-  $("#scStatus").classList.toggle("warn", !d.googleLinks || !!d.contactsError);
-  updateScSample();
-  const label = (x) => ({
-    sent: ["sent", t("sc_st_sent", { time: x.sent_at ? fmtDateTime(x.sent_at) : "" })],
-    failed: ["fail", t("sc_st_failed", { error: x.error || "" })],
-    multiple: ["fail", t("sc_st_multiple", { names: x.contacts || "" })],
-    notfound: ["fail", t("sc_st_notfound", { booking: x.booking })],
-    off: ["off", t("ww_off")],
-    preview: ["wait", t("sc_st_preview", { time: fmtDateTime(x.send_at) })],
-    scheduled: ["wait", t("sc_st_will", { time: fmtDateTime(x.send_at) })],
-  }[x.status] || ["off", x.status]);
-  $("#scList").innerHTML = d.items.length ? d.items.map((x) => {
-    const [cls, txt] = label(x);
-    const when = x.all_day ? `${new Date(x.start).toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" })} · ${t("all_day")}` : fmtDateTime(x.start);
-    return `<li class="ww-item" data-id="${x.id}">
-      <div class="ww-main"><b>${esc(x.booking)}</b> <span class="muted">${esc(when)}</span>
-        <div class="s">${esc(x.title)}</div>
-        ${x.phone ? `<div class="s">📞 ${esc(x.phone)}${x.name ? " · " + esc(x.name) : ""}${x.source === "manual" ? " · " + esc(t("sc_manual")) : ""}</div>` : ""}</div>
-      <div class="ww-side"><span class="ww-status ${cls}">${esc(txt)}</span></div></li>`;
-  }).join("") : `<li class="hint">${esc(t("sc_none"))}</li>`;
-}
-// 范例：用假的客户资料显示发出去的样子
-function updateScSample() {
-  const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(15, 30, 0, 0);
-  const date = d.toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "short" });
-  const time = d.toLocaleTimeString("zh-CN", { hour: "numeric", minute: "2-digit", hour12: true });
-  $("#scSample").textContent = ($("#scText").value || "").replaceAll("{name}", " Ivy").replaceAll("{user}", "Ivy")
-    .replaceAll("{date}", date).replaceAll("{time}", time).replaceAll("{booking}", "6961").replaceAll("{title}", "6961 选礼服")
-    .replace(/[ \t]{2,}/g, " ") || "—";
-}
-$("#scText").addEventListener("input", updateScSample);
-$("#scPreview").addEventListener("change", () => { $("#scPreviewNote").hidden = !$("#scPreview").checked; });
-$("#scReset").onclick = () => { $("#scText").value = scDefault; updateScSample(); };
-$("#scSave").onclick = async () => {
-  if (!$("#scPreview").checked && !(await askConfirm(t("sc_live_confirm"), t("ok")))) return;
-  const btn = $("#scSave"); btn.disabled = true;
   try {
-    await api("/api/admin/schedule", { method: "PUT", body: {
-      enabled: $("#scEnabled").checked, preview: $("#scPreview").checked, sendHour: Number($("#scHour").value), text: $("#scText").value } });
-    if (state.config) { state.config.waSendHour = Number($("#scHour").value); state.config.waPreviewMode = $("#scPreview").checked; }
+    const d = await api("/api/schedule");
+    $("#scHour").value = String(d.sendHour);
+    if (document.activeElement !== $("#scText")) $("#scText").value = d.text || "";
+  } catch (e) { toast(e.message); }
+}
+async function saveSchedule(body, btn) {
+  btn.disabled = true;
+  try {
+    await api("/api/schedule", { method: "PUT", body });
+    if (body.sendHour !== undefined && state.config) state.config.waSendHour = body.sendHour;
     toast(t("saved"));
-    await loadSchedule();
   } catch (e) { toast(t("save_failed", { error: e.message })); }
   btn.disabled = false;
-};
-$("#scRefresh").onclick = async () => {
-  const btn = $("#scRefresh"); btn.disabled = true;
-  try {
-    const r = await api("/api/admin/schedule/refresh", { method: "POST", body: {} });
-    toast(t("sc_refreshed", { filled: r.filled ?? 0, missing: (r.notFound ?? 0) + (r.multiple ?? 0) }));
-    await loadSchedule();
-  } catch (e) { toast(e.message); }
+}
+$("#scHourSave").onclick = () => saveSchedule({ sendHour: Number($("#scHour").value) }, $("#scHourSave"));
+$("#scTextSave").onclick = () => saveSchedule({ text: $("#scText").value }, $("#scTextSave"));
+// 测试：把（已保存的）讯息发到这个电话
+$("#scTestSend").onclick = async () => {
+  const btn = $("#scTestSend"), phone = $("#scTestPhone").value.trim();
+  if (!phone) { $("#scTestPhone").focus(); return; }
+  btn.disabled = true;
+  try { const r = await api("/api/schedule/test", { method: "POST", body: { phone } }); toast(t("sc_test_ok", { to: r.to })); }
+  catch (e) { toast(e.message); }
   btn.disabled = false;
 };
-$("#scList").addEventListener("click", (ev) => { const li = ev.target.closest(".ww-item"); if (li) openDetail(Number(li.dataset.id)); });
 // 这星期的 WhatsApp 客户讯息：谁、什么时候发、发了没有
 function renderWeekWa(evs) {
   const box = $("#weekWa");
@@ -2083,8 +2039,7 @@ async function startApp() {
   state.labels = state.config.labels || {};
   state.labelNames = state.config.labelNames || {};
   $("#claudeTab").hidden = !state.config.claude; // 没有 API key 就不显示 Claude 页签
-  $("#waTab").hidden = !state.me?.can_whatsapp; // WhatsApp 自动化：只有可以发 WhatsApp 的人看得到
-  state.view = "home"; // 登录后先看到「今天」首页
+  state.view = "calendar"; // 登录后先看到日历
   api("/api/templates").then((x) => { state.templates = x; fillTplSelect(); }).catch(() => {});
   rerenderAll();
   if (!started) {

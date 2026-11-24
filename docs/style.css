@@ -893,3 +893,10 @@ body.viewer #detailMenuBtn, body.viewer #deleteEventBtn, body.viewer #editEventB
 .sched-card .sc-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
 .sc-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
 .sc-list .ww-item { cursor: pointer; }
+.sched-card { margin: 16px; }
+.sched-card h3 { margin: 4px 0 10px; }
+.sched-card h3 + .sc-row, .sched-card textarea { margin-bottom: 8px; }
+.sched-card .sc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 18px; }
+.sched-card textarea { width: 100%; box-sizing: border-box; }
+.sched-card .sc-tip { color: var(--muted, #6b7280); font-size: 0.85em; margin: 0 0 10px; }
+.sched-card #scTestPhone { flex: 1; min-width: 160px; }
