@@ -1,5 +1,5 @@
 // ===================== Shared Calendar / 共享日历 =====================
-import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=106";
+import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=107";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1460,13 +1460,22 @@ $("#syncCalBtn").onclick = async () => {
   btn.disabled = false;
 };
 
+// 「立即同步」：从 Google 重新读（只读，不会写进 Google）。大日历会分好几次读，一直读到完
 $("#gSyncAllBtn").onclick = async () => {
   const btn = $("#gSyncAllBtn"), out = $("#gSyncResult");
-  btn.disabled = true; out.textContent = t("g_syncing"); out.classList.remove("warn");
+  btn.disabled = true; out.classList.remove("warn");
+  let created = 0, updated = 0, deleted = 0;
   try {
-    const r = await api("/api/google/sync-all", { method: "POST", body: {} });
-    out.textContent = t("g_sync_result", { ok: r.ok, total: r.total }) + (r.failed ? t("g_sync_failed_part", { failed: r.failed, error: r.lastError }) : "") + (r.done ? "" : t("g_sync_more"));
-    if (r.failed) out.classList.add("warn");
+    for (let i = 0; i < 200; i++) {
+      out.textContent = t("g_pull_progress", { n: created + updated });
+      const r = await api("/api/google/pull", { method: "POST", body: { force: true } });
+      if (r.error) throw new Error(r.error);
+      if (r.skipped) { await new Promise((ok) => setTimeout(ok, 1500)); continue; } // 另一个读取正在跑，等一下
+      created += r.created || 0; updated += r.updated || 0; deleted += r.deleted || 0;
+      if (r.done) break;
+    }
+    out.textContent = t("g_pull_done", { created, updated, deleted });
+    await loadMonth();
   } catch (e) { out.textContent = t("g_sync_fail", { error: e.message }); out.classList.add("warn"); }
   btn.disabled = false;
 };

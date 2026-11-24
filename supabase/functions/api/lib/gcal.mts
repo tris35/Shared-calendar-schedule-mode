@@ -482,7 +482,8 @@ async function pullOnce(userId: number, siteUrl: string, deadline: number) {
   };
   let done = true;
   try {
-    const cals = (await refreshCalendars(l)).filter((c: any) => c.enabled);
+    const cals = (await refreshCalendars(l)).filter((c: any) => c.enabled)
+      .sort((a: any, b: any) => Number(b.calendar_id === l.calendar_id) - Number(a.calendar_id === l.calendar_id)); // 主日历先读
     for (const cal of cals) {
       if (Date.now() > deadline) { done = false; break; }
       if (!(await pullCalendar(ctx, cal))) { done = false; break; } // 还没读完 → 下次继续
@@ -499,55 +500,46 @@ async function pullOnce(userId: number, siteUrl: string, deadline: number) {
   }
 }
 
-/** 读取一个 Google 日历的变更；读完回传 true（sync_token 以 "p:" 开头 = 第一次完整读取还没读完，记着读到哪一页） */
+// Schedule Mode：只读「过去 2 个月 ～ 未来 1 年」的行程（不用从好几年前的历史开始读），重复行程展开成每一次。
+// 每一轮把这段时间的行程完整读一遍（可分几次读完），读完后：这段时间里 Google 已经没有的 → 从 App 拿掉（Google 不动）。
+const WINDOW_PAST_DAYS = 60, WINDOW_AHEAD_DAYS = 365;
+const W = "w2|"; // sync_token 格式：w2|<这一轮开始的时间>|<读到哪一页>（读完 = 没有页）
+
+/** 读取一个 Google 日历；这一轮读完回传 true，还没读完（时间到了）回传 false，下次从同一页继续 */
 async function pullCalendar(ctx: any, cal: any) {
   const { l, userId, deadline, who } = ctx;
   const calId: string = cal.calendar_id;
   const tz = ctx.settings.timezone;
-  const ownPrefix = googleIdFor(0, userId, ctx.settings.secret).slice(0, -1); // App 写进 Google 的活动 ID 开头
-  // 重复的行程（每星期一次等）要展开成每一次（singleEvents），不然只会读到第一次。
-  // 以前读的位置（没有 "v2:"）是没展开的 → 清掉这本日历读进来的行程（只清 App，Google 不动），重新读一次
-  const V = "v2:";
-  let saved: string = cal.sync_token || "";
-  if (saved && !saved.startsWith(V)) {
+  const saved: string = cal.sync_token || "";
+  if (saved && !saved.startsWith(W)) {
+    // 以前的读法（从最早的历史开始、重复行程只读第一次）→ 清掉这本日历读进来的行程（只清 App，Google 不动），重新读
     for (const { event_id } of await db.eventsFromCalendar(userId, calId)) {
       const photos = await db.listPhotos(event_id);
       if (await db.deleteEvent(event_id)) for (const p of photos) await deletePhotoData(p.blob_key);
     }
-    await db.setCalSync(userId, calId, null);
-    saved = "";
   }
-  saved = saved.slice(V.length);
-  let pageToken: string | null = saved.startsWith("p:") ? saved.slice(2) : null;
-  let syncToken: string | null = saved && !saved.startsWith("p:") ? saved : null;
+  const parts = saved.startsWith(W) ? saved.slice(W.length).split("|") : [];
+  const resume = parts.length === 2 && parts[1] !== "";
+  const passStart = resume ? Number(parts[0]) : Date.now();
+  let pageToken: string | null = resume ? parts[1] : null;
+  const timeMin = new Date(passStart - WINDOW_PAST_DAYS * 86400_000).toISOString();
+  const timeMax = new Date(passStart + WINDOW_AHEAD_DAYS * 86400_000).toISOString();
+  const known = new Map<string, any>((await db.listCalMappings(userId, calId)).map((m: any) => [m.google_event_id, m]));
   for (;;) {
-    const q = new URLSearchParams({ maxResults: "250", showDeleted: "true", singleEvents: "true" });
+    const q = new URLSearchParams({ maxResults: "250", singleEvents: "true", timeMin, timeMax });
     if (pageToken) q.set("pageToken", pageToken);
-    else if (syncToken) q.set("syncToken", syncToken);
     const res = await gfetch(l, `/calendars/${encodeURIComponent(calId)}/events?${q}`);
-    if (res.status === 410) { syncToken = null; pageToken = null; await db.setCalSync(userId, calId, null); continue; } // 位置过期 → 全部重读
     if (res.status === 404) return true; // 日历刚被删掉，下次清单会拿掉
+    if ((res.status === 400 || res.status === 410) && pageToken) { pageToken = null; continue; } // 页码失效 → 这一轮重来
     if (!res.ok) throw new Error(await gerror(res));
     const data: any = await res.json();
+    const seen: string[] = [];
     for (const ev of data.items || []) {
-      const map = await db.findEventGoogle(userId, ev.id, calId);
-      if (ev.status === "cancelled") {
-        if (map) {
-          // 在 Google 删除了 → App 也删除，并删掉其他人 Google 日历里的那一笔
-          const others = (await db.listEventGoogle(map.event_id)).filter((m: any) => m.user_id !== userId);
-          const photos = await db.listPhotos(map.event_id);
-          if (await db.deleteEvent(map.event_id)) {
-            for (const p of photos) await deletePhotoData(p.blob_key);
-            await deleteGoogleEvents(others as any);
-            ctx.touched.delete(map.event_id);
-            ctx.createdIds.delete(map.event_id);
-            ctx.deleted++;
-          }
-        }
-        continue;
-      }
+      if (ev.status === "cancelled") continue;
+      seen.push(ev.id);
+      const map = known.get(ev.id);
       if (map) {
-        if (map.etag && map.etag === ev.etag) continue; // 是我们自己写的版本
+        if (map.etag && map.etag === ev.etag) continue; // 没有改过
         const cur = await db.getEvent(map.event_id);
         if (!cur) continue;
         const g = fromGoogle(ev, tz, false);
@@ -555,26 +547,27 @@ async function pullCalendar(ctx: any, cal: any) {
         for (const k of ["title", "start", "end", "label"]) if ((g as any)[k] !== (cur as any)[k] && !(g[k] == null && cur[k] == null)) diff[k] = (g as any)[k];
         if (g.all_day !== !!cur.all_day) diff.all_day = g.all_day;
         await db.setEventGoogle(map.event_id, userId, { google_event_id: ev.id, calendar_id: calId, etag: ev.etag });
-        if (Object.keys(diff).length) { await db.updateEvent(map.event_id, diff, who); ctx.touched.add(map.event_id); ctx.updated++; }
+        if (Object.keys(diff).length) { await db.updateEvent(map.event_id, diff, who); ctx.updated++; }
         continue;
       }
-      // 没有对应：是在 Google 新增的
-      const own = ev.extendedProperties?.private?.familyCalendarId;
-      if (own && String(ev.id).startsWith(ownPrefix) && (await db.getEvent(Number(own)))) { // 本来就是 App 的行程，只是对应不见了 → 接回去
-        await db.setEventGoogle(Number(own), userId, { google_event_id: ev.id, calendar_id: calId, etag: ev.etag });
-        continue;
-      }
-      const e = await db.createEvent({ ...fromGoogle(ev, tz, true), remind: true, calendar_id: l.app_calendar_id }, who); // 放进他选的 App 日历
+      // 没有对应：是在 Google 新增的 → 放进他选的 App 日历
+      const e = await db.createEvent({ ...fromGoogle(ev, tz, true), remind: true, calendar_id: l.app_calendar_id }, who);
       await db.setEventGoogle(e.id, userId, { google_event_id: ev.id, calendar_id: calId, etag: ev.etag });
-      ctx.createdIds.add(e.id);
+      known.set(ev.id, { event_id: e.id, etag: ev.etag });
       ctx.created++;
     }
+    await db.markGoogleSeen(userId, calId, seen);
     if (data.nextPageToken) {
       pageToken = data.nextPageToken;
-      if (Date.now() > deadline) { await db.setCalSync(userId, calId, V + "p:" + pageToken); return false; } // 下次从这一页继续
+      if (Date.now() > deadline) { await db.setCalSync(userId, calId, `${W}${passStart}|${pageToken}`); return false; } // 下次从这一页继续
       continue;
     }
-    if (data.nextSyncToken) await db.setCalSync(userId, calId, V + data.nextSyncToken);
+    // 这一轮读完：这段时间里 Google 已经没有的（被删掉、移到别的时间、换到别的日历）→ 从 App 拿掉
+    for (const { event_id } of await db.unseenGoogleEvents(userId, calId, new Date(passStart), timeMin, timeMax)) {
+      const photos = await db.listPhotos(event_id);
+      if (await db.deleteEvent(event_id)) { for (const p of photos) await deletePhotoData(p.blob_key); ctx.deleted++; }
+    }
+    await db.setCalSync(userId, calId, `${W}${passStart}|`);
     return true;
   }
 }

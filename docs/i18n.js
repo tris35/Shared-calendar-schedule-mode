@@ -9,6 +9,7 @@ export const LANGS = [
 
 const D = {
   en: {
+    g_pull_progress: "Reading from Google… {n} events so far", g_pull_done: "Done ✓ {created} new · {updated} changed · {deleted} removed", 
     sc_weekly: "Checked every 3 days for the next month · last: {time}", 
     sc_missing_title: "⚠️ Phone Not Found", sc_why_multiple: "Several contacts: {names}", sc_why_failed: "Failed: {error}", 
     sc_test_title: "🧪 Test", sc_test_ok: "Sent to {to}", 
@@ -84,7 +85,7 @@ const D = {
     g_gmail_label: "Which Gmail should it sync to?", g_connect_btn: "Connect Google Calendar",
     g_connect_hint: "Google's sign-in screen will open. Choose the same Gmail as above and allow “Calendar” access.",
     g_not_ready_click: "The app owner hasn't finished the one-time Google setup yet (see the steps below).",
-    g_sync_all: "Sync All Events Now", g_disconnect: "Disconnect",
+    g_sync_all: "Read From Google Now", g_disconnect: "Disconnect",
     g_disconnect_confirm: "Disconnect your Google Calendar? Events already synced stay in Google Calendar.",
     g_disconnected: "Disconnected", g_syncing: "Syncing, Please Wait…",
     g_sync_result: "Synced {ok} Of {total} Events", g_sync_failed_part: ", {failed} Failed: {error}", g_sync_more: " (Not Finished, Tap Again)",
@@ -128,6 +129,7 @@ const D = {
   },
 
   zh: {
+    g_pull_progress: "正在从 Google 读取……已读 {n} 个行程", g_pull_done: "完成 ✓ 新增 {created} · 更新 {updated} · 删除 {deleted}", 
     sc_weekly: "每 3 天检查未来一个月 · 上次：{time}", 
     sc_missing_title: "⚠️ 找不到电话", sc_why_multiple: "有多个联络人：{names}", sc_why_failed: "发送失败：{error}", 
     sc_test_title: "🧪 测试", sc_test_ok: "已发送到 {to}", 
@@ -197,7 +199,7 @@ const D = {
     g_gmail_label: "要同步到哪个 Gmail？", g_connect_btn: "连接 Google 日历",
     g_connect_hint: "按下后会到 Google 登录画面，请选择上面填的这个 Gmail 并允许「日历」权限。",
     g_not_ready_click: "App 管理员还没完成一次性的 Google 设定（见下方步骤）。",
-    g_sync_all: "立即同步全部行程", g_disconnect: "取消连接",
+    g_sync_all: "立即从 Google 读取", g_disconnect: "取消连接",
     g_disconnect_confirm: "取消连接你的 Google 日历？（Google 日历里已经同步的行程会保留）",
     g_disconnected: "已取消连接", g_syncing: "同步中，请稍候…",
     g_sync_result: "已同步 {ok} / {total} 个行程", g_sync_failed_part: "，{failed} 个失败：{error}", g_sync_more: "（还没完成，请再按一次）",
@@ -240,6 +242,7 @@ const D = {
   },
 
   "zh-TW": {
+    g_pull_progress: "正在從 Google 讀取……已讀 {n} 個行程", g_pull_done: "完成 ✓ 新增 {created} · 更新 {updated} · 刪除 {deleted}", 
     sc_weekly: "每 3 天檢查未來一個月 · 上次：{time}", 
     sc_missing_title: "⚠️ 找不到電話", sc_why_multiple: "有多個聯絡人：{names}", sc_why_failed: "發送失敗：{error}", 
     sc_test_title: "🧪 測試", sc_test_ok: "已發送到 {to}", 
@@ -309,7 +312,7 @@ const D = {
     g_gmail_label: "要同步到哪個 Gmail？", g_connect_btn: "連接 Google 日曆",
     g_connect_hint: "按下後會到 Google 登入畫面，請選擇上面填的這個 Gmail 並允許「日曆」權限。",
     g_not_ready_click: "App 管理員還沒完成一次性的 Google 設定（見下方步驟）。",
-    g_sync_all: "立即同步全部行程", g_disconnect: "取消連接",
+    g_sync_all: "立即從 Google 讀取", g_disconnect: "取消連接",
     g_disconnect_confirm: "取消連接你的 Google 日曆？（Google 日曆裡已經同步的行程會保留）",
     g_disconnected: "已取消連接", g_syncing: "同步中，請稍候…",
     g_sync_result: "已同步 {ok} / {total} 個行程", g_sync_failed_part: "，{failed} 個失敗：{error}", g_sync_more: "（還沒完成，請再按一次）",
@@ -352,6 +355,7 @@ const D = {
   },
 
   ms: {
+    g_pull_progress: "Membaca dari Google… {n} acara setakat ini", g_pull_done: "Selesai ✓ {created} baharu · {updated} berubah · {deleted} dibuang", 
     sc_weekly: "Disemak setiap 3 hari untuk sebulan akan datang · terakhir: {time}", 
     sc_missing_title: "⚠️ Telefon Tidak Dijumpai", sc_why_multiple: "Beberapa kenalan: {names}", sc_why_failed: "Gagal: {error}", 
     sc_test_title: "🧪 Uji", sc_test_ok: "Dihantar ke {to}", 
@@ -421,7 +425,7 @@ const D = {
     g_gmail_label: "Gmail mana untuk disegerakkan?", g_connect_btn: "Sambung Kalendar Google",
     g_connect_hint: "Skrin log masuk Google akan dibuka. Pilih Gmail yang sama seperti di atas dan benarkan akses “Kalendar”.",
     g_not_ready_click: "Pemilik aplikasi belum selesai persediaan Google sekali itu (lihat langkah di bawah).",
-    g_sync_all: "Segerakkan Semua Acara Sekarang", g_disconnect: "Putuskan Sambungan",
+    g_sync_all: "Baca Dari Google Sekarang", g_disconnect: "Putuskan Sambungan",
     g_disconnect_confirm: "Putuskan sambungan Kalendar Google anda? Acara yang telah disegerakkan kekal dalam Kalendar Google.",
     g_disconnected: "Sambungan Diputuskan", g_syncing: "Sedang Menyegerak, Sila Tunggu…",
     g_sync_result: "{ok} Daripada {total} Acara Disegerakkan", g_sync_failed_part: ", {failed} Gagal: {error}", g_sync_more: " (Belum Selesai, Ketik Lagi)",

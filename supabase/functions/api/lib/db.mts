@@ -306,9 +306,9 @@ export async function listEventGoogle(eventId: number) {
   return sql`SELECT * FROM event_google WHERE event_id = ${eventId}`;
 }
 export async function setEventGoogle(eventId: number, userId: number, f: { google_event_id: string; calendar_id?: string | null; error?: string | null; etag?: string | null }) {
-  await sql`INSERT INTO event_google (event_id, user_id, google_event_id, calendar_id, synced_at, error, etag)
-    VALUES (${eventId}, ${userId}, ${f.google_event_id}, ${f.calendar_id ?? null}, ${f.error ? null : new Date().toISOString()}, ${f.error ?? null}, ${f.etag ?? null})
-    ON CONFLICT (event_id, user_id) DO UPDATE SET google_event_id = EXCLUDED.google_event_id,
+  await sql`INSERT INTO event_google (event_id, user_id, google_event_id, calendar_id, synced_at, error, etag, seen_at)
+    VALUES (${eventId}, ${userId}, ${f.google_event_id}, ${f.calendar_id ?? null}, ${f.error ? null : new Date().toISOString()}, ${f.error ?? null}, ${f.etag ?? null}, NOW())
+    ON CONFLICT (event_id, user_id) DO UPDATE SET google_event_id = EXCLUDED.google_event_id, seen_at = NOW(),
       calendar_id = COALESCE(EXCLUDED.calendar_id, event_google.calendar_id),
       synced_at = COALESCE(EXCLUDED.synced_at, event_google.synced_at), error = EXCLUDED.error,
       etag = COALESCE(EXCLUDED.etag, event_google.etag)`;
@@ -322,6 +322,23 @@ export async function listFailedSyncs(userId: number | null, limit = 10) {
 export async function findEventGoogle(userId: number, googleEventId: string, calendarId: string) {
   return (await sql`SELECT * FROM event_google WHERE user_id = ${userId} AND google_event_id = ${googleEventId}
     AND COALESCE(calendar_id, (SELECT calendar_id FROM google_links WHERE user_id = ${userId})) = ${calendarId}`)[0] ?? null;
+}
+
+/** 这本 Google 日历读进来的所有行程（google 活动 ID → App 行程） */
+export async function listCalMappings(userId: number, calendarId: string) {
+  return sql`SELECT event_id, google_event_id, etag FROM event_google WHERE user_id = ${userId} AND calendar_id = ${calendarId}`;
+}
+/** 这一轮在 Google 上还看得到的活动 */
+export async function markGoogleSeen(userId: number, calendarId: string, ids: string[]) {
+  if (!ids.length) return;
+  await sql`UPDATE event_google SET seen_at = NOW() WHERE user_id = ${userId} AND calendar_id = ${calendarId} AND google_event_id = ANY(${ids})`;
+}
+/** 这一轮读完，这段时间里没再看到的（Google 已经没有了） */
+export async function unseenGoogleEvents(userId: number, calendarId: string, passStart: Date, from: string, to: string) {
+  return sql`SELECT eg.event_id FROM event_google eg JOIN events e ON e.id = eg.event_id
+    WHERE eg.user_id = ${userId} AND eg.calendar_id = ${calendarId}
+      AND COALESCE(eg.seen_at, 'epoch') < ${passStart.toISOString()}
+      AND e.start >= ${from} AND e.start < ${to}`;
 }
 
 // ---------- 每个人同步的所有 Google 日历（「我的日历」） ----------
