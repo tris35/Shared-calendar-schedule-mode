@@ -932,3 +932,6 @@ body.viewer #detailMenuBtn, body.viewer #deleteEventBtn, body.viewer #editEventB
 .week-row { column-gap: 0; background: var(--cell); border-bottom: 0.5px solid var(--grid); }
 .week-row .day { border-right: 0.5px solid var(--grid); }
 .week-row .day:nth-child(7) { border-right: 0; }
+
+/* 月历下面的清单拿掉了：留空间给右下角的 ＋，最后一行不会被挡住 */
+#view-calendar { padding-bottom: 80px; }

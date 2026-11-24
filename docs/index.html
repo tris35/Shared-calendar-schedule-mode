@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>Shared Calendar Schedule Mode</title>
-  <link rel="stylesheet" href="style.css?v=111" />
+  <link rel="stylesheet" href="style.css?v=112" />
 </head>
 <body class="locked">
   <!-- 登录 / 注册（打开 App 前） -->
@@ -110,7 +110,7 @@
     <section id="view-calendar" class="view">
       <div class="weekdays" id="weekdays"></div>
       <div id="monthGrid" class="month-grid"></div>
-      <div class="day-panel">
+      <div class="day-panel" hidden><!-- 月历下面那天的清单：不用（点日期会打开时间线） -->
         <h2 id="dayTitle"></h2>
         <button type="button" id="dayNewBtn" class="day-new"><span>＋</span> <b id="dayNewText"></b></button>
         <ul id="dayList" class="list"></ul>
@@ -599,8 +599,8 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="config.js?v=111"></script>
-  <script src="app.js?v=111" type="module"></script>
+  <script src="config.js?v=112"></script>
+  <script src="app.js?v=112" type="module"></script>
   <script>
     if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
   </script>
