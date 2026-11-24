@@ -1,5 +1,5 @@
 // ===================== Shared Calendar / 共享日历 =====================
-import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=102";
+import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=103";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1130,6 +1130,7 @@ async function loadSchedule() {
     const d = await api("/api/schedule");
     $("#scHour").value = String(d.sendHour);
     if (document.activeElement !== $("#scText")) $("#scText").value = d.text || "";
+    $("#scWeekly").textContent = d.weeklyAt ? t("sc_weekly", { time: fmtDateTime(d.weeklyAt) }) : "";
   } catch (e) { toast(e.message); }
   loadMissing();
 }

@@ -28,6 +28,8 @@ export type Schedule = {
   contactsAt?: string | null;  // 最后一次读通讯录的时间
   contactsCount?: number;      // 找到几个有 booking number 的联络人
   contactsError?: string | null;
+  weeklyDate?: string;         // 每 3 天检查：最后一次是哪天（YYYY-MM-DD）
+  weeklyAt?: string;           // 每 3 天检查：完成时间
 };
 
 export type Digest = {

@@ -17,7 +17,10 @@ export const DEFAULT_TEXT =
   "您好{name}，提醒您明天 {date} {time} 的预约（编号 {booking}）。\n如需更改时间，请联络我们。谢谢！";
 
 const CONTACTS_TTL_MS = 30 * 60_000; // 通讯录最多 30 分钟读一次
-const LOOKAHEAD_DAYS = 3;            // 只处理未来 3 天的行程
+const LOOKAHEAD_DAYS = 3;            // 每 15 分钟：未来 3 天的行程（快要发送的）
+export const WEEKLY_DAYS = 31;       // 每 3 天：未来一个月的行程
+const SCAN_EVERY_DAYS = 3;           // 每 3 天检查一次
+const WEEKLY_HOUR = 8;               // 那天早上 8 点后执行
 
 // ---------- booking number ----------
 const BOOKING_AT_START = /^\s*(WM\s*\d+|\d{3,6})(?!\d)/i;
@@ -88,13 +91,13 @@ export async function findCustomer(booking: string) {
  * - 没有填客户电话（或之前是自动填的）→ 从通讯录找，找到就填上
  * - 员工自己填过电话的行程不会被改
  */
-export async function autoFillUpcoming(opts: { forceContacts?: boolean } = {}) {
+export async function autoFillUpcoming(opts: { forceContacts?: boolean; days?: number } = {}) {
   const s = await getSettings();
   if (s.schedule?.enabled === false) return { skipped: true };
   await refreshContacts(!!opts.forceContacts).catch((e) => console.error("[Schedule] 读取通讯录失败：", e));
   const text = s.schedule?.text || DEFAULT_TEXT;
   const result = { filled: 0, notFound: 0, multiple: 0 };
-  for (const e of await db.upcomingForSchedule(LOOKAHEAD_DAYS)) {
+  for (const e of await db.upcomingForSchedule(opts.days ?? LOOKAHEAD_DAYS)) {
     if (e.customer_source !== "auto" && e.customer_phone) continue; // 员工自己填的，不动
     const booking = bookingFromTitle(e.title);
     if (!booking) continue;
@@ -112,18 +115,38 @@ export async function autoFillUpcoming(opts: { forceContacts?: boolean } = {}) {
   return result;
 }
 
+/**
+ * 每 3 天一次（App 时区，早上 8 点后）：重读通讯录，检查未来一个月的行程。
+ * 找不到电话的会出现在「WhatsApp 提醒 → 找不到电话」。第一次部署后还没检查过 → 马上检查一次。
+ */
+export async function weeklyScanIfDue(now = new Date()) {
+  const s = await getSettings();
+  if (s.schedule?.enabled === false) return { skipped: true };
+  const tz = s.timezone;
+  const today = now.toLocaleDateString("en-CA", { timeZone: tz });
+  const hour = Number(now.toLocaleString("en-GB", { timeZone: tz, hour: "2-digit", hourCycle: "h23" }));
+  const last = s.schedule?.weeklyDate;
+  const daysSince = last ? Math.round((Date.parse(today + "T00:00:00Z") - Date.parse(last + "T00:00:00Z")) / 86400_000) : Infinity;
+  if (last && (daysSince < SCAN_EVERY_DAYS || hour < WEEKLY_HOUR)) return { skipped: true };
+  await saveSettings({ schedule: { ...(s.schedule || {}), weeklyDate: today } }); // 先记下，避免同时跑两次
+  const r = await autoFillUpcoming({ forceContacts: true, days: WEEKLY_DAYS });
+  const s2 = await getSettings();
+  await saveSettings({ schedule: { ...(s2.schedule || {}), weeklyAt: new Date().toISOString() } });
+  return { weekly: true, ...r };
+}
+
 /** 给管理员看的清单：未来几天有 booking number 的行程、找到的电话、会不会发 */
 export async function scheduleOverview(sendTimeFor: (e: any, tz: string) => Date) {
   const s = await getSettings();
   const out: any[] = [];
-  for (const e of await db.upcomingForSchedule(LOOKAHEAD_DAYS, true)) {
+  for (const e of await db.upcomingForSchedule(WEEKLY_DAYS, true)) {
     const booking = bookingFromTitle(e.title);
     if (!booking) continue;
     let status: string;
     if (e.customer_sent_at) status = "sent";
     else if (e.customer_error) status = "failed";
     else if (e.customer_lookup === "multiple") status = "multiple";
-    else if (!e.customer_phone) status = "notfound";
+    else if (!e.customer_phone) status = e.customer_lookup === "notfound" ? "notfound" : "pending"; // pending = 还没检查过
     else if (!e.customer_auto) status = "off";
     else status = s.schedule?.preview !== false ? "preview" : "scheduled";
     out.push({

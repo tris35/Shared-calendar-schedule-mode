@@ -9,6 +9,7 @@ export const LANGS = [
 
 const D = {
   en: {
+    sc_weekly: "Checked every 3 days for the next month · last: {time}", 
     sc_missing_title: "⚠️ Phone Not Found", sc_why_multiple: "Several contacts: {names}", sc_why_failed: "Failed: {error}", 
     sc_test_title: "🧪 Test", sc_test_ok: "Sent to {to}", 
     sc_time_title: "⏰ Send Time", sc_day_before: "The day before at", sc_msg_title: "💬 Message", sc_tip: "{name} {date} {time} {booking} are filled in for each customer.", 
@@ -127,6 +128,7 @@ const D = {
   },
 
   zh: {
+    sc_weekly: "每 3 天检查未来一个月 · 上次：{time}", 
     sc_missing_title: "⚠️ 找不到电话", sc_why_multiple: "有多个联络人：{names}", sc_why_failed: "发送失败：{error}", 
     sc_test_title: "🧪 测试", sc_test_ok: "已发送到 {to}", 
     sc_time_title: "⏰ 发送时间", sc_day_before: "行程前一天", sc_msg_title: "💬 讯息", sc_tip: "{name} {date} {time} {booking} 会自动换成每个客户的资料。", 
@@ -238,6 +240,7 @@ const D = {
   },
 
   "zh-TW": {
+    sc_weekly: "每 3 天檢查未來一個月 · 上次：{time}", 
     sc_missing_title: "⚠️ 找不到電話", sc_why_multiple: "有多個聯絡人：{names}", sc_why_failed: "發送失敗：{error}", 
     sc_test_title: "🧪 測試", sc_test_ok: "已發送到 {to}", 
     sc_time_title: "⏰ 發送時間", sc_day_before: "行程前一天", sc_msg_title: "💬 訊息", sc_tip: "{name} {date} {time} {booking} 會自動換成每個客戶的資料。", 
@@ -349,6 +352,7 @@ const D = {
   },
 
   ms: {
+    sc_weekly: "Disemak setiap 3 hari untuk sebulan akan datang · terakhir: {time}", 
     sc_missing_title: "⚠️ Telefon Tidak Dijumpai", sc_why_multiple: "Beberapa kenalan: {names}", sc_why_failed: "Gagal: {error}", 
     sc_test_title: "🧪 Uji", sc_test_ok: "Dihantar ke {to}", 
     sc_time_title: "⏰ Masa Hantar", sc_day_before: "Sehari sebelum pada", sc_msg_title: "💬 Mesej", sc_tip: "{name} {date} {time} {booking} diisi untuk setiap pelanggan.", 

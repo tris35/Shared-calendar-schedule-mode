@@ -409,7 +409,7 @@ export async function handleApi(req: Request): Promise<Response> {
     if (r === "schedule") {
       const s = await getSettings();
       const sc: any = { ...(s.schedule || {}) };
-      if (!seg[1] && method === "GET") return Response.json({ sendHour: sendHourOf(s), text: sc.text || DEFAULT_TEXT, whatsapp: !!waConfig() });
+      if (!seg[1] && method === "GET") return Response.json({ sendHour: sendHourOf(s), text: sc.text || DEFAULT_TEXT, whatsapp: !!waConfig(), weeklyAt: sc.weeklyAt || null });
       if (!seg[1] && method === "PUT") {
         mustEdit();
         const b = await body();

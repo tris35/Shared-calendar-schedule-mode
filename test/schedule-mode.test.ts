@@ -130,6 +130,21 @@ await db.query("UPDATE events SET customer_phone = '0177777777', customer_source
 await autoFillUpcoming({ forceContacts: true });
 check("staff edit not overwritten", (await row(B)).customer_phone === "0177777777");
 
+// 9. 每 3 天检查未来一个月：20 天后的行程也会被找到；3 天内不会再跑
+const { weeklyScanIfDue } = await import("../supabase/functions/api/lib/schedule.mts");
+const far = new Date(Date.now() + 20 * 86400_000).toISOString();
+const H = (await db.query(`INSERT INTO events (title, start) VALUES ('6961 拍摄 (20 days later)', $1) RETURNING id`, [far])).rows[0].id;
+const J = (await db.query(`INSERT INTO events (title, start) VALUES ('9999 nobody', $1) RETURNING id`, [far])).rows[0].id;
+const s0 = await getSettings(); await saveSettings({ schedule: { ...(s0.schedule || {}), weeklyDate: undefined } });
+const w1: any = await weeklyScanIfDue(new Date(`${today}T09:00:00+08:00`));
+check("first run scans a month ahead", w1.weekly && (await row(H)).customer_phone === "601156604342" && (await row(J)).customer_lookup === "notfound", { w1, H: await row(H), J: await row(J) });
+const plus = (n: number) => new Date(Date.parse(today + "T09:00:00+08:00") + n * 86400_000);
+check("not again after 1 day", (await weeklyScanIfDue(plus(1)) as any).skipped === true);
+check("not again after 2 days", (await weeklyScanIfDue(plus(2)) as any).skipped === true);
+check("runs again after 3 days", (await weeklyScanIfDue(plus(3)) as any).weekly === true);
+const ovAll = await scheduleOverview((x: any, t: string) => wa.sendTimeFor(x, t, 14));
+check("far not-found shows in list", ovAll.some((x: any) => x.id === J && x.status === "notfound"));
+
 await db.end();
 await server.shutdown();
 console.log(fails ? `\n${fails} FAILED` : "\nALL PASSED");
