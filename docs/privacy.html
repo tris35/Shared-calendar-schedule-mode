@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy Policy · Shared Calendar</title>
+  <style>
+    :root { --bg: #f6f7f5; --fg: #1f2a22; --muted: #5e6a62; --card: #fff; --line: #dde3dc; --accent: #2f7a4b; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #121614; --fg: #e6ece7; --muted: #9aa69f; --card: #1b211d; --line: #2e3832; --accent: #6cbf86; } }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 32px max(16px, env(safe-area-inset-left)) 48px max(16px, env(safe-area-inset-right)); }
+    h1 { font-size: 28px; margin: 0 0 4px; }
+    h2 { font-size: 18px; margin: 28px 0 6px; }
+    p, li { color: var(--fg); }
+    .muted { color: var(--muted); font-size: 14px; }
+    section.lang { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 8px 22px 18px; margin-top: 24px; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Privacy Policy</h1>
+  <p class="muted">Shared Calendar · Last updated: 21 November 2026</p>
+
+  <section class="lang" lang="en">
+    <h2>What this app is</h2>
+    <p>Shared Calendar is a private calendar for a family or small team. Members share events, comments and photos, and can optionally sync events to their own Google Calendar.</p>
+    <h2>What we store</h2>
+    <ul>
+      <li>Your account: Gmail address, name, language and a hashed password (we never store your password in plain text).</li>
+      <li>Content you add: events, comments and photos, with the name of the person who posted them.</li>
+    </ul>
+    <h2>Google Calendar access</h2>
+    <p>If you choose “Connect Google Calendar”, you sign in with Google and allow the app to manage calendars. The app only uses this access to create one calendar named “Shared Calendar” in your account and to add, update and delete the events that come from this app. It does not read, change or share your other calendars or events. We store a Google access token only to keep your calendar in sync.</p>
+    <p>The app’s use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+    <h2>Sharing</h2>
+    <p>Your data is visible only to people who log in to this app. We do not sell your data, show ads, or share it with anyone else. Data is stored with our hosting providers (Supabase for data and photos, GitHub Pages for the web page).</p>
+    <h2>Removing your data</h2>
+    <p>You can disconnect Google Calendar at any time in Settings, or remove access at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. To delete your account and data, contact the app owner.</p>
+  </section>
+
+  <section class="lang" lang="zh-CN">
+    <h2>隐私权政策（中文）</h2>
+    <p>「共享日历」是给家人或小团队使用的私人日历，成员可以分享行程、留言和照片，也可以选择同步到自己的 Google 日历。</p>
+    <p><b>我们保存：</b>你的 Gmail 地址、名字、语言和加密过的密码；你新增的行程、留言、照片，以及发布者的名字。</p>
+    <p><b>Google 日历：</b>只有你按「连接 Google 日历」并同意后，App 才会在你的 Google 帐号建立一个名为「共享日历」的日历，并只新增、更新、删除来自本 App 的行程。不会读取、修改或分享你其他的日历或行程。</p>
+    <p><b>分享：</b>资料只给登录本 App 的人看，不出售、不放广告、不提供给其他人。资料和照片存放在 Supabase，网页放在 GitHub Pages。</p>
+    <p><b>删除：</b>可随时在「设置」取消连接 Google 日历，或到 myaccount.google.com/permissions 移除授权。要删除帐号和资料，请联系 App 管理员。</p>
+  </section>
+
+  <p class="muted" style="margin-top:24px"><a href="/">← Back to Shared Calendar</a></p>
+</main>
+</body>
+</html>

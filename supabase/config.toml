@@ -1,0 +1,4 @@
+# Supabase 项目设定（只用到后端函数）
+[functions.api]
+# App 用自己的登录（Gmail + 密码），不用 Supabase 的登录，所以关掉 JWT 检查
+verify_jwt = false
