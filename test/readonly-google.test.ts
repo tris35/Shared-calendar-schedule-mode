@@ -1,4 +1,4 @@
-// Schedule Mode：只从 Google 读，不写回 Google；行程用 Google 日历的颜色
+// 双向同步（和原本一样）：App 的行程会写进 Google；行程用 Google 日历的颜色
 // TEST_DB_URL=postgres://... deno run -A --config supabase/functions/api/deno.json test/readonly-google.test.ts
 import pg from "pg";
 const PORT = 9101;
@@ -28,7 +28,7 @@ const check = (n: string, ok: boolean, got?: unknown) => { console.log(`${ok ? "
 
 const r = await g.syncEvent(id, "http://x");
 await g.deleteGoogleEvents([{ user_id: 1, google_event_id: "g1", calendar_id: "a@x.com" }]);
-check("edit/delete in app → nothing written to Google", (r as any).skipped === true && writes.length === 0, { r, writes });
+check("app event → written to Google (two-way, like the original)", !(r as any).skipped && writes.some((w) => w.startsWith("PATCH") || w.startsWith("POST")), { r, writes });
 
 await dbm.upsertGoogleCal(1, "a@x.com", "A", "#9fc6e7");
 await dbm.applyCalendarColors(1);

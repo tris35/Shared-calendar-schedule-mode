@@ -908,15 +908,20 @@ body.viewer #detailMenuBtn, body.viewer #deleteEventBtn, body.viewer #editEventB
 .sc-missing .sc-row { margin: 0; }
 .sc-missing input { flex: 1; min-width: 160px; }
 
-/* 月历：每星期一行，跨天行程是一条横跨的长条（和 Google 日历一样） */
+/* 月历：每星期一行，跨天行程是一条横跨的长条（排法和 Google 日历一样：日期置中、每条一样高、实心颜色、跨星期两端是箭头） */
 .month-grid { display: flex; flex-direction: column; gap: 1px; }
-.week-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: 26px repeat(3, 15px) 13px; row-gap: 2px; column-gap: 1px; min-height: 62px; }
-.week-row .day { grid-row: 1 / -1; min-height: 0; }
-.week-row .chip.bar { z-index: 1; pointer-events: none; margin: 0 2px; background: var(--c); align-self: center; }
-.week-row .chip.bar.cl { margin-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
-.week-row .chip.bar.cr { margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.week-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: 30px repeat(2, 22px) 24px; row-gap: 4px; column-gap: 1px; background: var(--grid); }
+.week-row .day { grid-row: 1 / -1; min-height: 0; padding: 4px 0 0; align-items: center; }
+.week-row .day .num { margin: 0 auto; }
+.week-row .chip.bar {
+  z-index: 1; pointer-events: none; margin: 0 4px; height: 22px; line-height: 22px; padding: 0 8px;
+  font-size: 12.5px; font-weight: 500; border-radius: 6px; box-shadow: none; background: var(--c); color: #1d2740;
+}
+.week-row .chip.bar.cl { margin-left: 0; padding-left: 14px; border-top-left-radius: 0; border-bottom-left-radius: 0; clip-path: polygon(8px 0, 100% 0, 100% 100%, 8px 100%, 0 50%); }
+.week-row .chip.bar.cr { margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%); }
+.week-row .chip.bar.cl.cr { clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%); }
 .week-row .chip.bar.other { opacity: .45; }
-.week-row .more { z-index: 1; pointer-events: none; align-self: center; line-height: 1; }
+.week-row .more { z-index: 1; pointer-events: none; align-self: center; padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--text); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 点日期的视窗：全天行程和时间轴在同一个滑动区（不会只剩一小块要滑） */
 .dd-scroll { flex: 1; overflow-y: auto; min-height: 0; border-radius: 0 0 12px 12px; }

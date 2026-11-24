@@ -33,7 +33,7 @@ await db.query("INSERT INTO google_links (user_id, gmail, refresh_token, calenda
 // 以前用旧方式读进来的：重复行程只有一笔（master）
 await db.query("INSERT INTO google_calendars (user_id, calendar_id, name, enabled, sync_token) VALUES (1,'a@x.com','A',TRUE,'OLDTOKEN')");
 const old = (await db.query("INSERT INTO events (title, start, all_day, calendar_id) VALUES ('Meera off day', '2026-11-23T16:00:00Z', TRUE, 1) RETURNING id")).rows[0].id;
-await db.query("INSERT INTO event_google (event_id, user_id, google_event_id, calendar_id, etag) VALUES ($1,1,'r1','a@x.com','0')", [old]);
+await db.query("INSERT INTO event_google (event_id, user_id, google_event_id, calendar_id, etag, synced_at) VALUES ($1,1,'r1','a@x.com','0',NOW())", [old]);
 
 mainItems = [
   { id: "r1_20261124", recurringEventId: "r1", summary: "Meera off day", start: { date: "2026-11-24" }, end: { date: "2026-11-25" }, etag: "1" },
@@ -74,7 +74,18 @@ check("time up → remembers next page", r2.done === false || /PAGE2$/.test(tok)
 await pull();
 t = await titles();
 check("next time continues from page 2, both pages imported", t.includes("拍摄 1") && t.includes("拍摄 2") && calls.some((c) => c.q.get("pageToken") === "PAGE2"), t);
-check("nothing written to Google", writes.length === 0, writes);
+check("reading from Google does not write anything back (only one person connected)", writes.length === 0, writes);
+
+// 连接 Google 之前在 App 建的行程 → 按「同步」后写进 Google；之后读回来不会重复
+await db.query("UPDATE google_calendars SET enabled = FALSE WHERE calendar_id LIKE 'aaa%'");
+const appEv = (await db.query("INSERT INTO events (title, start, calendar_id) VALUES ('建在 App 的行程', NOW() + interval '2 day', 1) RETURNING id")).rows[0].id;
+const sr: any = await g.syncEvent(appEv, "http://x");
+check("app event written to Google", sr.ok && writes.some((w) => w.startsWith("PATCH") || w.startsWith("POST")), { sr, writes });
+const gid = (await db.query("SELECT google_event_id FROM event_google WHERE event_id = $1", [appEv])).rows[0].google_event_id;
+mainItems.push({ id: gid, summary: "建在 App 的行程", start: { dateTime: new Date(Date.now() + 2 * 86400_000).toISOString() }, etag: "x", extendedProperties: { private: { familyCalendarId: String(appEv) } } });
+await pull();
+t = await titles();
+check("read back from Google → not duplicated", t.filter((x) => x === "建在 App 的行程").length === 1, t);
 
 await db.end(); await server.shutdown();
 console.log(fails ? `${fails} FAILED` : "ALL PASSED"); Deno.exit(fails ? 1 : 0);

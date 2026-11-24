@@ -267,8 +267,8 @@ async function syncOne(l: Link, e: any, body: any, s: Settings) {
   }
 }
 
-// Schedule Mode：只从 Google 日历读进来，绝不写回 Google（新增、修改、删除都不会改到 Google 日历）
-export const WRITE_TO_GOOGLE = false;
+// 双向同步（和原本的 Shared Calendar 一样）：App 的新增、修改、删除会写进 Google 日历
+export const WRITE_TO_GOOGLE = true;
 
 /** 把一个行程写入/更新到每个已连接的人的 Google 日历（onlyUserId：只同步某个人） */
 export async function syncEvent(eventId: number, siteUrl: string, onlyUserId?: number, exceptUserId?: number) {
@@ -511,13 +511,8 @@ async function pullCalendar(ctx: any, cal: any) {
   const calId: string = cal.calendar_id;
   const tz = ctx.settings.timezone;
   const saved: string = cal.sync_token || "";
-  if (saved && !saved.startsWith(W)) {
-    // 以前的读法（从最早的历史开始、重复行程只读第一次）→ 清掉这本日历读进来的行程（只清 App，Google 不动），重新读
-    for (const { event_id } of await db.eventsFromCalendar(userId, calId)) {
-      const photos = await db.listPhotos(event_id);
-      if (await db.deleteEvent(event_id)) for (const p of photos) await deletePhotoData(p.blob_key);
-    }
-  }
+  const ownPrefix = googleIdFor(0, userId, ctx.settings.secret).slice(0, -1); // App 写进 Google 的活动 ID 开头
+  // 以前的读法读进来、但 Google 上已经不是这样的（例如重复行程只有第一次）→ 这一轮读完后会自动拿掉，不用先清空
   const parts = saved.startsWith(W) ? saved.slice(W.length).split("|") : [];
   const resume = parts.length === 2 && parts[1] !== "";
   const passStart = resume ? Number(parts[0]) : Date.now();
@@ -547,13 +542,21 @@ async function pullCalendar(ctx: any, cal: any) {
         for (const k of ["title", "start", "end", "label"]) if ((g as any)[k] !== (cur as any)[k] && !(g[k] == null && cur[k] == null)) diff[k] = (g as any)[k];
         if (g.all_day !== !!cur.all_day) diff.all_day = g.all_day;
         await db.setEventGoogle(map.event_id, userId, { google_event_id: ev.id, calendar_id: calId, etag: ev.etag });
-        if (Object.keys(diff).length) { await db.updateEvent(map.event_id, diff, who); ctx.updated++; }
+        if (Object.keys(diff).length) { await db.updateEvent(map.event_id, diff, who); ctx.touched.add(map.event_id); ctx.updated++; }
+        continue;
+      }
+      // 本来就是 App 写进 Google 的行程，只是对应不见了 → 接回去（不重复建立）
+      const own = ev.extendedProperties?.private?.familyCalendarId;
+      if (own && String(ev.id).startsWith(ownPrefix) && (await db.getEvent(Number(own)))) {
+        await db.setEventGoogle(Number(own), userId, { google_event_id: ev.id, calendar_id: calId, etag: ev.etag });
+        known.set(ev.id, { event_id: Number(own), etag: ev.etag });
         continue;
       }
       // 没有对应：是在 Google 新增的 → 放进他选的 App 日历
       const e = await db.createEvent({ ...fromGoogle(ev, tz, true), remind: true, calendar_id: l.app_calendar_id }, who);
       await db.setEventGoogle(e.id, userId, { google_event_id: ev.id, calendar_id: calId, etag: ev.etag });
       known.set(ev.id, { event_id: e.id, etag: ev.etag });
+      ctx.createdIds.add(e.id);
       ctx.created++;
     }
     await db.markGoogleSeen(userId, calId, seen);
@@ -564,8 +567,15 @@ async function pullCalendar(ctx: any, cal: any) {
     }
     // 这一轮读完：这段时间里 Google 已经没有的（被删掉、移到别的时间、换到别的日历）→ 从 App 拿掉
     for (const { event_id } of await db.unseenGoogleEvents(userId, calId, new Date(passStart), timeMin, timeMax)) {
+      // 在 Google 删除了 → App 也删除，并删掉其他人 Google 日历里的那一笔（和原本一样）
+      const others = (await db.listEventGoogle(event_id)).filter((m: any) => m.user_id !== userId);
       const photos = await db.listPhotos(event_id);
-      if (await db.deleteEvent(event_id)) { for (const p of photos) await deletePhotoData(p.blob_key); ctx.deleted++; }
+      if (await db.deleteEvent(event_id)) {
+        for (const p of photos) await deletePhotoData(p.blob_key);
+        await deleteGoogleEvents(others as any);
+        ctx.touched.delete(event_id); ctx.createdIds.delete(event_id);
+        ctx.deleted++;
+      }
     }
     await db.setCalSync(userId, calId, `${W}${passStart}|`);
     return true;

@@ -1,5 +1,5 @@
 // ===================== Shared Calendar / 共享日历 =====================
-import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=107";
+import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=109";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -230,8 +230,8 @@ function eventsByDay() {
   for (const e of state.events) for (const k of eventDays(e)) (map[k] ||= []).push(e);
   return map;
 }
-// 月历：每星期一行；跨好几天的行程画成一条横跨的长条（和 Google 日历一样），每天最多 3 条，其他的显示「+N」
-const MONTH_LANES = 3;
+// 月历：每星期一行；跨好几天的行程画成一条横跨的长条（和 Google 日历一样），每天最多 2 条，其他的显示「还有 N 个」
+const MONTH_LANES = 2;
 function renderMonth() {
   if (state.view === "calendar") $("#title").textContent = monthTitle();
   const todayK = dayKey(new Date()), selK = dayKey(state.selected);
@@ -266,7 +266,7 @@ function renderMonth() {
         k === selK && "selected", d.getDay() === 0 && "sun", d.getDay() === 6 && "sat"].filter(Boolean).join(" ");
       return `<div class="${cls}" data-day="${k}" style="grid-column:${i + 1}"><span class="num">${d.getDate()}</span></div>`;
     }).join("");
-    const moreHtml = more.map((n, i) => (n ? `<div class="more" style="grid-column:${i + 1};grid-row:${MONTH_LANES + 2}">+${n}</div>` : "")).join("");
+    const moreHtml = more.map((n, i) => (n ? `<div class="more" style="grid-column:${i + 1};grid-row:${MONTH_LANES + 2}">${esc(t("month_more", { n }))}</div>` : "")).join("");
     html += `<div class="week-row">${cells}${bars}${moreHtml}</div>`;
   }
   $("#monthGrid").innerHTML = html;
@@ -1460,21 +1460,26 @@ $("#syncCalBtn").onclick = async () => {
   btn.disabled = false;
 };
 
-// 「立即同步」：从 Google 重新读（只读，不会写进 Google）。大日历会分好几次读，一直读到完
+// 「立即同步全部行程」：双向 —— 1) 从 Google 读进来（大日历会分好几次，一直读到完）
+// 2) 把 App 里还没在 Google 的行程（例如连接 Google 之前建的）写进 Google
 $("#gSyncAllBtn").onclick = async () => {
   const btn = $("#gSyncAllBtn"), out = $("#gSyncResult");
   btn.disabled = true; out.classList.remove("warn");
-  let created = 0, updated = 0, deleted = 0;
+  let created = 0, updated = 0;
   try {
     for (let i = 0; i < 200; i++) {
       out.textContent = t("g_pull_progress", { n: created + updated });
       const r = await api("/api/google/pull", { method: "POST", body: { force: true } });
       if (r.error) throw new Error(r.error);
       if (r.skipped) { await new Promise((ok) => setTimeout(ok, 1500)); continue; } // 另一个读取正在跑，等一下
-      created += r.created || 0; updated += r.updated || 0; deleted += r.deleted || 0;
+      created += r.created || 0; updated += r.updated || 0;
       if (r.done) break;
     }
-    out.textContent = t("g_pull_done", { created, updated, deleted });
+    out.textContent = t("g_syncing");
+    let r = { ok: 0, total: 0, failed: 0, lastError: "", done: true };
+    for (let i = 0; i < 30; i++) { r = await api("/api/google/sync-all", { method: "POST", body: {} }); if (r.done) break; }
+    out.textContent = t("g_sync_result", { ok: r.ok, total: r.total }) + (r.failed ? t("g_sync_failed_part", { failed: r.failed, error: r.lastError }) : "") + (r.done ? "" : t("g_sync_more"));
+    if (r.failed) out.classList.add("warn");
     await loadMonth();
   } catch (e) { out.textContent = t("g_sync_fail", { error: e.message }); out.classList.add("warn"); }
   btn.disabled = false;

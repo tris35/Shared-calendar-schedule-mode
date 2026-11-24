@@ -325,18 +325,23 @@ export async function findEventGoogle(userId: number, googleEventId: string, cal
 }
 
 /** 这本 Google 日历读进来的所有行程（google 活动 ID → App 行程） */
+// 旧的对应可能没有记 calendar_id（= 主日历）
 export async function listCalMappings(userId: number, calendarId: string) {
-  return sql`SELECT event_id, google_event_id, etag FROM event_google WHERE user_id = ${userId} AND calendar_id = ${calendarId}`;
+  return sql`SELECT event_id, google_event_id, etag FROM event_google WHERE user_id = ${userId}
+    AND COALESCE(calendar_id, (SELECT calendar_id FROM google_links WHERE user_id = ${userId})) = ${calendarId}`;
 }
 /** 这一轮在 Google 上还看得到的活动 */
 export async function markGoogleSeen(userId: number, calendarId: string, ids: string[]) {
   if (!ids.length) return;
-  await sql`UPDATE event_google SET seen_at = NOW() WHERE user_id = ${userId} AND calendar_id = ${calendarId} AND google_event_id = ANY(${ids})`;
+  await sql`UPDATE event_google SET seen_at = NOW() WHERE user_id = ${userId} AND google_event_id = ANY(${ids})
+    AND COALESCE(calendar_id, (SELECT calendar_id FROM google_links WHERE user_id = ${userId})) = ${calendarId}`;
 }
 /** 这一轮读完，这段时间里没再看到的（Google 已经没有了） */
 export async function unseenGoogleEvents(userId: number, calendarId: string, passStart: Date, from: string, to: string) {
   return sql`SELECT eg.event_id FROM event_google eg JOIN events e ON e.id = eg.event_id
-    WHERE eg.user_id = ${userId} AND eg.calendar_id = ${calendarId}
+    WHERE eg.user_id = ${userId}
+      AND COALESCE(eg.calendar_id, (SELECT calendar_id FROM google_links WHERE user_id = ${userId})) = ${calendarId}
+      AND eg.synced_at IS NOT NULL AND eg.error IS NULL -- 还没成功写进 Google 的 App 行程不算
       AND COALESCE(eg.seen_at, 'epoch') < ${passStart.toISOString()}
       AND e.start >= ${from} AND e.start < ${to}`;
 }
