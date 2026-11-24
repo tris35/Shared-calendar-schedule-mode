@@ -1,5 +1,5 @@
 // ===================== Shared Calendar / 共享日历 =====================
-import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=110";
+import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=111";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -237,7 +237,10 @@ function renderMonth() {
   const todayK = dayKey(new Date()), selK = dayKey(state.selected);
   const spans = state.events.map((e) => ({ e, days: eventDays(e) }));
   let html = "";
-  for (let w = 0; w < 6; w++) {
+  // 只画这个月需要的星期：画到有 30 / 31 号的那一周就停
+  const lastDay = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0);
+  const weeks = Math.ceil((Math.round((lastDay - state.gridStart) / 86400000) + 1) / 7);
+  for (let w = 0; w < weeks; w++) {
     const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(state.gridStart); d.setDate(d.getDate() + w * 7 + i); return d; });
     const keys = dates.map(dayKey), col = new Map(keys.map((k, i) => [k, i]));
     // 这星期里每个行程占哪几天
