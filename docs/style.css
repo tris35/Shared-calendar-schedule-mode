@@ -920,10 +920,19 @@ body.viewer #detailMenuBtn, body.viewer #deleteEventBtn, body.viewer #editEventB
 .week-row .chip.bar.cl { margin-left: 0; padding-left: 14px; border-top-left-radius: 0; border-bottom-left-radius: 0; clip-path: polygon(8px 0, 100% 0, 100% 100%, 8px 100%, 0 50%); }
 .week-row .chip.bar.cr { margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%); }
 .week-row .chip.bar.cl.cr { clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%); }
-.week-row .chip.bar.other { opacity: .45; }
 .week-row .more { z-index: 1; pointer-events: none; align-self: center; padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--text); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 点日期的视窗：全天行程和时间轴在同一个滑动区（不会只剩一小块要滑） */
 .dd-scroll { flex: 1; overflow-y: auto; min-height: 0; border-radius: 0 0 12px 12px; }
 .dd-scroll .dd-hours { flex: none; overflow: visible; }
 .dd-scroll .dd-allday { position: relative; }
+/* 全部白色底（和 Google 一样）：下个月的日子、今天、周末都不另外上色；今天只有日期的圆圈 */
+.week-row .day, .week-row .day.sun, .week-row .day.sat, .week-row .day.other, .week-row .day.today { background: var(--cell); }
+.week-row .day.other .num { opacity: .55; }
+.week-row .day.other > * { opacity: 1; }
+.week-row .day.other .num { color: var(--muted); }
+/* 日子之间的细线（0.5pt，和 Google 一样） */
+.month-grid { gap: 0; background: var(--cell); }
+.week-row { column-gap: 0; background: var(--cell); border-bottom: 0.5px solid var(--grid); }
+.week-row .day { border-right: 0.5px solid var(--grid); }
+.week-row .day:nth-child(7) { border-right: 0; }
