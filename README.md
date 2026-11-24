@@ -115,8 +115,8 @@ Backend URL: `https://<project>.supabase.co/functions/v1/api/...`
 2. Install the Supabase CLI, then:
    ```bash
    supabase link --project-ref <project-id>
-   supabase db push
-   supabase functions deploy api --use-api
+   supabase db push --remote
+   supabase functions deploy api --use-api --no-verify-jwt
    supabase secrets set APP_URL=https://<github-user>.github.io/<repo-name>
    ```
 3. In `docs/config.js`, set `apiBase` to `https://<project-id>.supabase.co/functions/v1`.
