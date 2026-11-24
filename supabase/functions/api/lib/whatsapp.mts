@@ -30,15 +30,22 @@ export function waConfig() {
   };
 }
 
-/** 012-345 6789 → 60123456789（没写国码就加上默认国码，马来西亚 60） */
+/**
+ * 任何国家的电话 → WhatsApp 格式（国码 + 号码，只有数字）
+ *   +65 9123 4567 / 0065 9123 4567 / 6591234567 → 6591234567（有国码：原样）
+ *   012-345 6789 → 60123456789（0 开头 = 本地号码，加上默认国码 cc，马来西亚 60）
+ *   11-5660 4342 → 601156604342（马来西亚手机少了前面的 0）
+ */
 export function normPhone(raw: string, cc = "60") {
   const s = String(raw || "").trim();
   let d = s.replace(/\D/g, "");
   if (!d) return "";
   if (s.startsWith("+")) { /* 已有国码 */ }
-  else if (d.startsWith("00")) d = d.slice(2);
-  else if (d.startsWith("0")) d = cc + d.slice(1);
-  else if (!d.startsWith(cc)) d = cc + d;
+  else if (d.startsWith("00")) d = d.slice(2);                          // 00 + 国码
+  else if (d.startsWith("0")) d = cc + d.slice(1);                      // 本地号码
+  else if (cc === "60" && /^1\d{8,9}$/.test(d)) d = cc + d;             // 马来西亚手机少了 0
+  else if (d.length <= 8) d = cc + d;                                   // 太短：当成本地号码
+  // 其他（10 位以上、不是 0 开头）：当成已经有国码，例如 6591234567、447911123456、8613800138000
   return d.length >= 8 && d.length <= 15 ? d : "";
 }
 
@@ -51,7 +58,7 @@ export async function customerText(e: any, settings?: any) {
   return flattenNote([title, fillText(e.customer_note || "", e, tz)].filter((x) => x.trim()).join("\n")); // 发出去的 = 行程标题 + 行程里写的讯息
 }
 /** 自动从通讯录填的提醒不加行程标题（标题里有员工名字等内部资料） */
-const showTitle = (e: any) => e.customer_source !== "auto";
+const showTitle = (e: any) => e.customer_source !== "auto" && e.customer_source !== "typed";
 /** {name} {date} {time} {booking} {title} → 这个行程的资料（中文格式：11月25日 周二、下午3:30） */
 export function fillText(text: string, e: any, tz: string) {
   const d = new Date(e.start);
@@ -151,7 +158,7 @@ export async function sendCustomerMessage(eventId: number, opts: { force?: boole
   if (!c) throw new Error("WhatsApp 还没设定");
   const e: any = await db.getEvent(eventId);
   if (!e) throw new Error("找不到");
-  if (e.customer_source === "auto") { // 所有自动提醒都用「WhatsApp 提醒」页签现在的讯息
+  if (e.customer_source === "auto" || e.customer_source === "typed") { // 所有自动提醒都用「WhatsApp 提醒」页签现在的讯息
     const s = await getSettings();
     e.customer_note = s.schedule?.text || e.customer_note;
   }

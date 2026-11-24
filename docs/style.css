@@ -900,3 +900,10 @@ body.viewer #detailMenuBtn, body.viewer #deleteEventBtn, body.viewer #editEventB
 .sched-card textarea { width: 100%; box-sizing: border-box; }
 .sched-card .sc-tip { color: var(--muted, #6b7280); font-size: 0.85em; margin: 0 0 10px; }
 .sched-card #scTestPhone { flex: 1; min-width: 160px; }
+.sc-missing { list-style: none; padding: 0; margin: 0 0 18px; display: grid; gap: 12px; }
+.sc-missing li { border: 1px solid var(--line, #e3e8f2); border-radius: 12px; padding: 10px 12px; }
+.sc-missing .sc-ev { margin-bottom: 8px; }
+.sc-missing .s { font-size: 0.9em; color: var(--muted, #6b7280); }
+.sc-missing .s.warn { color: #c0392b; }
+.sc-missing .sc-row { margin: 0; }
+.sc-missing input { flex: 1; min-width: 160px; }

@@ -127,7 +127,7 @@ export async function scheduleOverview(sendTimeFor: (e: any, tz: string) => Date
     else if (!e.customer_auto) status = "off";
     else status = s.schedule?.preview !== false ? "preview" : "scheduled";
     out.push({
-      id: e.id, booking, title: e.title, start: e.start, all_day: !!e.all_day,
+      id: e.id, calendar_id: e.calendar_id, booking, title: e.title, start: e.start, all_day: !!e.all_day,
       phone: e.customer_phone || null, name: e.customer_name || null, source: e.customer_source || null,
       contacts: e.customer_lookup_detail || null, status, error: e.customer_error || null,
       sent_at: e.customer_sent_at, send_at: sendTimeFor(e, s.timezone).toISOString(),

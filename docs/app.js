@@ -1,5 +1,5 @@
 // ===================== Shared Calendar / 共享日历 =====================
-import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=101";
+import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=102";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1131,7 +1131,31 @@ async function loadSchedule() {
     $("#scHour").value = String(d.sendHour);
     if (document.activeElement !== $("#scText")) $("#scText").value = d.text || "";
   } catch (e) { toast(e.message); }
+  loadMissing();
 }
+// 通讯录找不到电话（或有多个联络人、发送失败）的行程：在这里直接输入电话
+async function loadMissing() {
+  let items = [];
+  try { items = (await api("/api/schedule/list")).filter((x) => ["notfound", "multiple", "failed"].includes(x.status)); } catch {}
+  $("#scMissingBox").hidden = !items.length;
+  $("#scMissing").innerHTML = items.map((x) => {
+    const when = x.all_day ? new Date(x.start).toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" }) : fmtDateTime(x.start);
+    const why = x.status === "multiple" ? t("sc_why_multiple", { names: x.contacts || "" }) : x.status === "failed" ? t("sc_why_failed", { error: x.error || "" }) : "";
+    return `<li data-id="${x.id}">
+      <div class="sc-ev"><b>${esc(x.booking)}</b> <span class="muted">${esc(when)}</span><div class="s">${esc(x.title)}</div>${why ? `<div class="s warn">${esc(why)}</div>` : ""}</div>
+      <div class="sc-row"><input type="tel" inputmode="tel" autocomplete="off" placeholder="+65 9123 4567 / 012-345 6789" value="${esc(x.phone || "")}" />
+        <button type="button" class="btn primary small" data-sc-phone="${x.id}">${esc(t("save"))}</button></div></li>`;
+  }).join("");
+}
+$("#scMissing").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-sc-phone]");
+  if (!btn) return;
+  const phone = btn.closest("li").querySelector("input").value.trim();
+  if (!phone) return;
+  btn.disabled = true;
+  try { await api("/api/schedule/phone", { method: "POST", body: { id: Number(btn.dataset.scPhone), phone } }); toast(t("saved")); await loadMissing(); }
+  catch (e) { toast(e.message); btn.disabled = false; }
+});
 async function saveSchedule(body, btn) {
   btn.disabled = true;
   try {

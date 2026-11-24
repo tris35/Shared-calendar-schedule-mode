@@ -10,6 +10,7 @@ const contacts = [
   { names: [{ displayName: "6895 A" }], phoneNumbers: [{ value: "013-111 1111" }] },          // 两个联络人都是 6895
   { names: [{ displayName: "6895 B" }], phoneNumbers: [{ value: "013-222 2222" }] },
   { names: [{ displayName: "Mum" }], phoneNumbers: [{ value: "019-000 0000" }] },
+  { names: [{ displayName: "8001 Tan (SG)" }], phoneNumbers: [{ value: "+65 9123 4567" }] },   // 外国号码
 ];
 const server = Deno.serve({ port: PORT, onListen() {} }, async (req) => {
   const u = new URL(req.url);
@@ -47,6 +48,7 @@ const C = await ev("6895 选片 Gibson", at("10:00"));
 const Dn = await ev("7030 PW", at("11:00"));
 const E = await ev("Meera off day", at("00:00"), true);
 const F = await ev("6238 PW", at("12:00"), false, "0199999999", "manual");
+const G = await ev("8001 PW Singapore", at("13:00"));
 
 const { autoFillUpcoming, scheduleOverview } = await import("../supabase/functions/api/lib/schedule.mts");
 const wa = await import("../supabase/functions/api/lib/whatsapp.mts");
@@ -58,7 +60,7 @@ const row = async (id: number) => (await db.query("SELECT * FROM events WHERE id
 
 // 1. 自动填
 const r = await autoFillUpcoming({ forceContacts: true });
-check("autofill result", r.filled === 2 && r.notFound === 1 && r.multiple === 1, r);
+check("autofill result", r.filled === 3 && r.notFound === 1 && r.multiple === 1, r);
 const a = await row(A), b = await row(B), c = await row(C), d = await row(Dn), e = await row(E), f = await row(F);
 check("6961 → phone 601156604342", a.customer_phone === "601156604342" && a.customer_source === "auto", a);
 check("6961 → no name (number only)", a.customer_name === null, a.customer_name);
@@ -67,6 +69,8 @@ check("6895 → multiple, not filled", c.customer_lookup === "multiple" && !c.cu
 check("7030 → notfound", d.customer_lookup === "notfound" && !d.customer_phone, d);
 check("off day → untouched", !e.customer_phone && !e.customer_lookup, e);
 check("manual phone → untouched", f.customer_phone === "0199999999" && f.customer_source === "manual", f);
+
+check("foreign contact +65 → 6591234567", (await row(G)).customer_phone === "6591234567" && (await row(G)).customer_name === "Tan SG", await row(G));
 
 // 2. 中文内容
 const s = await getSettings();
@@ -87,17 +91,18 @@ const nowMy = Number(new Date().toLocaleString("en-GB", { timeZone: tz, hour: "2
 const p = await wa.sendDueCustomerMessages();
 check("preview mode → nothing sent", (p as any).preview === true && sent.length === 0, { p, sent });
 const ov = await scheduleOverview((x: any, t: string) => wa.sendTimeFor(x, t, 14));
-check("overview statuses", JSON.stringify(ov.map((x: any) => [x.booking, x.status])) === JSON.stringify([["6895", "multiple"], ["7030", "notfound"], ["6238", "preview"], ["6961", "preview"], ["WM1902", "preview"]]) || ov.length === 5, ov.map((x: any) => [x.booking, x.status]));
+const st = Object.fromEntries(ov.map((x: any) => [x.booking, x.status]));
+check("overview statuses", st["6895"] === "multiple" && st["7030"] === "notfound" && st["6961"] === "preview" && st["8001"] === "preview" && ov.length === 6, st);
 
 // 5. 关掉预览 → 到时间的会发（现在 >= 下午 2 点才会发）
 await saveSettings({ schedule: { ...(s.schedule || {}), preview: false } });
 const res = await wa.sendDueCustomerMessages();
 if (nowMy >= 14) {
-  check("sent after 2pm (6961, WM1902, 6238 manual)", (res as any).sent === 3 && sent.length === 3, { res, n: sent.length });
+  check("sent after 2pm (6961, WM1902, 6238 manual, 8001)", (res as any).sent === 4 && sent.length === 4, { res, n: sent.length });
   const m = sent.find((x) => x.to === "601156604342");
   check("6961 message body: no internal title, Chinese", m && !m.text.body.includes("Sam & Ivy") && m.text.body.includes("6961"), m);
   const again = await wa.sendDueCustomerMessages();
-  check("not sent twice", (again as any).sent === 0 && sent.length === 3, again);
+  check("not sent twice", (again as any).sent === 0 && sent.length === 4, again);
 } else {
   check("before 2pm → nothing due yet", (res as any).sent === 0, res);
 }
@@ -111,7 +116,16 @@ check("auto event uses current message", sent.length === n0 + 1 && sent.at(-1).t
 const tr = await wa.sendTest("011-5660 4342", "测试 {booking} {date}");
 check("test send", tr.to === "601156604342" && sent.at(-1).text.body.startsWith("测试 6961 "), sent.at(-1));
 
-// 7. 员工改了电话 → 不再被通讯录覆盖
+// 7. 找不到电话 → 员工在 WhatsApp 提醒页签输入（外国号码），之后通讯录不会覆盖，用现在的讯息
+const dbm = await import("../supabase/functions/api/lib/db.mts");
+await dbm.setTypedPhone(Dn, wa.normPhone("+44 7911 123456"), "old");
+await autoFillUpcoming({ forceContacts: true });
+const d2 = await row(Dn);
+check("typed UK phone kept", d2.customer_phone === "447911123456" && d2.customer_source === "typed" && !d2.customer_lookup, d2);
+await wa.sendCustomerMessage(Dn, { force: true });
+check("typed event uses current message", sent.at(-1).to === "447911123456" && sent.at(-1).text.body === "新讯息 7030", sent.at(-1));
+
+// 8. 员工改了电话 → 不再被通讯录覆盖
 await db.query("UPDATE events SET customer_phone = '0177777777', customer_source = 'manual' WHERE id = $1", [B]);
 await autoFillUpcoming({ forceContacts: true });
 check("staff edit not overwritten", (await row(B)).customer_phone === "0177777777");

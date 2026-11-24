@@ -194,7 +194,7 @@ export async function findContactBookings(booking: string) {
 export async function upcomingForSchedule(days: number, withPast = false) {
   const from = withPast ? new Date(Date.now() - 86400_000) : new Date();
   const to = new Date(Date.now() + days * 86400_000);
-  const rows = await sql`SELECT id, title, start, all_day, customer_phone, customer_name, customer_note, customer_auto, customer_sent_at,
+  const rows = await sql`SELECT id, calendar_id, title, start, all_day, customer_phone, customer_name, customer_note, customer_auto, customer_sent_at,
       customer_error, customer_send_at, customer_source, customer_lookup, customer_lookup_detail
     FROM events WHERE start >= ${from.toISOString()} AND start < ${to.toISOString()} ORDER BY start`;
   return rows.map((e: any) => ({ ...e, start: iso(e.start), customer_sent_at: iso(e.customer_sent_at), customer_send_at: iso(e.customer_send_at) }));
@@ -208,9 +208,16 @@ export async function setAutoCustomer(id: number, c: { phone: string; name: stri
       customer_source = 'auto', customer_lookup = NULL, customer_lookup_detail = NULL
     WHERE id = ${id}`;
 }
+/** 「WhatsApp 提醒」页签：通讯录找不到电话 → 员工自己输入（之后通讯录不会覆盖） */
+export async function setTypedPhone(id: number, phone: string | null, note: string) {
+  await sql`UPDATE events SET customer_phone = ${clean(phone, 40)}, customer_note = ${clean(note, 2000)}, customer_auto = TRUE,
+      customer_source = ${phone ? "typed" : null}, customer_lookup = NULL, customer_lookup_detail = NULL,
+      customer_sent_at = NULL, customer_error = NULL
+    WHERE id = ${id}`;
+}
 /** 改了提醒内容 → 还没发出的自动提醒也一起换 */
 export async function updateAutoNotes(text: string) {
-  await sql`UPDATE events SET customer_note = ${clean(text, 2000)} WHERE customer_source = 'auto' AND customer_sent_at IS NULL AND start > NOW()`;
+  await sql`UPDATE events SET customer_note = ${clean(text, 2000)} WHERE customer_source IN ('auto', 'typed') AND customer_sent_at IS NULL AND start > NOW()`;
 }
 /** 找不到 / 找到多个联络人：清掉之前自动填的电话，记下原因 */
 export async function setCustomerLookup(id: number, status: string, detail: string | null) {

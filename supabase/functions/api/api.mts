@@ -9,7 +9,7 @@ import { getSettings, saveSettings, sign } from "./lib/settings.mts";
 import { chat, claudeEnabled } from "./lib/claude.mts";
 import { syncEvent, deleteGoogleEvents, authUrl, handleCallback, disconnect, clientCredentials, redirectUri, mainUrl, listGoogleCalendars, listSyncCalendars, setCalendarEnabled, switchSyncCalendar, retryFailedSyncs, pullFromGoogle, ensureWatch, pushTarget } from "./lib/gcal.mts";
 import { AuthError, signup, login, forgotPassword, resetPassword, currentUser, changePassword, publicUser, isAdmin, canWhatsApp, fixedAdmins } from "./lib/auth.mts";
-import { waConfig, sendCustomerMessage, sendTimeFor, waUsage, buildDigest, sendHourOf, isPreview, fillText, DEFAULT_SEND_HOUR, sendTest } from "./lib/whatsapp.mts";
+import { waConfig, sendCustomerMessage, sendTimeFor, waUsage, buildDigest, sendHourOf, isPreview, fillText, DEFAULT_SEND_HOUR, sendTest, normPhone } from "./lib/whatsapp.mts";
 import { autoFillUpcoming, scheduleOverview, refreshContacts, DEFAULT_TEXT } from "./lib/schedule.mts";
 import { tr, langFrom, normLang, LANG_CODES, desc } from "./lib/i18n.mts";
 
@@ -433,7 +433,23 @@ export async function handleApi(req: Request): Promise<Response> {
       }
       // 立即检查通讯录（不用等排程）
       if (seg[1] === "refresh" && method === "POST") { await refreshContacts(true); return Response.json(await autoFillUpcoming()); }
-      if (seg[1] === "list" && method === "GET") return Response.json(await scheduleOverview((e, tz) => sendTimeFor(e, tz, sendHourOf(s))));
+      // 找不到电话的行程（只看我能看到的日历）
+      if (seg[1] === "list" && method === "GET") {
+        const mine = new Set(myCals.map((c) => c.id));
+        const items = await scheduleOverview((e, tz) => sendTimeFor(e, tz, sendHourOf(s)));
+        return Response.json(items.filter((x: any) => mine.has(x.calendar_id)));
+      }
+      // 员工在这里输入电话（任何国家；空 = 清掉）
+      if (seg[1] === "phone" && method === "POST") {
+        mustEdit();
+        const b = await body();
+        await needEvent(Number(b.id), true);
+        const raw = String(b.phone || "").trim();
+        const phone = raw ? normPhone(raw, (Deno.env.get("WHATSAPP_COUNTRY_CODE") || "60").replace(/\D/g, "")) : "";
+        if (raw && !phone) throw new Error("电话号码不正确");
+        await db.setTypedPhone(Number(b.id), phone || null, sc.text || DEFAULT_TEXT);
+        return Response.json({ ok: true, phone });
+      }
     }
 
     // WhatsApp 这个月用了几则（所有人都看得到）
