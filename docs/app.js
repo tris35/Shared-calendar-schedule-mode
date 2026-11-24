@@ -1,5 +1,5 @@
 // ===================== Shared Calendar / 共享日历 =====================
-import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=112";
+import { LANGS, t, setLang, getLang, locale, applyI18n } from "./i18n.js?v=113";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1164,10 +1164,33 @@ async function loadSchedule() {
   } catch (e) { toast(e.message); }
   loadMissing();
 }
+// 明天要提醒的客户：按 WhatsApp → 打开 WhatsApp，电话和讯息都填好了，按「发送」就好（不用 Meta 注册）
+const waSentKey = (id) => `waSent:${id}:${dayKey(new Date())}`;
+function renderSendList(all) {
+  const tmr = new Date(); tmr.setDate(tmr.getDate() + 1);
+  const items = all.filter((x) => x.phone && dayKey(new Date(x.start)) === dayKey(tmr));
+  $("#scSendBox").hidden = !items.length;
+  $("#scSend").innerHTML = items.map((x) => {
+    const when = x.all_day ? t("all_day") : fmtTime(x.start);
+    const done = store.get(waSentKey(x.id)) === "1";
+    const href = `https://wa.me/${encodeURIComponent(x.phone)}?text=${encodeURIComponent(x.message || "")}`;
+    return `<li data-id="${x.id}"><div class="sc-ev"><b>${esc(x.booking)}</b> <span class="muted">${esc(when)}</span>${x.name ? ` · ${esc(x.name)}` : ""}
+        <div class="s">📞 ${esc(x.phone)}</div></div>
+      <div class="sc-row"><a class="btn ${done ? "" : "primary "}small sc-wa" href="${esc(href)}" target="_blank" rel="noopener" data-wa-id="${x.id}">${esc(done ? t("sc_wa_again") : t("sc_wa_send"))}</a>${done ? `<span class="muted">✅ ${esc(t("sc_wa_done"))}</span>` : ""}</div></li>`;
+  }).join("");
+}
+$("#scSend").addEventListener("click", (ev) => {
+  const a = ev.target.closest("[data-wa-id]");
+  if (!a) return;
+  store.set(waSentKey(a.dataset.waId), "1"); // 记住按过了（只在这台机器）
+  setTimeout(loadMissing, 500);
+});
 // 通讯录找不到电话（或有多个联络人、发送失败）的行程：在这里直接输入电话
 async function loadMissing() {
-  let items = [];
-  try { items = (await api("/api/schedule/list")).filter((x) => ["notfound", "multiple", "failed"].includes(x.status)); } catch {}
+  let all = [];
+  try { all = await api("/api/schedule/list"); } catch {}
+  renderSendList(all);
+  const items = all.filter((x) => ["notfound", "multiple", "failed"].includes(x.status));
   $("#scMissingBox").hidden = !items.length;
   $("#scMissing").innerHTML = items.map((x) => {
     const when = x.all_day ? new Date(x.start).toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" }) : fmtDateTime(x.start);

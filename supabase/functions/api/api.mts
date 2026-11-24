@@ -437,7 +437,10 @@ export async function handleApi(req: Request): Promise<Response> {
       if (seg[1] === "list" && method === "GET") {
         const mine = new Set(myCals.map((c) => c.id));
         const items = await scheduleOverview((e, tz) => sendTimeFor(e, tz, sendHourOf(s)));
-        return Response.json(items.filter((x: any) => mine.has(x.calendar_id)));
+        // 每个客户要收到的讯息（已经换好名字、日期、时间、编号）→ 网页用 WhatsApp 按钮直接发
+        const text = sc.text || DEFAULT_TEXT;
+        return Response.json(items.filter((x: any) => mine.has(x.calendar_id)).map((x: any) => ({
+          ...x, message: fillText(text, { title: x.title, start: x.start, all_day: x.all_day, customer_name: x.name }, s.timezone) })));
       }
       // 员工在这里输入电话（任何国家；空 = 清掉）
       if (seg[1] === "phone" && method === "POST") {

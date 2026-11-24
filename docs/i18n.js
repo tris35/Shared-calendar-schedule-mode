@@ -9,6 +9,7 @@ export const LANGS = [
 
 const D = {
   en: {
+    sc_send_title: "📤 Remind Tomorrow's Customers", sc_wa_send: "Send On WhatsApp", sc_wa_again: "Open Again", sc_wa_done: "Opened", 
     month_more: "{n} more", 
     g_pull_progress: "Reading from Google… {n} events so far", g_pull_done: "Done ✓ {created} new · {updated} changed · {deleted} removed", 
     sc_weekly: "Checked every 3 days for the next month · last: {time}", 
@@ -130,6 +131,7 @@ const D = {
   },
 
   zh: {
+    sc_send_title: "📤 明天要提醒的客户", sc_wa_send: "用 WhatsApp 发送", sc_wa_again: "再打开一次", sc_wa_done: "已打开", 
     month_more: "还有 {n} 个", 
     g_pull_progress: "正在从 Google 读取……已读 {n} 个行程", g_pull_done: "完成 ✓ 新增 {created} · 更新 {updated} · 删除 {deleted}", 
     sc_weekly: "每 3 天检查未来一个月 · 上次：{time}", 
@@ -244,6 +246,7 @@ const D = {
   },
 
   "zh-TW": {
+    sc_send_title: "📤 明天要提醒的客戶", sc_wa_send: "用 WhatsApp 發送", sc_wa_again: "再打開一次", sc_wa_done: "已打開", 
     month_more: "還有 {n} 個", 
     g_pull_progress: "正在從 Google 讀取……已讀 {n} 個行程", g_pull_done: "完成 ✓ 新增 {created} · 更新 {updated} · 刪除 {deleted}", 
     sc_weekly: "每 3 天檢查未來一個月 · 上次：{time}", 
@@ -358,6 +361,7 @@ const D = {
   },
 
   ms: {
+    sc_send_title: "📤 Ingatkan Pelanggan Esok", sc_wa_send: "Hantar Di WhatsApp", sc_wa_again: "Buka Semula", sc_wa_done: "Dibuka", 
     month_more: "{n} lagi", 
     g_pull_progress: "Membaca dari Google… {n} acara setakat ini", g_pull_done: "Selesai ✓ {created} baharu · {updated} berubah · {deleted} dibuang", 
     sc_weekly: "Disemak setiap 3 hari untuk sebulan akan datang · terakhir: {time}", 

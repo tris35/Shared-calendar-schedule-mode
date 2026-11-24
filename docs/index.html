@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>Shared Calendar Schedule Mode</title>
-  <link rel="stylesheet" href="style.css?v=112" />
+  <link rel="stylesheet" href="style.css?v=113" />
 </head>
 <body class="locked">
   <!-- 登录 / 注册（打开 App 前） -->
@@ -148,6 +148,10 @@
         <textarea id="scText" rows="5" maxlength="1000"></textarea>
         <p class="sc-tip" data-i18n="sc_tip"></p>
         <div class="sc-row"><button type="button" class="btn primary small" id="scTextSave" data-i18n="save"></button></div>
+        <div id="scSendBox" hidden>
+          <h3 data-i18n="sc_send_title"></h3>
+          <ul id="scSend" class="sc-missing"></ul>
+        </div>
         <div id="scMissingBox" hidden>
           <h3 data-i18n="sc_missing_title"></h3>
           <p class="sc-tip" id="scWeekly"></p>
@@ -599,8 +603,8 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="config.js?v=112"></script>
-  <script src="app.js?v=112" type="module"></script>
+  <script src="config.js?v=113"></script>
+  <script src="app.js?v=113" type="module"></script>
   <script>
     if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
   </script>

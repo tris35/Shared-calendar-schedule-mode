@@ -935,3 +935,4 @@ body.viewer #detailMenuBtn, body.viewer #deleteEventBtn, body.viewer #editEventB
 
 /* 月历下面的清单拿掉了：留空间给右下角的 ＋，最后一行不会被挡住 */
 #view-calendar { padding-bottom: 80px; }
+.sc-missing .sc-wa { text-decoration: none; }
