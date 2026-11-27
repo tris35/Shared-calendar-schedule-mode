@@ -105,18 +105,55 @@ async function api(path, opts = {}) {
 const photoUrl = (id) => `${API_BASE}/api/photos/${id}/file?t=${encodeURIComponent(token())}`;
 
 // ---------------- 声音、提示 ----------------
+// 每个声音：[频率, 开始(秒), 长度(秒), 波形, 音量]；noise = 快门一样的沙沙声
+const SOUNDS = {
+  note: [[880, 0, .3, "sine"], [1320, .11, .3, "sine"], [1760, .22, .35, "sine"]],
+  ok: [[660, 0, .25, "sine"], [990, .1, .3, "sine"]],
+  bad: [[440, 0, .25, "sine"], [330, .12, .3, "sine"]],
+  // 每个页面不同的声音
+  calendar: [[523, 0, .14, "sine", .2], [784, .07, .22, "sine", .18]],                       // 轻轻的「啵」
+  photo: [["noise", 0, .05, "", .22], ["noise", .09, .07, "", .16], [1800, 0, .03, "square", .05]], // 相机快门
+  sales: [[1319, 0, .08, "square", .07], [1976, .08, .45, "square", .07], [2637, .08, .4, "sine", .08]], // Ka-ching
+  rates: [[659, 0, .1, "triangle", .2], [880, .08, .1, "triangle", .2], [659, .16, .18, "triangle", .16]],
+  people: [[440, 0, .3, "sine", .14], [554, .06, .3, "sine", .14], [659, .12, .35, "sine", .14]],  // 和弦
+  activity: [[988, 0, .08, "sine", .16], [740, .08, .16, "sine", .14]],                        // 「滴」
+  gear: [[392, 0, .12, "triangle", .18], [523, .09, .2, "triangle", .16]],
+  // 新增活动成功：小号角
+  saved: [[523, 0, .12, "triangle", .18], [659, .1, .12, "triangle", .18], [784, .2, .12, "triangle", .18], [1047, .3, .45, "triangle", .2], [2093, .32, .5, "sine", .06], [1568, .44, .5, "sine", .06]],
+};
 let actx;
 function chime(kind = "note") {
   try {
     actx ||= new (window.AudioContext || window.webkitAudioContext)();
-    const notes = kind === "bad" ? [440, 330] : kind === "ok" ? [660, 990] : [880, 1320, 1760];
-    notes.forEach((f, i) => {
-      const o = actx.createOscillator(), g = actx.createGain(), at = actx.currentTime + i * 0.11;
-      o.type = "sine"; o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.18, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
-      o.connect(g).connect(actx.destination); o.start(at); o.stop(at + 0.4);
-    });
+    if (actx.state === "suspended") actx.resume();
+    for (const [f, start, len, type, vol = .18] of SOUNDS[kind] || SOUNDS.note) {
+      const at = actx.currentTime + start, g = actx.createGain();
+      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+      g.connect(actx.destination);
+      if (f === "noise") {
+        const buf = actx.createBuffer(1, Math.ceil(actx.sampleRate * len), actx.sampleRate), d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const src = actx.createBufferSource(), hp = actx.createBiquadFilter();
+        hp.type = "highpass"; hp.frequency.value = 2500; src.buffer = buf;
+        src.connect(hp).connect(g); src.start(at);
+      } else {
+        const o = actx.createOscillator(); o.type = type; o.frequency.value = f; o.connect(g); o.start(at); o.stop(at + len + .05);
+      }
+    }
   } catch {}
+}
+// 新增活动后：大大的「EVENT SAVED」+ 自己的 emoji + 星星
+function celebrate() {
+  chime("saved");
+  const w = document.createElement("div");
+  w.className = "saved-burst";
+  const bits = ["✨", "🎉", "💖", "⭐", "🎊", "✨", "💍", "🌸"];
+  w.innerHTML = Array.from({ length: 16 }, (_, i) => {
+    const a = (i / 16) * Math.PI * 2, r = 110 + Math.random() * 90;
+    return `<i style="--x:${Math.cos(a) * r}px;--y:${Math.sin(a) * r}px;animation-delay:${0.08 + Math.random() * 0.15}s">${bits[i % bits.length]}</i>`;
+  }).join("") + `<div class="sb-card">${avatar(state.me?.emoji, state.me?.color, "lg")}<b>EVENT SAVED</b><span>🎉</span></div>`;
+  document.body.append(w);
+  setTimeout(() => w.remove(), 1700);
 }
 function toast(msg, bad = false) {
   const el = document.createElement("div");
@@ -373,10 +410,11 @@ function renderApp() {
     </aside>
     <div class="main" id="main"></div></div>`;
   $(".side").addEventListener("click", (e) => { const b = e.target.closest("[data-nav]"); if (b) go(b.dataset.nav); });
-  $("#gear").addEventListener("click", openSettings);
+  $("#gear").addEventListener("click", () => { chime("gear"); openSettings(); });
   renderPage();
 }
 function go(page) {
+  chime(page);
   state.page = page;
   try { history.replaceState(null, "", "#" + page); } catch {}
   $$(".nav-btn").forEach((b) => (b.dataset.nav === page ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current")));
@@ -597,7 +635,8 @@ async function saveForm() {
   };
   try {
     const saved = await api(f.id ? `/api/events/${f.id}` : "/api/events", { method: f.id ? "PATCH" : "POST", body });
-    $("#dlg").close(); toast(t("saved")); chime("ok");
+    $("#dlg").close();
+    if (f.id) { toast(t("saved")); chime("ok"); } else celebrate();
     state.sel = f.date; state.cursor = f.date.slice(0, 7);
     if (state.page === "calendar") renderCalendar();
     if (f.id) openDetail(saved.id);
