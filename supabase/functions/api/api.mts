@@ -9,7 +9,7 @@ import * as dash from "./lib/dashboard.mts";
 import { getSettings, saveSettings, sign } from "./lib/settings.mts";
 import { chat, claudeEnabled } from "./lib/claude.mts";
 import { syncEvent, deleteGoogleEvents, authUrl, handleCallback, disconnect, clientCredentials, redirectUri, mainUrl, listGoogleCalendars, listSyncCalendars, setCalendarEnabled, switchSyncCalendar, retryFailedSyncs, pullFromGoogle, ensureWatch, pushTarget } from "./lib/gcal.mts";
-import { AuthError, signup, login, forgotPassword, resetPassword, currentUser, changePassword, publicUser, isAdmin, canWhatsApp, fixedAdmins } from "./lib/auth.mts";
+import { AuthError, signup, login, forgotPassword, resetPassword, currentUser, changePassword, publicUser, isAdmin, canWhatsApp, fixedAdmins, isTopAdmin, topAdminEmails } from "./lib/auth.mts";
 import { waConfig, sendCustomerMessage, sendTimeFor, waUsage, buildDigest, sendHourOf, isPreview, fillText, DEFAULT_SEND_HOUR, sendTest, normPhone } from "./lib/whatsapp.mts";
 import { autoFillUpcoming, scheduleOverview, refreshContacts, DEFAULT_TEXT } from "./lib/schedule.mts";
 import { tr, langFrom, normLang, LANG_CODES, desc } from "./lib/i18n.mts";
@@ -97,7 +97,14 @@ export async function handleApi(req: Request): Promise<Response> {
     const calId: number = cur.id;
     const templates = dash.calTemplates(cur), labelList = dash.calLabels(cur); // 这个日历的模板和标签
     const mustAdmin = () => { if (!isAdmin(me)) throw new HttpError(403, "只有管理员可以设定"); };
-    const adminIds = async () => (await db.activeUsers()).filter((u: any) => isAdmin(u)).map((u: any) => u.id);
+    const topIds = async () => (await db.activeUsers()).filter((u: any) => isTopAdmin(u)).map((u: any) => u.id);
+    // 把一些 Gmail 拿掉 Top Admin（取消 / 移除管理员 / 移除员工）：至少要留 1 位还在的 Top Admin
+    const dropTop = async (emails: string[]) => {
+      const left = topAdminEmails().filter((e) => !emails.includes(e));
+      const active = new Set((await db.activeUsers()).filter((u: any) => isAdmin(u)).map((u: any) => String(u.email).toLowerCase()));
+      if (!left.some((e) => active.has(e))) throw new Error("至少要有一位 Top Admin");
+      if (left.length !== topAdminEmails().length) await saveSettings({ topAdmins: left });
+    };
     const act = (action: string, title: string | null = null, eventId: number | null = null, cid: number | null = calId || null) => db.logActivity(cid, me.id, action, title, eventId);
     const tzOf = async () => (await getSettings()).timezone || "Asia/Kuala_Lumpur";
     // 生日：在每个日历用名字是「生日」的标签
@@ -481,6 +488,7 @@ export async function handleApi(req: Request): Promise<Response> {
         const u: any = await db.getUser(uid);
         if (!u || !(await db.listCalendarPeople(calId)).some((x: any) => x.id === uid)) notFound();
         if (fixedAdmins().includes(String(u.email).toLowerCase())) throw new Error("不能移除第一批管理员");
+        await dropTop([String(u.email).toLowerCase()]);
         // 停止他的 Google 同步（Google 日历上的内容不动）；以后的生日行程删掉
         await disconnect(uid).catch((e) => console.error(e));
         later(deleteGoogleEvents((await db.deleteFutureBirthdays(uid)) as any));
@@ -497,7 +505,7 @@ export async function handleApi(req: Request): Promise<Response> {
       if (method === "POST") {
         if (isAdmin(me)) return Response.json({ admin: true });
         const rid = await db.createAdminRequest(me.id);
-        if (rid) await db.notify(await adminIds(), "admin_request", `${me.name}（${me.email}）申请成为管理员`, `admin_request:${rid}`);
+        if (rid) await db.notify(await topIds(), "admin_request", `${me.name}（${me.email}）申请成为管理员`, `admin_request:${rid}`);
         return Response.json({ admin: false, request: await db.myAdminRequest(me.id) });
       }
     }
@@ -636,6 +644,7 @@ export async function handleApi(req: Request): Promise<Response> {
       // 申请成为管理员：批准 / 拒绝
       if (seg[1] === "requests" && !seg[2] && method === "GET") return Response.json(await db.listAdminRequests());
       if (seg[1] === "requests" && seg[2] && method === "POST") {
+        if (!isTopAdmin(me)) throw new HttpError(403, "只有 Top Admin 可以批准");
         const approve = !!(await body()).approve;
         const d: any = await db.decideAdminRequest(Number(seg[2]), approve, me.id);
         if (!d) notFound();
@@ -651,12 +660,23 @@ export async function handleApi(req: Request): Promise<Response> {
       // 管理员名单（第一批管理员不能移除）
       if (seg[1] === "list" && method === "GET") {
         return Response.json((await db.activeUsers()).filter((u: any) => isAdmin(u))
-          .map((u: any) => ({ id: u.id, name: u.name, email: u.email, emoji: u.emoji, color: u.color, fixed: fixedAdmins().includes(String(u.email).toLowerCase()) })));
+          .map((u: any) => ({ id: u.id, name: u.name, email: u.email, emoji: u.emoji, color: u.color, fixed: fixedAdmins().includes(String(u.email).toLowerCase()), top: isTopAdmin(u) })));
+      }
+      // 设定 / 取消 Top Admin（所有管理员都可以；至少要留 1 位）
+      if (seg[1] === "list" && seg[2] && seg[3] === "top" && method === "PUT") {
+        const u: any = await db.getUser(Number(seg[2]));
+        if (!u || !isAdmin(u)) notFound();
+        const email = String(u.email).toLowerCase();
+        if ((await body()).top) { if (!topAdminEmails().includes(email)) await saveSettings({ topAdmins: [...topAdminEmails(), email] }); }
+        else await dropTop([email]);
+        await act(isTopAdmin(u) ? "top_added" : "top_removed", u.name, null, null);
+        return Response.json({ ok: true });
       }
       if (seg[1] === "list" && seg[2] && method === "DELETE") {
         const u: any = await db.getUser(Number(seg[2]));
         if (!u) notFound();
         if (fixedAdmins().includes(String(u.email).toLowerCase())) throw new Error("不能移除第一批管理员");
+        await dropTop([String(u.email).toLowerCase()]);
         await saveSettings({ adminEmails: ((await getSettings()).adminEmails || []).filter((x) => x !== String(u.email).toLowerCase()) });
         return Response.json({ ok: true });
       }

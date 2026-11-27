@@ -55,7 +55,9 @@ const T = {
   a_calendar_created: ["{who} 建立了日历", "{who} created the calendar"],
   just_now: ["刚刚", "just now"], min_ago: ["{n} 分钟前", "{n} min ago"], hr_ago: ["{n} 小时前", "{n} h ago"],
   need_tpl: ["请选择模板", "Choose a template"], need_title: ["请填写标题", "Enter a title"], gmail_for_sync: ["要同步的 Gmail", "Gmail to sync"],
-  birthday_evt: ["生日", "Birthday"], fixed: ["固定", "Fixed"], connected_as: ["已连接：{g}", "Connected: {g}"],
+  birthday_evt: ["生日", "Birthday"], top_admin: ["Top Admin", "Top Admin"], make_top: ["设为 Top Admin", "Make Top Admin"], unmake_top: ["取消 Top Admin", "Remove Top Admin"],
+  a_top_added: ["{who} 把 {t} 设为 Top Admin", "{who} made {t} a Top Admin"], a_top_removed: ["{who} 取消了 {t} 的 Top Admin", "{who} removed {t} as Top Admin"],
+  approved: ["已批准", "Approved"], rejected: ["已拒绝", "Rejected"], fixed: ["固定", "Fixed"], connected_as: ["已连接：{g}", "Connected: {g}"],
 };
 let lang = LANGS[store.get("lang")] ? store.get("lang") : (navigator.language || "").startsWith("zh") ? "zh" : "en";
 const t = (k, v = {}) => String((T[k] || [k, k])[lang === "zh" ? 0 : 1]).replace(/\{(\w+)\}/g, (_, x) => esc(v[x] ?? ""));
@@ -148,6 +150,13 @@ const state = {
   notes: { items: [], unread: 0, seen: Number(store.get("notes-seen") || 0) },
 };
 const isAdmin = () => !!state.me?.admin;
+const isTop = () => !!state.me?.top;
+const reqIdOf = (n) => (n.kind === "admin_request" && /^admin_request:(\d+)$/.test(n.ref || "") ? Number(n.ref.split(":")[1]) : null);
+async function decide(id, approve) {
+  try { await api(`/api/admin/requests/${id}`, { method: "POST", body: { approve } }); toast(t(approve ? "approved" : "rejected")); chime("ok"); pollNotes(); return true; }
+  catch (e) { fail(e); return false; }
+}
+const clearPops = () => $$(".pop").forEach((x) => x.remove());
 const canEdit = () => state.config?.calendarRole !== "viewer";
 const labelHex = (color) => state.config?.labels?.[color]?.hex || "#3b82f6";
 const labelOf = (e) => (state.config?.labelList || []).find((l) => l.id === e.label_id);
@@ -398,7 +407,7 @@ async function renderCalendar() {
   const [y, m] = state.cursor.split("-").map(Number);
   const monthName = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(loc(), { year: "numeric", month: "long", timeZone: "UTC" });
   $("#main").innerHTML = topBar(t("nav_calendar"), canEdit() ? `<button class="btn" id="new-ev">${ICON.plus}${t("new_event")}</button>` : "") + `
-    <section class="page">
+    <section class="page wide">
       <button class="warn-bar" id="untag-bar" hidden></button>
       <div class="cal-head">
         <button class="icon-btn" id="prev" aria-label="‹">${ICON.left}</button>
@@ -458,9 +467,9 @@ function drawGrid() {
   const dows = Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(2024, 0, 1 + i)).toLocaleDateString(loc(), { weekday: "short", timeZone: "UTC" }));
   grid.innerHTML = dows.map((d) => `<div class="cal-dow">${esc(d)}</div>`).join("") + days.map((d) => {
     const list = map.get(d) || [];
-    const chips = list.slice(0, 3).map((e) => `<span class="chip ${untaggedEv(e) ? "untag" : ""}" style="--c:${esc(evColor(e))}"><b>${esc(e.title)}</b></span>`).join("");
+    const chips = list.slice(0, 4).map((e) => `<span class="chip ${untaggedEv(e) ? "untag" : ""}" style="--c:${esc(evColor(e))}"><b>${esc(e.title)}</b></span>`).join("");
     return `<button class="cal-cell ${d.slice(0, 7) !== state.cursor ? "out" : ""} ${d === today ? "today" : ""} ${d === state.sel ? "sel" : ""}" data-day="${d}" aria-label="${esc(fmtDay(d))}">
-      <span class="cal-num">${Number(d.slice(8))}</span>${chips}${list.length > 3 ? `<span class="chip-more">+${list.length - 3}</span>` : ""}</button>`;
+      <span class="cal-num">${Number(d.slice(8))}</span>${chips}${list.length > 4 ? `<span class="chip-more">+${list.length - 4}</span>` : ""}</button>`;
   }).join("");
   grid.onclick = (e) => {
     const c = e.target.closest("[data-day]"); if (!c) return;
@@ -897,10 +906,10 @@ async function drawRequests(d) {
   try {
     const list = await api("/api/admin/requests");
     box.innerHTML = list.length ? list.map((r) => `<div class="item">${avatar(r.emoji, r.color, "sm")}<div class="grow"><b>${esc(r.name)}</b><div class="sub">${esc(r.email)}</div></div>
-      <button class="btn sm" data-ok="${r.id}">${t("approve")}</button><button class="btn ghost sm" data-no="${r.id}">${t("reject")}</button></div>`).join("") : `<p class="empty">${t("no_requests")}</p>`;
+      ${isTop() ? `<button class="btn sm" data-ok="${r.id}">${t("approve")}</button><button class="btn danger sm" data-no="${r.id}">${t("reject")}</button>` : ""}</div>`).join("") : `<p class="empty">${t("no_requests")}</p>`;
     box.onclick = async (e) => {
       const b = e.target.closest("[data-ok],[data-no]"); if (!b) return;
-      try { await api(`/api/admin/requests/${b.dataset.ok || b.dataset.no}`, { method: "POST", body: { approve: !!b.dataset.ok } }); chime("ok"); drawRequests(d); drawAdmins(d); pollNotes(); } catch (er) { fail(er); }
+      if (await decide(Number(b.dataset.ok || b.dataset.no), !!b.dataset.ok)) { clearPops(); drawRequests(d); drawAdmins(d); }
     };
   } catch (e) { box.textContent = e.message; }
 }
@@ -908,9 +917,18 @@ async function drawAdmins(d) {
   const box = $("#adm-list", d);
   try {
     const list = await api("/api/admin/list");
-    box.innerHTML = list.map((a) => `<div class="item">${avatar(a.emoji, a.color, "sm")}<div class="grow"><b>${esc(a.name)}</b><div class="sub">${esc(a.email)}</div></div>
+    box.innerHTML = list.map((a) => `<div class="item">${avatar(a.emoji, a.color, "sm")}<div class="grow"><b>${esc(a.name)}</b> ${a.top ? `<span class="tag ok">${t("top_admin")}</span>` : ""}<div class="sub">${esc(a.email)}</div></div>
+      <button class="btn ghost sm" data-top="${a.id}" data-v="${a.top ? "" : "1"}">${a.top ? t("unmake_top") : t("make_top")}</button>
       ${a.fixed ? `<span class="tag">${t("fixed")}</span>` : `<button class="btn danger sm" data-unadmin="${a.id}">${t("remove")}</button>`}</div>`).join("");
     box.onclick = async (e) => {
+      const tb = e.target.closest("[data-top]");
+      if (tb) {
+        try {
+          await api(`/api/admin/list/${tb.dataset.top}/top`, { method: "PUT", body: { top: !!tb.dataset.v } });
+          state.me = { ...state.me, ...(await api("/api/auth/me")) }; chime("ok"); drawAdmins(d); drawRequests(d);
+        } catch (er) { fail(er); }
+        return;
+      }
       const b = e.target.closest("[data-unadmin]"); if (!b) return;
       if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = t("confirm_remove"); return; }
       try { await api(`/api/admin/list/${b.dataset.unadmin}`, { method: "DELETE" }); drawAdmins(d); } catch (er) { fail(er); }
@@ -970,21 +988,33 @@ async function pollNotes() {
 }
 function popNote(n) {
   const el = document.createElement("div");
+  const rid = reqIdOf(n);
   el.className = "pop" + (n.kind === "sync_error" ? " bad" : "");
+  // 管理员申请：只有「批准」和「拒绝」，按了才会消失
+  const acts = rid ? `<button class="btn sm" data-ok>${t("approve")}</button><button class="btn danger sm" data-no>${t("reject")}</button>`
+    : `<button class="btn sm" data-open>${t("view")}</button><button class="btn ghost sm" data-x>${t("close")}</button>`;
   el.innerHTML = `<span style="font-size:22px">${n.kind === "sync_error" ? "⚠️" : "🙋"}</span><div class="grow"><b>${n.kind === "sync_error" ? t("google") : t("requests")}</b>${esc(n.body)}
-    <div class="pop-acts"><button class="btn sm" data-open>${t("view")}</button><button class="btn ghost sm" data-x>${t("close")}</button></div></div>`;
-  el.onclick = (e) => {
+    <div class="pop-acts">${acts}</div></div>`;
+  el.onclick = async (e) => {
+    const ok = e.target.closest("[data-ok]"), no = e.target.closest("[data-no]");
+    if ((ok || no) && (await decide(rid, !!ok))) el.remove();
     if (e.target.closest("[data-open]")) { el.remove(); openSettings(); }
     if (e.target.closest("[data-x]")) el.remove();
   };
   $("#pops").append(el);
-  setTimeout(() => el.remove(), 15000);
+  if (!rid) setTimeout(() => el.remove(), 15000);
 }
 function openBell() {
   const items = state.notes.items;
   showDlg("#dlg", `<div class="dlg"><div class="dlg-head"><h2>${t("notifications")}</h2><button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
-    <div class="dlg-body"><div class="bell-list">${items.length ? items.map((n) => `<div class="bell-item ${n.read_at ? "" : "unread"}">${n.kind === "sync_error" ? "⚠️" : "🙋"} ${esc(n.body)}<span class="act-when">${esc(ago(n.created_at))}</span></div>`).join("") : `<p class="empty">${t("no_notes")}</p>`}</div></div></div>`);
-  if (items[0] && state.notes.unread) api("/api/notifications/read", { method: "POST", body: { upTo: items[0].id } }).then(pollNotes).catch(() => {});
+    <div class="dlg-body"><div class="bell-list">${items.length ? items.map((n) => `<div class="bell-item ${n.read_at ? "" : "unread"}">${n.kind === "sync_error" ? "⚠️" : "🙋"} ${esc(n.body)}<span class="act-when">${esc(ago(n.created_at))}</span>
+      ${!n.read_at && reqIdOf(n) && isTop() ? `<div class="pop-acts"><button class="btn sm" data-ok="${reqIdOf(n)}">${t("approve")}</button><button class="btn danger sm" data-no="${reqIdOf(n)}">${t("reject")}</button></div>` : ""}</div>`).join("") : `<p class="empty">${t("no_notes")}</p>`}</div></div></div>`,
+  (d) => { d.querySelector(".bell-list").onclick = async (e) => {
+    const b = e.target.closest("[data-ok],[data-no]"); if (!b) return;
+    if (await decide(Number(b.dataset.ok || b.dataset.no), !!b.dataset.ok)) { clearPops(); d.close(); }
+  }; });
+  // 管理员申请要按「批准 / 拒绝」才算处理；其他通知打开就算已读
+  if (items[0] && state.notes.unread && !items.some((n) => !n.read_at && reqIdOf(n))) api("/api/notifications/read", { method: "POST", body: { upTo: items[0].id } }).then(pollNotes).catch(() => {});
 }
 
 // ================= 背景工作：Google 读回、通知 =================

@@ -786,7 +786,7 @@ export async function notify(userIds: number[], kind: string, body: string, ref:
   }
 }
 export async function listNotifications(userId: number) {
-  return (await sql`SELECT id, kind, body, read_at, created_at FROM notifications WHERE user_id = ${userId} ORDER BY id DESC LIMIT 50`)
+  return (await sql`SELECT id, kind, body, ref, read_at, created_at FROM notifications WHERE user_id = ${userId} ORDER BY id DESC LIMIT 50`)
     .map((r: any) => ({ ...outRow(r), read_at: iso(r.read_at) }));
 }
 /** 申请已处理 → 其他管理员的同一个通知也算已读 */

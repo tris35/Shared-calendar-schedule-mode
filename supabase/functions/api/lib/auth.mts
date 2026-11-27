@@ -3,7 +3,7 @@ import { env } from "./env.mts";
 import crypto from "node:crypto";
 import { Buffer } from "node:buffer";
 import * as db from "./db.mts";
-import { sign, verify, extraAdmins } from "./settings.mts";
+import { sign, verify, extraAdmins, topAdmins } from "./settings.mts";
 import { normLang } from "./i18n.mts";
 
 // 登录不会过期：直到在「设置」按「登出」，或修改密码（其他设备会被登出）
@@ -151,7 +151,10 @@ export const isAdmin = (u: any) => {
   const email = String(u?.email || "").toLowerCase();
   return !!email && !u?.removed_at && (fixedAdmins().includes(email) || extraAdmins.includes(email));
 };
+/** Top Admin：可以批准管理员申请，收到申请和 Google 同步出错的弹出通知 */
+export const topAdminEmails = () => topAdmins ?? FIRST_ADMINS;
+export const isTopAdmin = (u: any) => isAdmin(u) && topAdminEmails().includes(String(u?.email || "").toLowerCase());
 export const canWhatsApp = (u: any) => isAdmin(u) || !!u?.wa_allowed;
-export const publicUser = (u: any) => ({ id: u.id, email: u.email, name: u.name, lang: u.lang || "en", admin: isAdmin(u),
+export const publicUser = (u: any) => ({ id: u.id, email: u.email, name: u.name, lang: u.lang || "en", admin: isAdmin(u), top: isTopAdmin(u),
   emoji: u.emoji || null, color: u.color || null, birth_month: u.birth_month ?? null, birth_day: u.birth_day ?? null,
   timezone: u.timezone || null, onboarded: !!u.onboarded });

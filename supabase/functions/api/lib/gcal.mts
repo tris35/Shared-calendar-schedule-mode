@@ -7,7 +7,7 @@ import { Buffer } from "node:buffer";
 import * as db from "./db.mts";
 import { env, apiBase, appUrl } from "./env.mts";
 import { deletePhotoData } from "./photos.mts";
-import { isAdmin } from "./auth.mts";
+import { isTopAdmin } from "./auth.mts";
 import { getSettings, sign, verify, photoSignature, type Settings } from "./settings.mts";
 import { reminderAt, wallToUtc } from "./time.mts";
 import { desc, normLang, LOCALES, type Lang } from "./i18n.mts";
@@ -604,11 +604,11 @@ export async function retryFailedSyncs(siteUrl: string, userId: number | null = 
   return fixed;
 }
 
-/** Google 同步出错 → 通知管理员（弹出 + 声音；同一个人的错误 6 小时内只通知一次） */
+/** Google 同步出错 → 通知 Top Admin（弹出 + 声音；同一个人的错误 6 小时内只通知一次） */
 async function reportSyncError(l: { user_id: number; gmail: string }, msg: string) {
   try {
     await getSettings(); // 载入在 App 里加的管理员
-    const admins = (await db.activeUsers()).filter((u: any) => isAdmin(u)).map((u: any) => u.id);
+    const admins = (await db.activeUsers()).filter((u: any) => isTopAdmin(u)).map((u: any) => u.id);
     await db.notify(admins, "sync_error", `Google 同步出错（${l.gmail}）：${msg.slice(0, 300)}`, `sync:${l.user_id}`);
   } catch (e) { console.error(e); }
 }
