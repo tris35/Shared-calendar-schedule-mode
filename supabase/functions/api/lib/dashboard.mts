@@ -73,6 +73,12 @@ export function cleanLabels(list: any): any[] {
   return out;
 }
 
+/** Google 的颜色（colorId 1–11）→ 这个日历里对应的标签（同一个颜色的优先，再来是同步时会变成这个颜色的） */
+export function labelForGoogleColor(labels: any[], colorId: string | null | undefined) {
+  if (!colorId) return null;
+  return labels.find((l) => String(l.color) === String(colorId)) || labels.find((l) => (LABELS as any)[l.color]?.google === String(colorId)) || null;
+}
+
 /** 行程表单送来的 label_id → 换成 Google 颜色（label）；没送 label_id 就不改 */
 export function applyLabel(b: any, labels: any[]) {
   if (!("label_id" in b)) return;

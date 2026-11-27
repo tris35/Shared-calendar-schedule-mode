@@ -623,6 +623,9 @@ export async function listMyCalendars(userId: number) {
     FROM calendar_members cm JOIN calendars c ON c.id = cm.calendar_id
     WHERE cm.user_id = ${userId} ORDER BY (cm.role = 'owner') DESC, c.id`;
 }
+export async function getCalendar(id: number) {
+  return (await sql`SELECT id, name, labels, label_names, event_templates FROM calendars WHERE id = ${id}`)[0] ?? null;
+}
 export async function listAllCalendars() {
   return sql`SELECT id, name, labels, label_names FROM calendars ORDER BY id`;
 }

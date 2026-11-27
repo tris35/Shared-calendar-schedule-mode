@@ -62,8 +62,9 @@ const expectFrom = Math.max(Date.parse("2026-10-01T00:00:00+08:00"), Date.now() 
 check("from 2026-10-01 (or 2 months back if later) … 1 year ahead, repeats expanded", q0.get("singleEvents") === "true" && Math.abs(Date.parse(q0.get("timeMin")!) - expectFrom) < 60_000 && days(q0.get("timeMax")!) === 365 && !q0.get("syncToken"), Object.fromEntries(q0));
 let t = await titles();
 check("old single copy removed; every repeat + STORY imported", t.filter((x) => x === "Meera off day").length === 2 && t.includes("(Esther) STORY") && t.includes("6961 选礼服") && t.includes("拍摄 2"), t);
-const story = (await db.query("SELECT label FROM events WHERE title = '(Esther) STORY'")).rows[0];
+const story = (await db.query("SELECT label, label_id FROM events WHERE title = '(Esther) STORY'")).rows[0];
 check("STORY keeps its yellow colour (label 5)", story.label === "5", story);
+check("Google yellow → the yellow label in the app (拍摄)", story.label_id === "l5", story);
 
 // Google 删掉 6961 → 下一轮 App 也拿掉
 mainItems = mainItems.filter((e) => e.id !== "e1");

@@ -8,6 +8,7 @@ import * as db from "./db.mts";
 import { env, apiBase, appUrl } from "./env.mts";
 import { deletePhotoData } from "./photos.mts";
 import { isTopAdmin } from "./auth.mts";
+import { calLabels, labelForGoogleColor } from "./dashboard.mts";
 export { deletePhotoData };
 import { getSettings, sign, verify, photoSignature, type Settings } from "./settings.mts";
 import { reminderAt, wallToUtc } from "./time.mts";
@@ -549,7 +550,12 @@ async function pullCalendar(ctx: any, cal: any) {
         const diff: any = {};
         for (const k of ["title", "start", "end"]) if ((g as any)[k] !== (cur as any)[k] && !(g[k] == null && cur[k] == null)) diff[k] = (g as any)[k];
         // 颜色：App 有 20 种，Google 只有 11 种 → 对应到同一个 Google 颜色就算没改
-        if ((g.label ?? null) !== (db.googleColor(cur.label) ?? null)) { diff.label = g.label; if (cur.label_id) await db.setEventExtra(map.event_id, { label_id: null }); }
+        if ((g.label ?? null) !== (db.googleColor(cur.label) ?? null)) {
+          // 在 Google 换了颜色 → 换成网站里同一个颜色的标签
+          const lab = labelForGoogleColor(await labelsOf(cur.calendar_id), g.label);
+          diff.label = lab ? lab.color : g.label;
+          await db.setEventExtra(map.event_id, { label_id: lab ? lab.id : null });
+        }
         if (g.all_day !== !!cur.all_day) diff.all_day = g.all_day;
         await db.setEventGoogle(map.event_id, userId, { google_event_id: ev.id, calendar_id: calId, etag: ev.etag });
         if (Object.keys(diff).length) { await db.updateEvent(map.event_id, diff, who); ctx.touched.add(map.event_id); ctx.updated++; }
@@ -564,7 +570,11 @@ async function pullCalendar(ctx: any, cal: any) {
         continue;
       }
       // 没有对应：是在 Google 新增的 → 放进他选的 App 日历
-      const e = await db.createEvent({ ...fromGoogle(ev, tz, true), remind: true, calendar_id: l.app_calendar_id }, who);
+      const fg = fromGoogle(ev, tz, true);
+      // Google 上的颜色 → 自动套用网站里同一个颜色的标签
+      const lab = labelForGoogleColor(await labelsOf(l.app_calendar_id), fg.label);
+      const e = await db.createEvent({ ...fg, ...(lab ? { label: lab.color } : {}), remind: true, calendar_id: l.app_calendar_id }, who);
+      if (lab) await db.setEventExtra(e.id, { label_id: lab.id });
       await db.setEventGoogle(e.id, userId, { google_event_id: ev.id, calendar_id: calId, etag: ev.etag });
       known.set(ev.id, { event_id: e.id, etag: ev.etag });
       ctx.createdIds.add(e.id);
@@ -601,6 +611,17 @@ export async function retryFailedSyncs(siteUrl: string, userId: number | null = 
     if (r?.ok) fixed++;
   }
   return fixed;
+}
+
+/** 日历的标签（读一次记住 1 分钟） */
+const labelCache = new Map<number, { at: number; labels: any[] }>();
+async function labelsOf(calendarId: number | null) {
+  if (!calendarId) return [];
+  const c = labelCache.get(calendarId);
+  if (c && Date.now() - c.at < 60_000) return c.labels;
+  const labels = calLabels(await db.getCalendar(calendarId));
+  labelCache.set(calendarId, { at: Date.now(), labels });
+  return labels;
 }
 
 /** Google 同步出错 → 通知 Top Admin（弹出 + 声音；同一个人的错误 6 小时内只通知一次） */

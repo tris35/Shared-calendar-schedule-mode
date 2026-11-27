@@ -58,6 +58,7 @@ const T = {
   birthday_evt: ["生日", "Birthday"], top_admin: ["Top Admin", "Top Admin"], make_top: ["设为 Top Admin", "Make Top Admin"], unmake_top: ["取消 Top Admin", "Remove Top Admin"],
   a_top_added: ["{who} 把 {t} 设为 Top Admin", "{who} made {t} a Top Admin"], a_top_removed: ["{who} 取消了 {t} 的 Top Admin", "{who} removed {t} as Top Admin"],
   approved: ["已批准", "Approved"], rejected: ["已拒绝", "Rejected"],
+  show_pw: ["显示密码", "Show password"], hide_pw: ["隐藏密码", "Hide password"], all_day_short: ["全天", "All day"],
   trash: ["回收站", "Recycle bin"], restore: ["复原", "Restore"], restored: ["已复原", "Restored"], trash_empty: ["回收站是空的", "The recycle bin is empty"],
   days_left: ["{n} 天后永久删除", "Deleted for good in {n} days"], hours_left: ["{n} 小时后永久删除", "Deleted for good in {n} h"], deleted_by: ["{who} 删除", "Deleted by {who}"],
   a_event_restored: ["{who} 复原了「{t}」", "{who} restored “{t}”"], storage: ["照片空间", "Photo space"], photos_n: ["{n} 张照片", "{n} photos"], fixed: ["固定", "Fixed"], connected_as: ["已连接：{g}", "Connected: {g}"],
@@ -198,6 +199,8 @@ const ICON = {
   right: '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
   x: '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>',
   img: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>',
+  eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff: '<svg viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>',
   trash: '<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
 };
 const EMOJIS = ["🐱", "🐶", "🐼", "🐨", "🐰", "🦊", "🐻", "🐷", "🐸", "🐵", "🐥", "🐧", "🦄", "🦖", "🐙", "🐳", "🦋", "🐝", "🌸", "🌈", "⭐", "🍓", "🍑", "🍩", "🧁", "🎀", "🎈", "👻", "😎", "🥳", "🤠", "🤓", "🤖", "👑", "💖", "💍", "👰", "🤵", "📸", "🎬"];
@@ -258,18 +261,21 @@ async function askJoin(tok) {
 }
 
 // ================= 登录 / 注册 / 忘记密码 =================
+// 密码栏：右边有眼睛，可以显示 / 隐藏
+const pwBox = (ac, ph = "") => `<div class="pw-wrap"><input class="input" id="a-pw" type="password" autocomplete="${ac}" placeholder="${ph}">
+  <button type="button" class="eye" data-eye aria-label="${t("show_pw")}" title="${t("show_pw")}" aria-pressed="false">${ICON.eye}</button></div>`;
 function renderAuth(mode, msg = "") {
   stopLoops();
   const email = store.get("last-email") || "";
   const card = {
     login: `<div class="field"><label for="a-email">${t("email")}</label><input class="input" id="a-email" type="email" autocomplete="email" value="${esc(email)}"></div>
-      <div class="field"><label for="a-pw">${t("password")}</label><input class="input" id="a-pw" type="password" autocomplete="current-password"></div>
+      <div class="field"><label for="a-pw">${t("password")}</label>${pwBox("current-password")}</div>
       <p class="err" id="a-err">${esc(msg)}</p>
       <button class="btn" data-a="login">${t("login")}</button>
       <button class="linkish" data-mode="forgot">${t("forgot")}</button>
       <button class="linkish" data-mode="signup">${t("no_acct")}</button>`,
     signup: `<div class="field"><label for="a-email">${t("email")}</label><input class="input" id="a-email" type="email" autocomplete="email" value="${esc(email)}"></div>
-      <div class="field"><label for="a-pw">${t("password")}</label><input class="input" id="a-pw" type="password" autocomplete="new-password" placeholder="${t("pw_rule")}"></div>
+      <div class="field"><label for="a-pw">${t("password")}</label>${pwBox("new-password", t("pw_rule"))}</div>
       <p class="err" id="a-err">${esc(msg)}</p>
       <button class="btn" data-a="signup">${t("signup")}</button>
       <button class="linkish" data-mode="login">${t("have_acct")}</button>`,
@@ -278,17 +284,26 @@ function renderAuth(mode, msg = "") {
       <button class="btn" data-a="forgot">${t("send_code")}</button>
       <button class="linkish" data-mode="login">${t("back")}</button>`,
     reset: `<div class="field"><label for="a-code">${t("code")}</label><input class="input" id="a-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
-      <div class="field"><label for="a-pw">${t("new_pw")}</label><input class="input" id="a-pw" type="password" autocomplete="new-password" placeholder="${t("pw_rule")}"></div>
+      <div class="field"><label for="a-pw">${t("new_pw")}</label>${pwBox("new-password", t("pw_rule"))}</div>
       <p class="err" id="a-err">${esc(msg)}</p>
       <button class="btn" data-a="reset">${t("reset")}</button>
       <button class="linkish" data-mode="login">${t("back")}</button>`,
   }[mode];
   $("#root").innerHTML = `<div class="gate"><form class="gate-card" id="auth" novalidate>
-    <div class="gate-logo"><div class="logo-mark">L</div><h1>THE LEGEND</h1></div>
+    <div class="gate-logo"><img class="brand-full" src="icons/logo-full.jpg" alt="Be the only one" width="200" height="200"></div>
     <div class="seg" role="group" style="align-self:center">${Object.entries(LANGS).map(([k, v]) => `<button type="button" data-lang="${k}" aria-pressed="${k === lang}">${v}</button>`).join("")}</div>
     ${card}</form></div>`;
   const f = $("#auth");
   f.addEventListener("click", (e) => {
+    const eye = e.target.closest("[data-eye]");
+    if (eye) {
+      e.preventDefault();
+      const inp = $("#a-pw"), show = inp.type === "password";
+      inp.type = show ? "text" : "password";
+      eye.innerHTML = show ? ICON.eyeOff : ICON.eye; eye.setAttribute("aria-pressed", String(show));
+      eye.setAttribute("aria-label", t(show ? "hide_pw" : "show_pw")); eye.title = t(show ? "hide_pw" : "show_pw");
+      inp.focus(); return;
+    }
     const m = e.target.closest("[data-mode]"); if (m) { e.preventDefault(); keepEmail(); renderAuth(m.dataset.mode); return; }
     const l = e.target.closest("[data-lang]"); if (l) { e.preventDefault(); lang = l.dataset.lang; store.set("lang", lang); keepEmail(); renderAuth(mode); }
   });
@@ -424,7 +439,7 @@ function renderApp() {
   const btn = (x) => `<button class="nav-btn" data-nav="${x.id}" ${x.id === state.page ? 'aria-current="page"' : ""}>${ICON[x.icon]}<span class="t">${t("nav_" + x.id)}</span>${x.id === "calendar" ? '<span class="count" id="untag-count" hidden></span>' : ""}${x.id === "activity" ? `<span class="count" id="act-count" ${state.actUnread ? "" : "hidden"}>${state.actUnread > 99 ? "99+" : state.actUnread}</span>` : ""}</button>`;
   $("#root").innerHTML = `<div class="app">
     <aside class="side">
-      <div class="logo"><div class="logo-mark">L</div><div><div class="logo-name">THE LEGEND</div><div class="logo-cal">${esc(cal?.name || "")}</div></div></div>
+      <div class="logo"><img class="logo-mark" src="icons/logo-mark.png" alt="" width="44" height="44"><div><div class="logo-name">THE LEGEND</div><div class="logo-cal">${esc(cal?.name || "")}</div></div></div>
       <nav class="nav-group" aria-label="${t("analysis")}"><div class="nav-label">${t("analysis")}</div>${items.filter((x) => x.group === "analysis").map(btn).join("")}</nav>
       <nav class="nav-group" aria-label="${t("settings")}"><div class="nav-label">${t("settings")}</div>${items.filter((x) => x.group === "settings").map(btn).join("")}</nav>
       <div class="side-foot"><button class="gear" id="gear" aria-label="${t("settings")}" title="${t("settings")}">${ICON.gear}</button>
@@ -518,6 +533,7 @@ async function loadMonth() {
   } catch (e) { state.loadingMonth = false; drawGrid(); if (e.status === 409) return boot(); return fail(e); }
   state.loadingMonth = false;
   drawGrid();
+  refreshDay();
 }
 function eventDays(e) {
   const s = ymdIn(e.start);
@@ -546,12 +562,65 @@ function drawGrid() {
   }).join("");
   grid.onclick = (e) => {
     const c = e.target.closest("[data-day]"); if (!c) return;
-    if (state.sel === c.dataset.day && canEdit() && e.detail === 2) return openForm(null, state.sel);
     state.sel = c.dataset.day; drawGrid();
+    openDay(state.sel);
   };
-  grid.ondblclick = (e) => { const c = e.target.closest("[data-day]"); if (c && canEdit()) openForm(null, c.dataset.day); };
   drawDay(map);
 }
+// ---------------- 一天的时间轴（按日期打开） ----------------
+const HOUR_PX = 56;
+function dayParts(e, ymd) {
+  const s = Date.parse(e.start), end = e.end ? Date.parse(e.end) : s + 3600000;
+  const s0 = Date.parse(wallToIso(ymd)), e0 = Date.parse(wallToIso(addDays(ymd, 1)));
+  const a = Math.max(s, s0), b = Math.min(Math.max(end, s + 30 * 60000), e0);
+  return { top: ((a - s0) / 60000) * (HOUR_PX / 60), h: Math.max(26, ((b - a) / 60000) * (HOUR_PX / 60)), a, b };
+}
+function layoutDay(list, ymd) {
+  const items = list.map((e) => ({ e, ...dayParts(e, ymd) })).sort((x, y) => x.a - y.a || y.b - x.b);
+  let group = [], groupEnd = -1;
+  const flush = () => { const n = Math.max(...group.map((g) => g.lane)) + 1; group.forEach((g) => (g.cols = n)); group = []; };
+  for (const it of items) {
+    if (group.length && it.a >= groupEnd) flush();
+    const used = new Set(group.filter((g) => g.b > it.a).map((g) => g.lane));
+    let lane = 0; while (used.has(lane)) lane++;
+    it.lane = lane; group.push(it); groupEnd = Math.max(groupEnd, it.b);
+  }
+  if (group.length) flush();
+  return items;
+}
+function openDay(ymd) {
+  const list = (byDay().get(ymd) || []);
+  const allDay = list.filter((e) => e.all_day), timed = list.filter((e) => !e.all_day);
+  const d0 = new Date(ymd + "T12:00:00Z");
+  const wk = d0.toLocaleDateString(loc(), { weekday: "short", timeZone: "UTC" }).toUpperCase();
+  const my = d0.toLocaleDateString(loc(), { month: "long", year: "numeric", timeZone: "UTC" });
+  const hourLbl = (h) => new Date(Date.UTC(2024, 0, 1, h)).toLocaleTimeString(lang === "zh" ? "zh-CN" : "en-US", { hour: "numeric", hour12: true, timeZone: "UTC" });
+  const blocks = layoutDay(timed, ymd).map((it, i) => `<button class="tl-ev rise" data-ev="${it.e.id}" style="--i:${i};--c:${esc(evColor(it.e))};top:${it.top}px;height:${it.h}px;left:calc(64px + (100% - 72px) * ${it.lane} / ${it.cols});width:calc((100% - 72px) / ${it.cols} - 4px)">
+      <b>${esc(it.e.title)}</b><span>${esc(fmtTime(it.e.start))}${it.e.end ? " – " + esc(fmtTime(it.e.end)) : ""}</span></button>`).join("");
+  const isToday = ymd === ymdIn(Date.now());
+  const nowTop = isToday ? ((Date.now() - Date.parse(wallToIso(ymd))) / 60000) * (HOUR_PX / 60) : -1;
+  const d = showDlg("#dlg-day", `<div class="dlg day-dlg">
+    <div class="day-head"><div class="day-date"><span>${esc(wk)}</span><b class="${isToday ? "today" : ""}">${Number(ymd.slice(8))}</b></div><div class="day-month">${esc(my)}</div>
+      <button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
+    ${canEdit() ? `<button class="day-new" id="day-new">${ICON.plus}${t("new_event")}</button>` : ""}
+    ${allDay.length ? `<div class="day-allday"><span class="lbl">${t("all_day_short")}</span>${allDay.map((e) => `<button class="chip" data-ev="${e.id}" style="--c:${esc(evColor(e))}"><b>${esc(e.title)}</b></button>`).join("")}</div>` : ""}
+    <div class="day-scroll" id="day-scroll"><div class="tl" style="height:${24 * HOUR_PX}px">
+      ${Array.from({ length: 24 }, (_, h) => `<div class="tl-hour" data-hour="${h}" style="top:${h * HOUR_PX}px;height:${HOUR_PX}px"><span>${h ? esc(hourLbl(h)) : ""}</span></div>`).join("")}
+      ${nowTop >= 0 ? `<div class="tl-now" style="top:${nowTop}px"></div>` : ""}
+      ${blocks}
+    </div></div></div>`, (dd) => {
+      dd.querySelector(".day-dlg").onclick = (e) => {
+        const ev = e.target.closest("[data-ev]"); if (ev) return openDetail(Number(ev.dataset.ev));
+        if (e.target.closest("#day-new")) return openForm(null, ymd);
+        const hr = e.target.closest("[data-hour]"); if (hr && canEdit()) openForm(null, ymd, Number(hr.dataset.hour));
+      };
+    });
+  // 卷到第一个活动（或早上 8 点）
+  const first = timed.length ? Math.min(...timed.map((e) => dayParts(e, ymd).top)) : 8 * HOUR_PX;
+  const sc = $("#day-scroll", d); sc.scrollTop = Math.max(0, Math.min(first, isToday ? nowTop : first) - HOUR_PX * 0.6);
+}
+function refreshDay() { const d = $("#dlg-day"); if (d?.open && state.sel) openDay(state.sel); }
+
 function evRow(e, withDate = false) {
   const tpl = tplOf(e.template_id), lab = labelOf(e);
   const when = e.all_day ? t("all_day") : fmtTime(e.start);
@@ -619,11 +688,12 @@ function showDlg(sel, html, wire) {
 
 // ---------------- 活动：表单 ----------------
 let form = null;
-function openForm(ev, day) {
+function openForm(ev, day, hour = null) {
   form = ev ? {
     id: ev.id, title: ev.title, all_day: !!ev.all_day, date: ymdIn(ev.start), st: ev.all_day ? "10:00" : hmIn(ev.start), et: ev.end && !ev.all_day ? hmIn(ev.end) : "",
     template_id: ev.template_id || "", brand: ev.brand || "", soft: ev.soft || "", sales_type: ev.sales_type || "", label_id: ev.label_id || "", notes: ev.notes || "",
-  } : { id: null, title: "", all_day: true, date: day || ymdIn(Date.now()), st: "10:00", et: "11:00", template_id: "", brand: "", soft: "", sales_type: "", label_id: "", notes: "" };
+  } : { id: null, title: "", all_day: hour == null, date: day || ymdIn(Date.now()), st: hour == null ? "10:00" : `${pad(hour)}:00`, et: hour == null ? "11:00" : `${pad(Math.min(23, hour + 1))}:${hour >= 23 ? "59" : "00"}`,
+      template_id: "", brand: "", soft: "", sales_type: "", label_id: "", notes: "" };
   drawForm();
 }
 function tickHtml(f) {
@@ -633,12 +703,26 @@ function tickHtml(f) {
   return `<div class="ticks">${seg("brand", [["Legends", "Legends"], ["WM", "WM"]])}
     ${tpl.kind === "photo" ? seg("soft", [["non_all_soft", "Non-All Soft"], ["all_soft", "All Soft"]]) : seg("sales_type", [["visit", t("visit")], ["vc", t("vc")]])}</div>`;
 }
-function tplPicker(f) {
-  return `<div class="tpl-row">${(state.config.templates || []).map((x) => `<button type="button" class="tpl-btn" data-tpl="${x.id}" aria-pressed="${f.template_id === x.id}">${esc(x.name)}</button>`).join("")}</div>${tickHtml(f)}`;
+// 模板写清楚是做什么的：选片 (Photo Selection)、了解 (Sales)、普通（下面列出它的标签）
+const tplName = (x) => `${x.name}${x.kind === "photo" ? " (Photo Selection)" : x.kind === "sales" ? " (Sales)" : ""}`;
+const labelsOfTpl = (x) => (state.config.labelList || []).filter((l) => (tplOf(l.template_id)?.kind || "normal") === x.kind);
+function tplPicker(f, withAdd = false) {
+  return `<div class="tpl-cards">${(state.config.templates || []).map((x) => {
+    const labs = labelsOfTpl(x);
+    return `<div class="tpl-card" data-on="${f.template_id === x.id}">
+      <button type="button" class="tpl-btn" data-tpl="${x.id}" aria-pressed="${f.template_id === x.id}">${esc(tplName(x))}</button>
+      <div class="labels">${labs.map((l) => `<button type="button" class="lab" data-lab="${esc(l.id)}" data-lab-tpl="${x.id}" style="--c:${esc(labelHex(l.color))}" aria-pressed="${f.label_id === l.id}"><i></i>${esc(l.name)}</button>`).join("")}
+        ${withAdd && x.kind === "normal" ? `<button type="button" class="lab add" id="add-lab" aria-label="${t("new_label")}" title="${t("new_label")}">+</button>` : ""}</div>
+    </div>`;
+  }).join("")}</div>${tickHtml(f)}`;
+}
+// 按标签 = 同时选好那个模板；再按一次只取消标签
+function pickLabel(f, el) {
+  f.label_id = f.label_id === el.dataset.lab ? "" : el.dataset.lab;
+  if (f.label_id) f.template_id = el.dataset.labTpl;
 }
 function drawForm() {
   const f = form;
-  const labels = (state.config.labelList || []).map((l) => `<button type="button" class="lab" data-lab="${esc(l.id)}" style="--c:${esc(labelHex(l.color))}" aria-pressed="${f.label_id === l.id}"><i></i>${esc(l.name)}</button>`).join("");
   showDlg("#dlg", `<form class="dlg" id="ev-form" novalidate>
     <div class="dlg-head"><h2>${f.id ? t("edit_event") : t("new_event")}</h2><button type="button" class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
     <div class="dlg-body">
@@ -647,8 +731,7 @@ function drawForm() {
       <div class="row"><div class="field"><label for="f-date">${t("date")}</label><input class="input" type="date" id="f-date" value="${f.date}"></div>
         ${f.all_day ? "" : `<div class="field"><label for="f-st">${t("start")}</label><input class="input" type="time" id="f-st" value="${f.st}"></div>
         <div class="field"><label for="f-et">${t("end")}</label><input class="input" type="time" id="f-et" value="${f.et}"></div>`}</div>
-      <div class="field"><span class="lbl">${t("template")}</span><div id="tpl-box">${tplPicker(f)}</div></div>
-      <div class="field"><span class="lbl">${t("label")}</span><div class="labels">${labels}<button type="button" class="lab add" id="add-lab" aria-label="${t("new_label")}" title="${t("new_label")}">+</button></div></div>
+      <div class="field"><span class="lbl">${t("template")} · ${t("label")}</span><div id="tpl-box">${tplPicker(f, true)}</div></div>
       <div class="field"><label for="f-notes">${t("notes")}</label><textarea class="input" id="f-notes" maxlength="5000">${esc(f.notes)}</textarea></div>
       <p class="err" id="f-err"></p>
     </div>
@@ -658,14 +741,10 @@ function drawForm() {
     fm.addEventListener("click", (e) => {
       const x = e.target.closest("[data-tpl],[data-tick],[data-lab],#add-lab"); if (!x) return;
       readForm();
-      if (x.id === "add-lab") return openLabelDlg((l) => { form.label_id = l.id; if (l.template_id) form.template_id = l.template_id; drawForm(); });
+      if (x.id === "add-lab") return openLabelDlg((l) => { if (l) { form.label_id = l.id; form.template_id = l.template_id || (state.config.templates || []).find((x) => x.kind === "normal")?.id || form.template_id; } drawForm(); });
       if (x.dataset.tpl) f.template_id = x.dataset.tpl;
       if (x.dataset.tick) f[x.dataset.tick] = x.dataset.v;
-      if (x.dataset.lab) {
-        f.label_id = f.label_id === x.dataset.lab ? "" : x.dataset.lab;
-        const l = (state.config.labelList || []).find((z) => z.id === f.label_id);
-        if (l?.template_id) f.template_id = l.template_id;
-      }
+      if (x.dataset.lab) pickLabel(f, x);
       drawForm();
     });
     $("#f-allday", d).onchange = () => { readForm(); drawForm(); };
@@ -757,7 +836,7 @@ function drawDetail() {
     : `${fmtDay(ymdIn(e.start), { year: "numeric", month: "long", day: "numeric", weekday: "short" })} · ${fmtTime(e.start)}${e.end ? " – " + fmtTime(e.end) : ""}`;
   const tickTxt = tpl && tpl.kind !== "normal" ? [e.brand, tpl.kind === "photo" ? { non_all_soft: "Non-All Soft", all_soft: "All Soft" }[e.soft] : { visit: t("visit"), vc: t("vc") }[e.sales_type]].filter(Boolean).join(" · ") : "";
   const needTpl = untaggedEv(e) && canEdit();
-  if (needTpl) form = { template_id: "", brand: "", soft: "", sales_type: "" };
+  if (needTpl) form = { template_id: "", brand: "", soft: "", sales_type: "", label_id: e.label_id || "" };
   const posts = (e.feed || []).map((f) => {
     if (f.type === "log") return "";
     const head = `<div class="post-who"><b>${esc(f.author || "—")}</b> · ${esc(ago(f.created_at))}</div>`;
@@ -771,7 +850,7 @@ function drawDetail() {
       <div class="meta">
         <span class="tag">${esc(when)}</span>
         ${lab ? `<span class="tag" style="--c:${esc(labelHex(lab.color))}"><i></i>${esc(lab.name)}</span>` : ""}
-        ${tpl ? `<span class="tag ok">${esc(tpl.name)}${tickTxt ? " · " + esc(tickTxt) : ""}</span>` : e.birthday_user_id ? "" : `<span class="tag bad">${t("untagged_title")}</span>`}
+        ${tpl ? `<span class="tag ok">${esc(tplName(tpl))}${tickTxt ? " · " + esc(tickTxt) : ""}</span>` : e.birthday_user_id ? "" : `<span class="tag bad">${t("untagged_title")}</span>`}
         ${e.creator_name ? `<span class="tag">${esc(e.creator_emoji || "")} ${esc(e.creator_name)}</span>` : ""}
       </div>
       ${needTpl ? `<div class="sec" id="fix-tpl"><h3>${t("template")}</h3><div id="tpl-box">${tplPicker(form)}</div><div class="row"><button class="btn sm" id="tpl-save">${t("save")}</button><p class="err" id="tpl-err"></p></div></div>` : ""}
@@ -790,14 +869,14 @@ function drawDetail() {
       try { await api(`/api/events/${e.id}`, { method: "DELETE" }); d.close(); toast(t("deleted")); refreshCalendar(); } catch (er) { fail(er); }
     });
     $("#fix-tpl", d)?.addEventListener("click", (ev) => {
-      const x = ev.target.closest("[data-tpl],[data-tick]"); if (!x) return;
-      if (x.dataset.tpl) form.template_id = x.dataset.tpl; else form[x.dataset.tick] = x.dataset.v;
+      const x = ev.target.closest("[data-tpl],[data-tick],[data-lab]"); if (!x) return;
+      if (x.dataset.lab) pickLabel(form, x); else if (x.dataset.tpl) form.template_id = x.dataset.tpl; else form[x.dataset.tick] = x.dataset.v;
       $("#tpl-box", d).innerHTML = tplPicker(form);
     });
     $("#tpl-save", d)?.addEventListener("click", async () => {
       if (!form.template_id) { $("#tpl-err").textContent = t("need_tpl"); return; }
       try {
-        await api(`/api/events/${e.id}`, { method: "PATCH", body: { template_id: form.template_id, brand: form.brand || null, soft: form.soft || null, sales_type: form.sales_type || null } });
+        await api(`/api/events/${e.id}`, { method: "PATCH", body: { template_id: form.template_id, brand: form.brand || null, soft: form.soft || null, sales_type: form.sales_type || null, ...(form.label_id ? { label_id: form.label_id } : {}) } });
         chime("ok"); toast(t("saved"));
         refreshCalendar();
         // 还有其他未选模板的活动 → 回到清单，继续下一个
