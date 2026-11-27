@@ -239,7 +239,9 @@ async function syncOne(l: Link, e: any, body: any, s: Settings) {
   try {
     const json = JSON.stringify({ ...body, id: gid });
     // 更新时不送 status：送 "confirmed" 会把在 Google 上删掉的活动又救回来
-    const { status: _status, ...patchBody } = body;
+    const { status: _status, source: _source, ...rest } = body;
+    // 别人在 Google 建立的活动：「source」只有建立的人能改 → 不送
+    const patchBody = prev && !String(gid).startsWith("fc") ? rest : { ...rest, source: body.source };
     // 这个人还没有对应（新的，或从回收站复原）：要送 confirmed，Google 上删过的那一笔才会救回来
     const patchJson = JSON.stringify(prev ? patchBody : body);
     const calId = prev?.calendar_id || l.calendar_id; // 已有的 → 在它原本的日历更新；新的 → 主日历
@@ -247,6 +249,11 @@ async function syncOne(l: Link, e: any, body: any, s: Settings) {
     // PATCH：只改 App 管的栏位，保留 Google 上其他资料（邀请的人、视讯会议、附件…）
     const put = () => gfetch(l, `/calendars/${cal}/events/${encodeURIComponent(gid)}`, { method: "PATCH", body: patchJson });
     let res = await put();                                   // 已存在 → 更新
+    // 还是被拒绝（例如别人邀请的活动）：只改任何人都能改的（颜色、提醒、网站的对应）
+    if (res.status === 403 && /creator of the event|organizer/i.test(String((await res.clone().json().catch(() => ({})))?.error?.message || ""))) {
+      const minimal = { colorId: body.colorId ?? null, reminders: body.reminders, extendedProperties: body.extendedProperties };
+      res = await gfetch(l, `/calendars/${cal}/events/${encodeURIComponent(gid)}`, { method: "PATCH", body: JSON.stringify(minimal) });
+    }
     if (res.status === 404 || res.status === 410) {
       res = await gfetch(l, `/calendars/${cal}/events`, { method: "POST", body: json }); // 不存在 → 建立
       if (res.status === 409) res = await put();             // 别的同步刚建立了 → 改成更新

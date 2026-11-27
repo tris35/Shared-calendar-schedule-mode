@@ -7,10 +7,20 @@ const writes: string[] = [];
 let mainItems: any[] = [];
 let photoPages = 1;
 let sharedOn = false;
-const server = Deno.serve({ port: PORT, onListen() {} }, (req) => {
+const server = Deno.serve({ port: PORT, onListen() {} }, async (req) => {
   const u = new URL(req.url);
   if (u.pathname === "/token") return Response.json({ access_token: "fake", expires_in: 3600 });
-  if (req.method !== "GET") { if (u.pathname.startsWith("/calendar/v3/calendars")) writes.push(`${req.method} ${u.pathname}`); return Response.json({}); }
+  if (req.method !== "GET") {
+    if (u.pathname.startsWith("/calendar/v3/calendars")) writes.push(`${req.method} ${u.pathname}`);
+    // 别人建立的活动：只能改颜色、提醒、自己的对应，其他的 Google 拒绝
+    if (req.method === "PATCH" && u.pathname.endsWith("/events/s1")) {
+      const b: any = await req.json();
+      if (Object.keys(b).some((k) => !["colorId", "reminders", "extendedProperties"].includes(k)))
+        return Response.json({ error: { code: 403, message: "The operation can only be performed by the creator of the event." } }, { status: 403 });
+      return Response.json({ id: "s1", etag: "s1b", status: "confirmed" });
+    }
+    return Response.json({});
+  }
   if (u.pathname.endsWith("/calendarList")) return Response.json({ items: [
     { id: "aaa-photo@group.calendar.google.com", summary: "拍摄", backgroundColor: "#f6bf26" },
     { id: "a@x.com", summary: "A", primary: true, backgroundColor: "#9fc6e7" },
@@ -94,6 +104,13 @@ mainItems.push({ id: gid, summary: "建在 App 的行程", start: { dateTime: ne
 await pull();
 t = await titles();
 check("read back from Google → not duplicated", t.filter((x) => x === "建在 App 的行程").length === 1, t);
+
+// 别人在 Google 建立的活动，在网站改了 → Google 只让改一部分：不能算同步失败
+const sid = (await db.query("SELECT id FROM events WHERE title = '(Esther) STORY'")).rows[0].id;
+await db.query("UPDATE events SET template_id = 'normal' WHERE id = $1", [sid]);
+const so: any = await g.syncEvent(sid, "http://x");
+const sm = (await db.query("SELECT error FROM event_google WHERE event_id = $1", [sid])).rows[0];
+check("someone else's Google event: update allowed parts, no sync error", so.ok && !sm.error && writes.filter((w) => w.endsWith("/events/s1")).length === 2, { so, sm, writes });
 
 // 共享过来的日历：列出来，但先不勾；管理员勾选后才导入
 sharedOn = true;
