@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dashboard</title>
 <script src="config.js"></script>
+<script>if (new URLSearchParams(location.search).has('embed')) document.documentElement.classList.add('embed');</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
 <style>
@@ -301,6 +302,10 @@ body{background:#050b18}
   @keyframes tlwPop{from{opacity:0;transform:scale(.85) rotate(-30deg)}}
 }
 @media (prefers-reduced-motion:no-preference){::view-transition-old(root),::view-transition-new(root){animation-duration:.45s}}
+/* 放在网站里（embed）：不要自己的侧边栏、导览和说明文字 */
+.embed .app{grid-template-columns:minmax(0,1fr)}
+.embed .side,.embed .tour-btn,.embed .page > p.note:not(.warn),.embed .page .sub{display:none!important}
+.embed body{background:transparent}
 </style>
 
 </head>
@@ -1005,7 +1010,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   const tourRe = () => { cancelAnimationFrame(tour.raf); tour.raf = requestAnimationFrame(tourPlace); };
   window.addEventListener('resize', tourRe); window.addEventListener('scroll', tourRe, { passive: true });
   let tourSeen = false; try { tourSeen = localStorage.getItem('tlw-tour-done') === '1'; } catch {}
-  if (!tourSeen) setTimeout(tourStart, 1400);
+  if (!tourSeen && !document.documentElement.classList.contains('embed')) setTimeout(tourStart, 1400);
   const toTop = $('to-top');
   const showTop = () => toTop.classList.toggle('show', window.scrollY > 360);
   window.addEventListener('scroll', showTop, { passive: true }); showTop();
@@ -1040,7 +1045,8 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   });
   let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 120); });
 
-  state.page = ['sales', 'rates'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'photo';
+  const startPage = new URLSearchParams(location.search).get('page') || location.hash.slice(1);
+  state.page = ['sales', 'rates'].includes(startPage) ? startPage : 'photo';
   api.setData(SAMPLE);
   loadData();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { render(); enter(); }); else enter();

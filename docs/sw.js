@@ -1,9 +1,9 @@
 // Service worker: makes the site installable as an app.
 // Network-first for the page files (always shows the newest design when online);
 // falls back to the saved copy when offline. API, photos and calendar feeds are never cached.
-const CACHE = "shared-calendar-schedule-v113";
+const CACHE = "the-legend-v200";
 // 相对路径：网站放在子资料夹（例如 GitHub Pages 的 /Shared-calendar/）也能用
-const SHELL = ["./", "index.html", "style.css", "app.js", "i18n.js", "config.js", "manifest.json", "icons/icon-192.png", "icons/favicon-64.png", "icons/logo-256.png"];
+const SHELL = ["./", "index.html", "v2.css", "v2.js", "dashboard.html", "config.js", "manifest.json", "icons/icon-192.png", "icons/favicon-64.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
