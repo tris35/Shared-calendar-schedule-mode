@@ -5,6 +5,7 @@ import { Buffer } from "node:buffer";
 import { apiBase, later } from "./lib/env.mts";
 import { putPhoto, getPhotoData, deletePhotoData } from "./lib/photos.mts";
 import * as db from "./lib/db.mts";
+import * as dash from "./lib/dashboard.mts";
 import { getSettings, saveSettings, sign } from "./lib/settings.mts";
 import { chat, claudeEnabled } from "./lib/claude.mts";
 import { syncEvent, deleteGoogleEvents, authUrl, handleCallback, disconnect, clientCredentials, redirectUri, mainUrl, listGoogleCalendars, listSyncCalendars, setCalendarEnabled, switchSyncCalendar, retryFailedSyncs, pullFromGoogle, ensureWatch, pushTarget } from "./lib/gcal.mts";
@@ -92,6 +93,8 @@ export async function handleApi(req: Request): Promise<Response> {
     const wantCal = Number(req.headers.get("x-cal") || url.searchParams.get("cal") || 0);
     const cur: any = myCals.find((c) => c.id === wantCal) || myCals[0];
     const calId: number = cur.id;
+    const templates = dash.calTemplates(cur), labelList = dash.calLabels(cur); // 这个日历的模板和标签
+    const mustAdmin = () => { if (!isAdmin(me)) throw new HttpError(403, "只有管理员可以设定"); };
     const roleIn = (cid: number | null) => myCals.find((c) => c.id === cid)?.role as string | undefined;
     const mustEdit = () => { if (cur.role === "viewer") throw new HttpError(403, "你只能查看这个日历"); };
     // 行程一定要在我有加入的日历里；要修改的话不能是「只能查看」
@@ -148,14 +151,23 @@ export async function handleApi(req: Request): Promise<Response> {
 
     if (r === "config" && method === "GET") {
       const s = await getSettings();
-      return Response.json({ claude: claudeEnabled(), timezone: s.timezone, labels: db.LABELS, labelNames: cur.label_names || {}, calendarId: calId, calendarRole: cur.role, waDefault: s.waDefault || s.schedule?.text || DEFAULT_TEXT, waSendHour: sendHourOf(s), waPreviewMode: isPreview(s), googleLoginReady: !!clientCredentials(), whatsapp: !!waConfig(), siteUrl: mainUrl(siteUrl), googleRedirectUri: redirectUri() });
+      return Response.json({ claude: claudeEnabled(), timezone: s.timezone, labels: db.LABELS, labelNames: cur.label_names || {}, labelList, templates, calendarId: calId, calendarRole: cur.role, waDefault: s.waDefault || s.schedule?.text || DEFAULT_TEXT, waSendHour: sendHourOf(s), waPreviewMode: isPreview(s), googleLoginReady: !!clientCredentials(), whatsapp: !!waConfig(), siteUrl: mainUrl(siteUrl), googleRedirectUri: redirectUri() });
     }
 
     // ---------- 行程 ----------
     if (r === "events") {
       if (!seg[1]) {
         if (method === "GET") { const qs: any = Object.fromEntries(url.searchParams); return Response.json(await db.listEvents({ from: qs.from, to: qs.to, q: qs.q, calendarId: calId })); }
-        if (method === "POST") { mustEdit(); const e = await db.createEvent({ ...(await eventInput()), calendar_id: calId }, who); sync(e.id); return Response.json(e); }
+        if (method === "POST") {
+          mustEdit();
+          const b = await eventInput();
+          const ticks = dash.resolveTicks(b, null, templates, true); // 一定要选模板；选片 / 了解要勾选
+          dash.applyLabel(b, labelList);
+          const e = await db.createEvent({ ...b, calendar_id: calId }, who);
+          await db.setEventExtra(e.id, { ...ticks, ...("label_id" in b ? { label_id: b.label_id } : {}), created_by_id: me.id });
+          sync(e.id);
+          return Response.json(await db.getEvent(e.id));
+        }
       }
       if (seg[1]) await needEvent(id, method !== "GET"); // 只能看 / 改自己日历里的行程
       // 清单：列出 / 新增（文字或范本）
@@ -199,7 +211,20 @@ export async function handleApi(req: Request): Promise<Response> {
       }
       if (!seg[2]) {
         if (method === "GET") return Response.json(await eventDetail(id));
-        if (method === "PATCH") { const e = await db.updateEvent(id, await eventInput(), who); if (!e) notFound(); sync(id); return Response.json(e); }
+        if (method === "PATCH") {
+          const b = await eventInput();
+          const old: any = await db.getEvent(id);
+          if (!old) notFound();
+          const ticks = dash.resolveTicks(b, old, templates); // 只有送了模板 / 勾选才检查
+          dash.applyLabel(b, labelList);
+          const e = await db.updateEvent(id, b, who);
+          if (!e) notFound();
+          // 从 Google 同步进来的行程没有负责人：第一个在网站里选模板的人就是负责人
+          const owner = !old.created_by_id && ticks?.template_id ? { created_by_id: me.id } : {};
+          await db.setEventExtra(id, { ...(ticks || {}), ...("label_id" in b ? { label_id: b.label_id } : {}), ...owner });
+          sync(id);
+          return Response.json(await db.getEvent(id));
+        }
         if (method === "DELETE") {
           const photos = await db.listPhotos(id);
           const mappings = await db.listEventGoogle(id);
@@ -279,6 +304,39 @@ export async function handleApi(req: Request): Promise<Response> {
       if (!seg[1] && method === "POST") return Response.json(await db.saveTemplate(await body()));
       if (seg[1] && method === "PUT") { const t2 = await db.saveTemplate({ ...(await body()), id: Number(seg[1]) }); if (!t2) notFound(); return Response.json(t2); }
       if (seg[1] && method === "DELETE") return Response.json({ ok: await db.deleteTemplate(Number(seg[1])) });
+    }
+
+    // ---------- Dashboard：所有登录的人都能看；Rate 只有管理员能改 ----------
+    if (r === "dashboard") {
+      if (!seg[1] && method === "GET") {
+        const tz = (await getSettings()).timezone || "Asia/Kuala_Lumpur";
+        const [rows, manual, rates] = await Promise.all([db.dashEvents(calId, dash.DASH_START, tz), db.dashManual(calId), db.dashRates(calId)]);
+        return Response.json({ ...dash.buildEvents(rows, manual, templates), rates: dash.rateHistory(rates), admin: isAdmin(me), dataStart: dash.DASH_START });
+      }
+      if (seg[1] === "rates" && method === "PUT") {
+        mustAdmin();
+        await db.saveDashRate(calId, dash.cleanRate(await body()), who);
+        return Response.json({ rates: dash.rateHistory(await db.dashRates(calId)) });
+      }
+      if (seg[1] === "rates" && method === "DELETE") {
+        mustAdmin();
+        const q = url.searchParams;
+        if (!(await db.deleteDashRate(calId, String(q.get("brand")), String(q.get("cat")), String(q.get("from"))))) notFound();
+        return Response.json({ rates: dash.rateHistory(await db.dashRates(calId)) });
+      }
+    }
+    // ---------- 模板和标签（管理员在 Settings 新增 / 改名 / 删除） ----------
+    if (r === "event-templates" && method === "PUT") {
+      mustAdmin();
+      const list = dash.cleanTemplates((await body()).templates);
+      await db.setCalendarTemplates(calId, list);
+      return Response.json({ templates: list });
+    }
+    if (r === "label-list" && method === "PUT") {
+      mustAdmin();
+      const list = dash.cleanLabels((await body()).labels);
+      await db.setCalendarLabels(calId, list);
+      return Response.json({ labelList: list });
     }
 
     // ---------- 颜色标签的名称（所有人共用） ----------

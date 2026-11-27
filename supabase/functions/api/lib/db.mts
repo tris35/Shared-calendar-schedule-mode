@@ -584,7 +584,7 @@ export async function getTemplate(id: number) {
 
 // ---------- 日历（每个帐号自己的 + 一起编辑的） ----------
 export async function listMyCalendars(userId: number) {
-  return sql`SELECT c.id, c.name, c.owner_id, c.label_names, cm.role,
+  return sql`SELECT c.id, c.name, c.owner_id, c.label_names, c.event_templates, c.labels, cm.role,
       (SELECT COUNT(*) FROM calendar_members x WHERE x.calendar_id = c.id)::int AS member_count
     FROM calendar_members cm JOIN calendars c ON c.id = cm.calendar_id
     WHERE cm.user_id = ${userId} ORDER BY (cm.role = 'owner') DESC, c.id`;
@@ -602,6 +602,43 @@ export async function renameCalendar(id: number, name: string) {
 export async function setCalendarLabelNames(id: number, names: Record<string, string>) {
   await sql`UPDATE calendars SET label_names = ${JSON.stringify(names)}::jsonb WHERE id = ${id}`;
 }
+// ---------- Dashboard ----------
+export async function setCalendarTemplates(id: number, list: any[]) {
+  await sql`UPDATE calendars SET event_templates = ${JSON.stringify(list)}::jsonb WHERE id = ${id}`;
+}
+export async function setCalendarLabels(id: number, list: any[]) {
+  await sql`UPDATE calendars SET labels = ${JSON.stringify(list)}::jsonb WHERE id = ${id}`;
+}
+/** 存模板、勾选、自订标签、负责人（只改有给的栏位） */
+export async function setEventExtra(id: number, f: { template_id?: string | null; brand?: string | null; soft?: string | null; sales_type?: string | null; label_id?: string | null; created_by_id?: number | null }) {
+  const [old] = await sql`SELECT template_id, brand, soft, sales_type, label_id, created_by_id FROM events WHERE id = ${id}`;
+  if (!old) return;
+  const v = (k: string) => (k in f ? (f as any)[k] : old[k]);
+  await sql`UPDATE events SET template_id = ${v("template_id")}, brand = ${v("brand")}, soft = ${v("soft")}, sales_type = ${v("sales_type")},
+    label_id = ${v("label_id")}, created_by_id = ${v("created_by_id")} WHERE id = ${id}`;
+}
+/** Dashboard 要的行程（从 fromDate 开始；date = 当地日期；负责人 = 建立的帐号现在的名字） */
+export async function dashEvents(calendarId: number, fromDate: string, tz: string) {
+  return q(`SELECT to_char(e.start AT TIME ZONE $3, 'YYYY-MM-DD') AS date, e.title, e.template_id, e.brand, e.soft, e.sales_type,
+      COALESCE(u.name, e.created_by) AS person
+    FROM events e LEFT JOIN users u ON u.id = e.created_by_id
+    WHERE e.calendar_id = $1 AND e.start >= ($2::date::timestamp AT TIME ZONE $3)
+    ORDER BY e.start`, [calendarId, fromDate, tz]);
+}
+export async function dashManual(calendarId: number) {
+  return sql`SELECT month, person, email, brand, non_all_soft, all_soft, visit, vc FROM dash_manual WHERE calendar_id = ${calendarId} ORDER BY month, person`;
+}
+export async function dashRates(calendarId: number) {
+  return q(`SELECT brand, cat, to_char(from_date, 'YYYY-MM-DD') AS from_date, list, custom FROM dash_rates WHERE calendar_id = $1 ORDER BY from_date`, [calendarId]);
+}
+export async function saveDashRate(calendarId: number, r: { brand: string; cat: string; from: string; list: number | null; custom: number | null }, who: string | null) {
+  await sql`INSERT INTO dash_rates (calendar_id, brand, cat, from_date, list, custom, updated_by) VALUES (${calendarId}, ${r.brand}, ${r.cat}, ${r.from}, ${r.list}, ${r.custom}, ${who})
+    ON CONFLICT (calendar_id, brand, cat, from_date) DO UPDATE SET list = EXCLUDED.list, custom = EXCLUDED.custom, updated_by = EXCLUDED.updated_by, updated_at = NOW()`;
+}
+export async function deleteDashRate(calendarId: number, brand: string, cat: string, from: string) {
+  return (await sql`DELETE FROM dash_rates WHERE calendar_id = ${calendarId} AND brand = ${brand} AND cat = ${cat} AND from_date = ${from} RETURNING from_date`).length > 0;
+}
+
 export async function listCalendarPeople(id: number) {
   return sql`SELECT u.id, u.name, u.email, cm.role FROM calendar_members cm JOIN users u ON u.id = cm.user_id
     WHERE cm.calendar_id = ${id} ORDER BY (cm.role = 'owner') DESC, u.name`;
