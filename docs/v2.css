@@ -244,6 +244,13 @@ dialog.sheet .dlg{height:100%;max-height:none;border-radius:18px 0 0 18px}
 }
 @media (prefers-reduced-motion:reduce){.saved-burst{animation:wFade 1.7s ease forwards}.saved-burst i{display:none}}
 
+/* ---------- 照片空间 ---------- */
+.meter{height:12px;border-radius:6px;background:rgba(143,166,207,.14);overflow:hidden}
+.meter i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#2563eb,#34e5a8);box-shadow:0 0 12px var(--glow);transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.meter.warn i{background:linear-gradient(90deg,#f59e0b,#ffd166)}
+.meter.bad i{background:linear-gradient(90deg,#ef4444,#ff6b8a)}
+.sub{font-size:13px;color:var(--muted)}
+
 /* ---------- 点击波纹 ---------- */
 .rip-wrap{position:absolute;inset:0;overflow:hidden;border-radius:inherit;pointer-events:none;z-index:0}
 .ripple{position:absolute;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.5) 0%,rgba(186,230,253,.32) 40%,rgba(125,211,252,.12) 62%,transparent 72%);transform:scale(0);animation:ripple .75s ease-out forwards}

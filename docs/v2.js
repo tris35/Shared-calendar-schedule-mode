@@ -57,7 +57,10 @@ const T = {
   need_tpl: ["请选择模板", "Choose a template"], need_title: ["请填写标题", "Enter a title"], gmail_for_sync: ["要同步的 Gmail", "Gmail to sync"],
   birthday_evt: ["生日", "Birthday"], top_admin: ["Top Admin", "Top Admin"], make_top: ["设为 Top Admin", "Make Top Admin"], unmake_top: ["取消 Top Admin", "Remove Top Admin"],
   a_top_added: ["{who} 把 {t} 设为 Top Admin", "{who} made {t} a Top Admin"], a_top_removed: ["{who} 取消了 {t} 的 Top Admin", "{who} removed {t} as Top Admin"],
-  approved: ["已批准", "Approved"], rejected: ["已拒绝", "Rejected"], fixed: ["固定", "Fixed"], connected_as: ["已连接：{g}", "Connected: {g}"],
+  approved: ["已批准", "Approved"], rejected: ["已拒绝", "Rejected"],
+  trash: ["回收站", "Recycle bin"], restore: ["复原", "Restore"], restored: ["已复原", "Restored"], trash_empty: ["回收站是空的", "The recycle bin is empty"],
+  days_left: ["{n} 天后永久删除", "Deleted for good in {n} days"], hours_left: ["{n} 小时后永久删除", "Deleted for good in {n} h"], deleted_by: ["{who} 删除", "Deleted by {who}"],
+  a_event_restored: ["{who} 复原了「{t}」", "{who} restored “{t}”"], storage: ["照片空间", "Photo space"], photos_n: ["{n} 张照片", "{n} photos"], fixed: ["固定", "Fixed"], connected_as: ["已连接：{g}", "Connected: {g}"],
 };
 let lang = LANGS[store.get("lang")] ? store.get("lang") : (navigator.language || "").startsWith("zh") ? "zh" : "en";
 const t = (k, v = {}) => String((T[k] || [k, k])[lang === "zh" ? 0 : 1]).replace(/\{(\w+)\}/g, (_, x) => esc(v[x] ?? ""));
@@ -195,6 +198,7 @@ const ICON = {
   right: '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
   x: '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>',
   img: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
 };
 const EMOJIS = ["🐱", "🐶", "🐼", "🐨", "🐰", "🦊", "🐻", "🐷", "🐸", "🐵", "🐥", "🐧", "🦄", "🦖", "🐙", "🐳", "🦋", "🐝", "🌸", "🌈", "⭐", "🍓", "🍑", "🍩", "🧁", "🎀", "🎈", "👻", "😎", "🥳", "🤠", "🤓", "🤖", "👑", "💖", "💍", "👰", "🤵", "📸", "🎬"];
 const PROFILE_COLORS = ["#2563eb", "#0ea5e9", "#14b8a6", "#22c55e", "#84cc16", "#eab308", "#f97316", "#ef4444", "#ec4899", "#a855f7", "#6366f1", "#64748b"];
@@ -452,7 +456,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -471,7 +475,7 @@ async function renderCalendar() {
   state.sel ||= ymdIn(Date.now());
   const [y, m] = state.cursor.split("-").map(Number);
   const monthName = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(loc(), { year: "numeric", month: "long", timeZone: "UTC" });
-  $("#main").innerHTML = topBar(t("nav_calendar"), canEdit() ? `<button class="btn" id="new-ev">${ICON.plus}${t("new_event")}</button>` : "") + `
+  $("#main").innerHTML = topBar(t("nav_calendar"), (canEdit() ? `<button class="icon-btn" id="trash-btn" aria-label="${t("trash")}" title="${t("trash")}">${ICON.trash}</button><button class="btn" id="new-ev">${ICON.plus}${t("new_event")}</button>` : "")) + `
     <section class="page wide">
       <button class="warn-bar" id="untag-bar" hidden></button>
       <div class="cal-head">
@@ -487,6 +491,7 @@ async function renderCalendar() {
   $("#next").onclick = () => moveMonth(1);
   $("#today").onclick = () => { state.cursor = ymdIn(Date.now()).slice(0, 7); state.sel = ymdIn(Date.now()); renderCalendar(); };
   $("#new-ev")?.addEventListener("click", () => openForm(null, state.sel));
+  $("#trash-btn")?.addEventListener("click", openTrash);
   $("#untag-bar").onclick = openUntagged;
   drawGrid();
   await loadMonth();
@@ -574,6 +579,27 @@ async function loadUntagged() {
   if (bar) { bar.hidden = !n; bar.innerHTML = `<span>⚠ ${t("untagged", { n })}</span><span>${t("view")} ›</span>`; }
   const c = $("#untag-count"); if (c) { c.hidden = !n; c.textContent = n; }
 }
+// ---------------- 回收站（5 天内可以复原） ----------------
+async function openTrash() {
+  chime("gear");
+  const draw = (r) => {
+    const left = (iso) => { const ms = Date.parse(iso) + r.days * 86400000 - Date.now(), h = Math.max(1, Math.ceil(ms / 3600000)); return h >= 48 ? t("days_left", { n: Math.ceil(h / 24) }) : t("hours_left", { n: h }); };
+    return r.items.length ? r.items.map((e, i) => `<div class="item rise" style="--i:${i};border-left:4px solid ${esc(labelHex(e.label))}">
+      <div class="grow"><b>${esc(e.title)}</b><div class="sub">${esc(fmtDay(ymdIn(e.start), { year: "numeric", month: "short", day: "numeric", weekday: "short" }))}${e.all_day ? "" : " · " + esc(fmtTime(e.start))}</div>
+      <div class="sub">${t("deleted_by", { who: (e.deleted_by_emoji || "") + " " + e.deleted_by_name })} · ${esc(ago(e.deleted_at))} · ${left(e.deleted_at)}</div></div>
+      <button class="btn sm" data-restore="${e.id}">${t("restore")}</button></div>`).join("") : `<p class="empty">${t("trash_empty")}</p>`;
+  };
+  const d = showDlg("#dlg", `<div class="dlg"><div class="dlg-head"><h2>${t("trash")}</h2><button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
+    <div class="dlg-body"><div class="list" id="trash-list">${skRows(3, 70)}</div></div></div>`);
+  try { $("#trash-list", d).innerHTML = draw(await api("/api/trash")); } catch (e) { return fail(e); }
+  $("#trash-list", d).onclick = async (e) => {
+    const b = e.target.closest("[data-restore]"); if (!b) return;
+    b.disabled = true;
+    try { const r = await api(`/api/trash/${b.dataset.restore}/restore`, { method: "POST" }); $("#trash-list", d).innerHTML = draw(r); toast(t("restored")); chime("ok"); refreshCalendar(); }
+    catch (er) { fail(er); b.disabled = false; }
+  };
+}
+
 function openUntagged() {
   showDlg("#dlg", `<div class="dlg"><div class="dlg-head"><h2>${t("untagged", { n: state.untagged.length })}</h2><button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
     <div class="dlg-body"><div class="day-list">${state.untagged.map((e) => evRow(e, true)).join("") || `<p class="empty">${t("no_events")}</p>`}</div></div></div>`,
@@ -808,10 +834,10 @@ function drawDetail() {
 async function shrink(file) {
   try {
     const bmp = await createImageBitmap(file);
-    const s = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const s = Math.min(1, 1280 / Math.max(bmp.width, bmp.height)); // 照片缩小，省照片空间
     const c = document.createElement("canvas"); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
     c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
-    return await new Promise((res) => c.toBlob((b) => res(b || file), "image/jpeg", 0.85));
+    return await new Promise((res) => c.toBlob((b) => res(b || file), "image/jpeg", 0.8));
   } catch { return file; }
 }
 function refreshCalendar() { if (state.page === "calendar") { loadMonth(); loadUntagged(); } }
@@ -896,6 +922,7 @@ async function openSettings() {
       <div class="sec" id="s-req"><h3>${t("requests")}</h3><div class="list" id="req-list"></div></div>
       <div class="sec"><h3>${t("admins")}</h3><div class="list" id="adm-list"></div></div>
       <div class="sec" id="s-google"><h3>${t("google")}</h3><div id="g-box"></div></div>
+      <div class="sec"><h3>${t("storage")}</h3><div id="st-box">${sk("", "height:46px")}</div></div>
       <div class="sec"><h3>${t("templates")}</h3>
         <div class="tpl-row">${(state.config.templates || []).map((x) => `<input class="input" data-tn="${x.id}" maxlength="20" value="${esc(x.name)}" aria-label="${esc(x.name)}">`).join("")}</div>
         <div class="row"><button class="btn sm" id="tpl-rename">${t("save")}</button></div></div>
@@ -957,7 +984,7 @@ async function drawApply(d) {
   } catch (e) { box.textContent = e.message; }
 }
 function wireAdmin(d) {
-  drawRequests(d); drawAdmins(d); drawGoogle(d);
+  drawRequests(d); drawAdmins(d); drawGoogle(d); drawStorage(d);
   $("#tpl-rename", d).onclick = async () => {
     try {
       const r = await api("/api/event-templates", { method: "PUT", body: { templates: $$("[data-tn]", d).map((i) => ({ id: i.dataset.tn, name: i.value })) } });
@@ -982,6 +1009,15 @@ function wireAdmin(d) {
     if (!armed) { armed = true; e.target.classList.add("armed"); chime("bad"); return; }
     try { await api(`/api/calendars/${store.get("cal")}/invite`, { method: "DELETE" }); $("#inv-out", d).innerHTML = ""; toast(t("saved")); e.target.classList.remove("armed"); armed = false; } catch (er) { fail(er); }
   };
+}
+async function drawStorage(d) {
+  const box = $("#st-box", d);
+  try {
+    const s = await api("/api/admin/storage"), pct = Math.min(100, Math.round((s.bytes / s.limit) * 100));
+    const fmt = (b) => (b >= 1073741824 ? (b / 1073741824).toFixed(2) + " GB" : Math.round(b / 1048576) + " MB");
+    box.innerHTML = `<div class="meter ${pct >= 95 ? "bad" : pct >= 80 ? "warn" : ""}"><i style="width:${pct}%"></i></div>
+      <div class="row" style="justify-content:space-between"><span class="sub"><b>${pct}%</b> · ${fmt(s.bytes)} / ${fmt(s.limit)}</span><span class="sub">${t("photos_n", { n: s.count })}</span></div>`;
+  } catch (e) { box.textContent = e.message; }
 }
 async function drawRequests(d) {
   const box = $("#req-list", d);
@@ -1072,18 +1108,19 @@ async function pollNotes() {
     if (fresh.length) {
       state.notes.seen = Math.max(...fresh.map((n) => n.id)); store.set("notes-seen", String(state.notes.seen));
       fresh.slice(0, 3).reverse().forEach(popNote);
-      chime(fresh.some((n) => n.kind === "sync_error") ? "bad" : "note");
+      chime(fresh.some((n) => n.kind === "sync_error" || n.kind === "storage") ? "bad" : "note");
     }
   } catch {}
 }
+const NOTE_ICON = { sync_error: "⚠️", admin_request: "🙋", storage: "📦" };
 function popNote(n) {
   const el = document.createElement("div");
   const rid = reqIdOf(n);
-  el.className = "pop" + (n.kind === "sync_error" ? " bad" : "");
+  el.className = "pop" + (n.kind === "sync_error" || n.kind === "storage" ? " bad" : "");
   // 管理员申请：只有「批准」和「拒绝」，按了才会消失
   const acts = rid ? `<button class="btn sm" data-ok>${t("approve")}</button><button class="btn danger sm" data-no>${t("reject")}</button>`
     : `<button class="btn sm" data-open>${t("view")}</button><button class="btn ghost sm" data-x>${t("close")}</button>`;
-  el.innerHTML = `<span style="font-size:22px">${n.kind === "sync_error" ? "⚠️" : "🙋"}</span><div class="grow"><b>${n.kind === "sync_error" ? t("google") : t("requests")}</b>${esc(n.body)}
+  el.innerHTML = `<span style="font-size:22px">${NOTE_ICON[n.kind] || "🔔"}</span><div class="grow"><b>${n.kind === "sync_error" ? t("google") : n.kind === "storage" ? t("storage") : t("requests")}</b>${esc(n.body)}
     <div class="pop-acts">${acts}</div></div>`;
   el.onclick = async (e) => {
     const ok = e.target.closest("[data-ok]"), no = e.target.closest("[data-no]");
@@ -1097,7 +1134,7 @@ function popNote(n) {
 function openBell() {
   const items = state.notes.items;
   showDlg("#dlg", `<div class="dlg"><div class="dlg-head"><h2>${t("notifications")}</h2><button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
-    <div class="dlg-body"><div class="bell-list">${items.length ? items.map((n) => `<div class="bell-item ${n.read_at ? "" : "unread"}">${n.kind === "sync_error" ? "⚠️" : "🙋"} ${esc(n.body)}<span class="act-when">${esc(ago(n.created_at))}</span>
+    <div class="dlg-body"><div class="bell-list">${items.length ? items.map((n) => `<div class="bell-item ${n.read_at ? "" : "unread"}">${NOTE_ICON[n.kind] || "🔔"} ${esc(n.body)}<span class="act-when">${esc(ago(n.created_at))}</span>
       ${!n.read_at && reqIdOf(n) && isTop() ? `<div class="pop-acts"><button class="btn sm" data-ok="${reqIdOf(n)}">${t("approve")}</button><button class="btn danger sm" data-no="${reqIdOf(n)}">${t("reject")}</button></div>` : ""}</div>`).join("") : `<p class="empty">${t("no_notes")}</p>`}</div></div></div>`,
   (d) => { d.querySelector(".bell-list").onclick = async (e) => {
     const b = e.target.closest("[data-ok],[data-no]"); if (!b) return;

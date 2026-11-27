@@ -49,7 +49,7 @@ mainItems = [
 const g = await import("../supabase/functions/api/lib/gcal.mts");
 let fails = 0;
 const check = (n: string, ok: boolean, got?: unknown) => { console.log(`${ok ? "✅" : "❌"} ${n}${ok ? "" : " got: " + JSON.stringify(got)}`); if (!ok) fails++; };
-const titles = async () => (await db.query("SELECT title FROM events ORDER BY start, title")).rows.map((r: any) => r.title);
+const titles = async () => (await db.query("SELECT title FROM events WHERE deleted_at IS NULL ORDER BY start, title")).rows.map((r: any) => r.title);
 const pull = (deadline?: number) => g.pullFromGoogle(1, "http://x", { minSeconds: 0, ...(deadline ? { deadline } : {}) });
 
 const r: any = await pull();

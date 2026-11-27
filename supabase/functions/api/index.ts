@@ -11,7 +11,7 @@ import { handleApi } from "./api.mts";
 import { handleFeed } from "./calendar-feed.mts";
 import { handlePhotoLink } from "./photo-link.mts";
 import { getSettings } from "./lib/settings.mts";
-import { pullAll, mainUrl, syncEvent } from "./lib/gcal.mts";
+import { pullAll, mainUrl, syncEvent, deletePhotoData } from "./lib/gcal.mts";
 import * as db from "./lib/db.mts";
 import { calLabels } from "./lib/dashboard.mts";
 
@@ -35,6 +35,11 @@ async function birthdays() {
   } catch (e) { console.error("[生日]", e); }
 }
 
+/** 回收站超过 5 天的活动：真的删掉（连照片档案） */
+async function purgeTrash() {
+  try { for (const k of await db.purgeTrash()) await deletePhotoData(k); } catch (e) { console.error("[回收站]", e); }
+}
+
 async function cronAllowed(req: Request) {
   const got = req.headers.get("x-cron-key") || "";
   const { cronKey } = await getSettings();
@@ -56,7 +61,7 @@ export async function handle(req: Request): Promise<Response> {
     else if (seg[1] === "cal" && seg[2]) res = await handleFeed(req, seg[2]);
     else if (seg[1] === "cron" && req.method === "POST") {
       if (!(await cronAllowed(req))) res = new Response("forbidden", { status: 403 });
-      else if (seg[2] === "google-pull") { await pullAll(mainUrl("")); await birthdays(); res = Response.json({ ok: true }); }
+      else if (seg[2] === "google-pull") { await pullAll(mainUrl("")); await birthdays(); await purgeTrash(); res = Response.json({ ok: true }); }
       else if (seg[2] === "customer-messages") res = Response.json({ ok: true, off: "WhatsApp 提醒已停用" }); // 不再读通讯录、不发 WhatsApp
       else if (seg[2] === "warm") res = Response.json({ ok: true }); // 每分钟叫醒一次，保存时不用等伺服器启动
       else res = new Response("not found", { status: 404 });

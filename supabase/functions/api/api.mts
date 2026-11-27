@@ -23,16 +23,32 @@ class HttpError extends Error {
 }
 const notFound = (): never => { throw new HttpError(404, "找不到"); };
 
+// 照片空间上限（Supabase 免费方案 1GB）；用到 80%、95% 通知 Top Admin，满了就不能再上传
+const photoLimit = () => (Number(Deno.env.get("PHOTO_LIMIT_MB")) > 0 ? Number(Deno.env.get("PHOTO_LIMIT_MB")) : 1024) * 1024 * 1024;
+const mb = (b: number) => Math.round(b / 1048576);
+async function checkSpace(adding: number) {
+  const { bytes } = await db.photoBytes();
+  if (bytes + adding > photoLimit()) throw new Error("照片空间已满，请联络管理员");
+}
+async function warnSpace() {
+  const { bytes } = await db.photoBytes(), pct = bytes / photoLimit();
+  if (pct < 0.8) return;
+  const level = pct >= 0.95 ? 95 : 80;
+  const tops = (await db.activeUsers()).filter((u: any) => isTopAdmin(u)).map((u: any) => u.id);
+  await db.notify(tops, "storage", `照片空间已用 ${Math.round(pct * 100)}%（${mb(bytes)} MB / ${mb(photoLimit())} MB）`, `storage:${level}`, level === 95 ? 24 : 24 * 7);
+}
 async function savePhotos(files: File[], eventId: number | null, author: string | null) {
   const out: any[] = [];
-  for (const f of files) {
-    if (!(f instanceof File) || !IMAGE_TYPES.has(f.type)) continue;
-    if (f.size > MAX_PHOTO_BYTES) throw new Error("照片太大（上限 4MB）");
+  const good = files.filter((f) => f instanceof File && IMAGE_TYPES.has(f.type));
+  if (good.some((f) => f.size > MAX_PHOTO_BYTES)) throw new Error("照片太大（上限 4MB）");
+  if (good.length) await checkSpace(good.reduce((n, f) => n + f.size, 0));
+  for (const f of good) {
     const key = crypto.randomUUID();
     const buf = await f.arrayBuffer();
     await putPhoto(key, buf, f.type);
-    out.push({ ...(await db.addPhoto({ event_id: eventId, blob_key: key, mime: f.type, author })), _buf: buf });
+    out.push({ ...(await db.addPhoto({ event_id: eventId, blob_key: key, mime: f.type, author, size: buf.byteLength })), _buf: buf });
   }
+  if (good.length) later(warnSpace());
   return out;
 }
 const strip = (rows: any[]) => rows.map(({ _buf, blob_key, ...p }) => p);
@@ -122,7 +138,7 @@ export async function handleApi(req: Request): Promise<Response> {
     // 行程一定要在我有加入的日历里；要修改的话不能是「只能查看」
     const needEvent = async (eid: number, write: boolean) => {
       const e: any = await db.getEvent(eid);
-      if (!e || !roleIn(e.calendar_id)) notFound();
+      if (!e || e.deleted_at || !roleIn(e.calendar_id)) notFound();
       if (write && roleIn(e.calendar_id) === "viewer") throw new HttpError(403, "你只能查看这个日历");
       return e;
     };
@@ -277,13 +293,11 @@ export async function handleApi(req: Request): Promise<Response> {
           return Response.json(await db.getEvent(id));
         }
         if (method === "DELETE") {
-          const photos = await db.listPhotos(id);
           const mappings = await db.listEventGoogle(id);
           const gone: any = await db.getEvent(id);
-          const ok = await db.deleteEvent(id);
+          const ok = await db.deleteEvent(id, me.id); // 放进回收站（5 天内可以复原；照片 5 天后才删）
           if (ok) {
-            await act("event_deleted", gone?.title || null, null);
-            later(Promise.all(photos.map((p: any) => deletePhotoData(p.blob_key))));
+            await act("event_deleted", gone?.title || null, id);
             later(deleteGoogleEvents(mappings as any));
           }
           return Response.json({ ok });
@@ -475,6 +489,26 @@ export async function handleApi(req: Request): Promise<Response> {
       if (!roleIn(cid)) notFound();
       await db.setGoogleAppCalendar(me.id, cid);
       return Response.json({ ok: true });
+    }
+
+    // ---------- 回收站：删除的活动留 5 天，可以复原 ----------
+    if (r === "trash") {
+      if (!seg[1] && method === "GET") return Response.json({ days: db.TRASH_DAYS, items: await db.listTrash(calId) });
+      if (seg[1] && seg[2] === "restore" && method === "POST") {
+        mustEdit();
+        const e: any = await db.getEvent(id);
+        if (!e || e.calendar_id !== calId || !e.deleted_at) notFound();
+        await db.restoreEvent(id);
+        await act("event_restored", e.title, id);
+        sync(id); // Google 上也救回来
+        return Response.json({ ok: true, items: await db.listTrash(calId) });
+      }
+    }
+    // 照片空间（管理员看）
+    if (r === "admin" && seg[1] === "storage" && method === "GET") {
+      mustAdmin();
+      const u = await db.photoBytes();
+      return Response.json({ bytes: u.bytes, count: u.count, limit: photoLimit() });
     }
 
     // ---------- 第 2 版：Label & People、申请管理员、通知、最新动态 ----------

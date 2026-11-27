@@ -14,6 +14,14 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS activity_seen INTEGER NOT NULL DEFAUL
 ALTER TABLE events ADD COLUMN IF NOT EXISTS birthday_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS events_birthday_uq ON events (calendar_id, birthday_user_id, (extract(year FROM start AT TIME ZONE 'UTC'))) WHERE birthday_user_id IS NOT NULL;
 
+-- 回收站：删除的活动留 5 天，可以复原；5 天后才真的删掉（连照片）
+ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS events_deleted_idx ON events (deleted_at) WHERE deleted_at IS NOT NULL;
+
+-- 照片大小（算照片空间用了多少）
+ALTER TABLE photos ADD COLUMN IF NOT EXISTS size INTEGER;
+
 -- 邀请连结：只有管理员可以产生，3 天有效
 ALTER TABLE calendar_invites ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 

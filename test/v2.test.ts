@@ -128,9 +128,41 @@ const { googleColor } = await import("../supabase/functions/api/lib/db.mts");
 check("colour 15 → Google colour 2", googleColor("15") === "2" && googleColor("5") === "5");
 r = await call(B, "DELETE", `events/${ev.id}`);
 check("anyone (editor) can delete", r.data.ok, r);
+// 回收站：删除后留 5 天，可以复原；超过 5 天才真的删
+let tr = (await call(B, "GET", "trash")).data;
+check("deleted event is in the recycle bin", tr.days === 5 && tr.items.some((x: any) => x.id === ev.id && x.deleted_by_name === "Elsa Sze"), tr);
+check("deleted event hidden from calendar and detail", !(await call(B, "GET", "events")).data.some((x: any) => x.id === ev.id) && (await call(B, "GET", `events/${ev.id}`)).status === 404);
+r = await call(S, "POST", `trash/${ev.id}/restore`);
+check("restore brings it back", r.data.ok && (await call(B, "GET", `events/${ev.id}`)).data.title === "WM0222 试婚纱", r);
+await call(B, "DELETE", `events/${ev.id}`);
+await db.query("UPDATE events SET deleted_at = NOW() - interval '6 days' WHERE id = $1", [ev.id]);
+const { purgeTrash } = await import("../supabase/functions/api/lib/db.mts");
+await purgeTrash();
+check("after 5 days it is gone for good", (await db.query("SELECT 1 FROM events WHERE id = $1", [ev.id])).rowCount === 0);
+
+// 照片空间：80% 通知 Top Admin，满了不能上传
+Deno.env.set("PHOTO_LIMIT_MB", String(1000 / 1048576)); // 1000 bytes
+const evp = (await call(S, "POST", "events", { title: "照片测试", start: new Date().toISOString(), all_day: true, template_id: "normal" })).data;
+const upload = async (n: number) => {
+  const fd = new FormData(); fd.append("photos", new File([new Uint8Array(n)], "a.png", { type: "image/png" }));
+  const res = await handle(new Request(`http://localhost/api/events/${evp.id}/posts`, { method: "POST", headers: { authorization: `Bearer ${S}`, "x-lang": "zh" }, body: fd }));
+  return { status: res.status, data: await res.json() };
+};
+check("photo upload ok", (await upload(500)).status === 200);
+await flush();
+check("under 80% → no alert", !(await call(B, "GET", "notifications")).data.items.some((x: any) => x.kind === "storage"));
+await upload(350); await flush();
+const sn = (await call(B, "GET", "notifications")).data.items.find((x: any) => x.kind === "storage");
+check("over 80% → Top Admin gets a storage alert", !!sn && /85%/.test(sn.body), sn);
+r = await upload(400);
+check("full → upload refused", r.status === 400 && /照片空间已满/.test(r.data.error), r);
+const st = (await call(B, "GET", "admin/storage")).data;
+check("admin sees storage usage", st.bytes === 850 && st.count === 2 && st.limit === 1000, st);
+Deno.env.delete("PHOTO_LIMIT_MB");
+
 const feed = (await call(S, "GET", "activity")).data;
 const acts = feed.map((a: any) => a.action);
-check("activity: created, deleted, label, template, joined", ["event_created", "event_deleted", "label_added", "template_renamed", "joined"].every((x) => acts.includes(x)), acts);
+check("activity: created, deleted, restored, label, template, joined", ["event_created", "event_deleted", "event_restored", "label_added", "template_renamed", "joined"].every((x) => acts.includes(x)), acts);
 
 // 最新动态的未看数字：别人做的才算；看过就归零
 let un = (await call(B, "GET", "activity/unread")).data.unread;

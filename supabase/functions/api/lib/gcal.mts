@@ -8,6 +8,7 @@ import * as db from "./db.mts";
 import { env, apiBase, appUrl } from "./env.mts";
 import { deletePhotoData } from "./photos.mts";
 import { isTopAdmin } from "./auth.mts";
+export { deletePhotoData };
 import { getSettings, sign, verify, photoSignature, type Settings } from "./settings.mts";
 import { reminderAt, wallToUtc } from "./time.mts";
 import { desc, normLang, LOCALES, type Lang } from "./i18n.mts";
@@ -238,7 +239,8 @@ async function syncOne(l: Link, e: any, body: any, s: Settings) {
     const json = JSON.stringify({ ...body, id: gid });
     // 更新时不送 status：送 "confirmed" 会把在 Google 上删掉的活动又救回来
     const { status: _status, ...patchBody } = body;
-    const patchJson = JSON.stringify(patchBody);
+    // 这个人还没有对应（新的，或从回收站复原）：要送 confirmed，Google 上删过的那一笔才会救回来
+    const patchJson = JSON.stringify(prev ? patchBody : body);
     const calId = prev?.calendar_id || l.calendar_id; // 已有的 → 在它原本的日历更新；新的 → 主日历
     const cal = encodeURIComponent(calId);
     // PATCH：只改 App 管的栏位，保留 Google 上其他资料（邀请的人、视讯会议、附件…）
@@ -255,7 +257,6 @@ async function syncOne(l: Link, e: any, body: any, s: Settings) {
       const others = (await db.listEventGoogle(e.id)).filter((m: any) => m.user_id !== l.user_id);
       const photos = await db.listPhotos(e.id);
       if (await db.deleteEvent(e.id)) {
-        for (const p of photos) await deletePhotoData(p.blob_key);
         await deleteGoogleEvents(others as any);
       }
       return { ok: true, deleted: true };
@@ -279,7 +280,7 @@ export const WRITE_TO_GOOGLE = true;
 export async function syncEvent(eventId: number, siteUrl: string, onlyUserId?: number, exceptUserId?: number) {
   if (!WRITE_TO_GOOGLE) return { skipped: true };
   const e = await db.getEvent(eventId);
-  if (!e) return { skipped: true };
+  if (!e || e.deleted_at) return { skipped: true }; // 在回收站里的不同步
   // 只同步到「选了这个 App 日历」的人的 Google 日历
   const links = (await db.listGoogleLinks()).filter((l: any) => (!onlyUserId || l.user_id === onlyUserId) && l.user_id !== exceptUserId
     && l.app_calendar_id != null && l.app_calendar_id === e.calendar_id);
@@ -442,7 +443,6 @@ async function refreshCalendars(l: any) {
       const others = (await db.listEventGoogle(event_id)).filter((m: any) => m.user_id !== l.user_id);
       const photos = await db.listPhotos(event_id);
       if (await db.deleteEvent(event_id)) {
-        for (const p of photos) await deletePhotoData(p.blob_key);
         await deleteGoogleEvents(others as any);
       }
     }
@@ -466,7 +466,6 @@ export async function setCalendarEnabled(userId: number, calendarId: string, ena
       const others = (await db.listEventGoogle(event_id)).filter((m: any) => m.user_id !== userId);
       const photos = await db.listPhotos(event_id);
       if (await db.deleteEvent(event_id)) {
-        for (const p of photos) await deletePhotoData(p.blob_key);
         await deleteGoogleEvents(others as any);
       }
     }
@@ -558,7 +557,8 @@ async function pullCalendar(ctx: any, cal: any) {
       }
       // 本来就是 App 写进 Google 的行程，只是对应不见了 → 接回去（不重复建立）
       const own = ev.extendedProperties?.private?.familyCalendarId;
-      if (own && String(ev.id).startsWith(ownPrefix) && (await db.getEvent(Number(own)))) {
+      const ownEv: any = own ? await db.getEvent(Number(own)) : null;
+      if (own && String(ev.id).startsWith(ownPrefix) && ownEv && !ownEv.deleted_at) {
         await db.setEventGoogle(Number(own), userId, { google_event_id: ev.id, calendar_id: calId, etag: ev.etag });
         known.set(ev.id, { event_id: Number(own), etag: ev.etag });
         continue;
@@ -582,7 +582,6 @@ async function pullCalendar(ctx: any, cal: any) {
       const others = (await db.listEventGoogle(event_id)).filter((m: any) => m.user_id !== userId);
       const photos = await db.listPhotos(event_id);
       if (await db.deleteEvent(event_id)) {
-        for (const p of photos) await deletePhotoData(p.blob_key);
         await deleteGoogleEvents(others as any);
         ctx.touched.delete(event_id); ctx.createdIds.delete(event_id);
         ctx.deleted++;

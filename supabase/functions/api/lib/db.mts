@@ -73,7 +73,7 @@ export async function listEvents({ from, to, q: keyword, calendarId }: { from?: 
     `SELECT ${EVENT_COLS} FROM events e LEFT JOIN members m ON m.id = e.member_id LEFT JOIN users cu ON cu.id = e.created_by_id
      WHERE ($1::timestamptz IS NULL OR COALESCE(e."end", e.start) >= $1) AND ($2::timestamptz IS NULL OR e.start < $2)
        AND ($3::text IS NULL OR e.title ILIKE '%' || $3 || '%' OR e.notes ILIKE '%' || $3 || '%')
-       AND ($4::int IS NULL OR e.calendar_id = $4)
+       AND ($4::int IS NULL OR e.calendar_id = $4) AND e.deleted_at IS NULL
      ORDER BY e.start`,
     [from ? toIso(from) : null, to ? toIso(to) : null, keyword || null, calendarId ?? null],
   );
@@ -172,8 +172,30 @@ export async function updateEvent(id: number, e: any, author?: string | null) {
   return getEvent(id);
 }
 
-export async function deleteEvent(id: number) {
-  return (await sql`DELETE FROM events WHERE id = ${id} RETURNING id`).length > 0;
+/** 删除 = 放进回收站（5 天内可以复原）；Google 上的对应也拿掉（复原时会重新建立） */
+export async function deleteEvent(id: number, by: number | null = null) {
+  const r = await sql`UPDATE events SET deleted_at = NOW(), deleted_by = ${by} WHERE id = ${id} AND deleted_at IS NULL RETURNING id`;
+  if (r.length) await sql`DELETE FROM event_google WHERE event_id = ${id}`;
+  return r.length > 0;
+}
+export const TRASH_DAYS = 5;
+export async function listTrash(calendarId: number) {
+  return (await sql`SELECT e.id, e.title, e.start, e.all_day, e.label, e.deleted_at, COALESCE(u.name, ${UNKNOWN_USER}) AS deleted_by_name, u.emoji AS deleted_by_emoji
+    FROM events e LEFT JOIN users u ON u.id = e.deleted_by
+    WHERE e.calendar_id = ${calendarId} AND e.deleted_at IS NOT NULL ORDER BY e.deleted_at DESC LIMIT 200`)
+    .map((r: any) => ({ ...r, start: iso(r.start), deleted_at: iso(r.deleted_at), all_day: r.all_day ? 1 : 0 }));
+}
+export async function restoreEvent(id: number) {
+  return (await sql`UPDATE events SET deleted_at = NULL, deleted_by = NULL WHERE id = ${id} AND deleted_at IS NOT NULL RETURNING id`).length > 0;
+}
+/** 回收站超过 5 天的：真的删掉，回传要删的照片档案 */
+export async function purgeTrash() {
+  const old = await sql`SELECT id FROM events WHERE deleted_at < NOW() - make_interval(days => ${TRASH_DAYS})`;
+  if (!old.length) return [];
+  const ids = old.map((r: any) => r.id);
+  const keys = (await sql`SELECT blob_key FROM photos WHERE event_id = ANY(${ids}::int[])`).map((r: any) => r.blob_key);
+  await sql`DELETE FROM events WHERE id = ANY(${ids}::int[])`;
+  return keys;
 }
 
 // ---------- 给客户的 WhatsApp ----------
@@ -181,7 +203,7 @@ export async function deleteEvent(id: number) {
 export async function pendingCustomerMessages() {
   // 自己选的发送时间：到了（而且不超过 1 天前）就发；没选：行程在 3 天内（前一天下午 4 点发）
   return sql`SELECT id, start, customer_phone, customer_note, customer_send_at FROM events
-    WHERE customer_auto AND customer_sent_at IS NULL AND customer_error IS NULL
+    WHERE deleted_at IS NULL AND customer_auto AND customer_sent_at IS NULL AND customer_error IS NULL
       AND COALESCE(customer_phone, '') <> '' AND COALESCE(customer_note, '') <> ''
       AND ((customer_send_at IS NOT NULL AND customer_send_at <= NOW() AND customer_send_at > NOW() - INTERVAL '1 day')
         OR (customer_send_at IS NULL AND start > NOW() AND start < NOW() + INTERVAL '3 days'))`;
@@ -203,7 +225,7 @@ export async function upcomingForSchedule(days: number, withPast = false) {
   const to = new Date(Date.now() + days * 86400_000);
   const rows = await sql`SELECT id, calendar_id, title, start, all_day, customer_phone, customer_name, customer_note, customer_auto, customer_sent_at,
       customer_error, customer_send_at, customer_source, customer_lookup, customer_lookup_detail
-    FROM events WHERE start >= ${from.toISOString()} AND start < ${to.toISOString()} ORDER BY start`;
+    FROM events WHERE deleted_at IS NULL AND start >= ${from.toISOString()} AND start < ${to.toISOString()} ORDER BY start`;
   return rows.map((e: any) => ({ ...e, start: iso(e.start), customer_sent_at: iso(e.customer_sent_at), customer_send_at: iso(e.customer_send_at) }));
 }
 /** 从通讯录找到客户 → 填上电话、名字、提醒内容（电话换了 → 之后会重新发） */
@@ -498,9 +520,14 @@ export async function deleteMember(id: number) {
 }
 
 // ---------- 照片 ----------
-export async function addPhoto(p: { event_id?: number | null; blob_key: string; mime: string; caption?: string | null; author?: string | null }) {
-  const [r] = await sql`INSERT INTO photos (event_id, blob_key, mime, caption, author)
-    VALUES (${p.event_id ?? null}, ${p.blob_key}, ${p.mime}, ${clean(p.caption, 500)}, ${clean(p.author, 60)}) RETURNING *`;
+/** 照片空间用了多少（bytes） */
+export async function photoBytes() {
+  const [r] = await sql`SELECT COALESCE(SUM(size), 0)::bigint AS n, COUNT(*)::int AS c FROM photos`;
+  return { bytes: Number(r.n), count: r.c };
+}
+export async function addPhoto(p: { event_id?: number | null; blob_key: string; mime: string; caption?: string | null; author?: string | null; size?: number | null }) {
+  const [r] = await sql`INSERT INTO photos (event_id, blob_key, mime, caption, author, size)
+    VALUES (${p.event_id ?? null}, ${p.blob_key}, ${p.mime}, ${clean(p.caption, 500)}, ${clean(p.author, 60)}, ${p.size ?? null}) RETURNING *`;
   return outRow(r);
 }
 export async function listPhotos(eventId: number) {
@@ -632,7 +659,7 @@ export async function dashEvents(calendarId: number, fromDate: string, tz: strin
   return q(`SELECT to_char(e.start AT TIME ZONE $3, 'YYYY-MM-DD') AS date, e.title, e.template_id, e.brand, e.soft, e.sales_type,
       COALESCE(u.name, e.created_by) AS person
     FROM events e LEFT JOIN users u ON u.id = e.created_by_id
-    WHERE e.calendar_id = $1 AND e.start >= ($2::date::timestamp AT TIME ZONE $3)
+    WHERE e.calendar_id = $1 AND e.deleted_at IS NULL AND e.start >= ($2::date::timestamp AT TIME ZONE $3)
     ORDER BY e.start`, [calendarId, fromDate, tz]);
 }
 export async function dashManual(calendarId: number) {
@@ -779,10 +806,10 @@ export async function decideAdminRequest(id: number, approve: boolean, by: numbe
 }
 
 // ---- 通知（给管理员；同一件事 6 小时内只通知一次） ----
-export async function notify(userIds: number[], kind: string, body: string, ref: string | null = null) {
+export async function notify(userIds: number[], kind: string, body: string, ref: string | null = null, hours = 6) {
   for (const uid of userIds) {
     await sql`INSERT INTO notifications (user_id, kind, body, ref) SELECT ${uid}, ${kind}, ${body}, ${ref}
-      WHERE ${ref}::text IS NULL OR NOT EXISTS (SELECT 1 FROM notifications WHERE user_id = ${uid} AND kind = ${kind} AND ref = ${ref} AND created_at > NOW() - interval '6 hours')`;
+      WHERE ${ref}::text IS NULL OR NOT EXISTS (SELECT 1 FROM notifications WHERE user_id = ${uid} AND kind = ${kind} AND ref = ${ref} AND created_at > NOW() - make_interval(hours => ${hours}))`;
   }
 }
 export async function listNotifications(userId: number) {

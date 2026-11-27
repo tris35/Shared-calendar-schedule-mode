@@ -6,6 +6,70 @@
 <title>Dashboard</title>
 <script src="config.js"></script>
 <script>if (new URLSearchParams(location.search).has('embed')) document.documentElement.classList.add('embed');</script>
+<script>
+/* 语言：网站选 English 时，这几页（Photo Selection、Sales、Rates）也全部换成英文 */
+(() => {
+  let lang = new URLSearchParams(location.search).get('lang');
+  if (!lang) { try { lang = localStorage.getItem('lang'); } catch {} }
+  if (lang !== 'en') return;
+  document.documentElement.lang = 'en';
+  const FULL = {
+    '回到顶部': 'Back to top', 'Rates 设置': 'Rates', '金额单位：RM': 'Amounts in RM', 'Rate 按生效日期计算': 'Rates apply from their start date',
+    '月份': 'Month', '品牌': 'Brand', '合并': 'All', '导览': 'Tour', '导览：介绍每个地方怎么用': 'Tour', '声音开关': 'Sound on/off',
+    '所选期间有日期还没设定 Photo Selection Rate，那些活动没有计入 Total Amount。请到 Rates 设置。': 'Some days in this period have no Photo Selection rate, so those events are not in the Total Amount. Set it in Rates.',
+    '所选期间有日期还没设定 Sales Rate，那些活动没有计入 Total Amount。请到 Rates 设置。': 'Some days in this period have no Sales rate, so those events are not in the Total Amount. Set it in Rates.',
+    '负责人': 'Person', '全部场次': 'All events', '不计费': 'not billed', '计费场次': 'billed', 'TOTAL 上门了解': 'TOTAL VISIT', 'TOTAL VC了解': 'TOTAL VC',
+    '上门了解': 'Visit', 'VC了解': 'VC', '次数': 'Count', '合计次数': 'Total count', '计费次数': 'billed', '未设定': 'Not set',
+    '这个月份没有活动。': 'No events this month.', '每位负责人的场次与 Total Amount': 'Events and Total Amount per person', '还没有任何月份的活动。': 'No events yet.',
+    '每月 Total Amount': 'Total Amount per month', '没有活动。': 'No events.', '没有活动': 'No events', '这个期间没有活动。': 'No events in this period.',
+    '每位负责人的次数': 'Count per person', '选片 · Photo Selection': 'Photo Selection', '上门了解 + VC了解 · Sales': 'Visit + VC · Sales',
+    '还没有设定 Rate': 'No rate set yet', '新 Rate (RM)': 'New rate (RM)', '保存': 'Save', '取消': 'Cancel', '改 Rate': 'Change rate', '收起记录': 'Hide history',
+    '目前使用': 'In use', '未来': 'Upcoming', '过去': 'Past', '确定删除？': 'Delete?', '删除': 'Delete', '没有记录。': 'No history.',
+    '选片 · 每场 Non-All Soft 的 Rate': 'Photo Selection · rate per Non-All Soft event', '上门了解 + VC了解 · 每次的 Rate': 'Visit + VC · rate per event',
+    '全年 Rate 相同': 'Same rate all year', '每个活动用当天有效的 Rate': 'Each event uses the rate on its day', '请到 Rates 设置': 'Set it in Rates',
+    '日期': 'Date', '添加的人': 'Added by', '类型': 'Type', '活动名称': 'Event', '收起': 'Hide', '查看是哪几个': 'Show which', '合计': 'Total',
+    '请在日历上帮这些活动勾选 Legends 或 WM，勾好后就会自动算进去。': 'Tick Legends or WM for these events in the calendar and they will be counted.',
+    '声音：开': 'Sound: on', '声音：关': 'Sound: off', '关闭': 'Close', '跳过': 'Skip', '上一步': 'Back', '开始使用': 'Get started', '下一步': 'Next', '完成！': 'Done!',
+    '请输入 Rate，并选 2026 年 10 月 1 日或之后的日期。': 'Enter a rate and pick a date on or after 1 Oct 2026.',
+    '未选模板': 'No template', '勾选不完整': 'Ticks incomplete', '手动数据': 'Manual data', 'Settings': 'Settings',
+  };
+  const MON = (y, m) => new Date(Date.UTC(+y, +m - 1, 1)).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const PAT = [
+    [/^(\d{4})年(\d{1,2})月$/, (_, y, m) => MON(y, m)],
+    [/^(\d{1,2})月$/, (_, m) => new Date(Date.UTC(2026, +m - 1, 1)).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })],
+    [/^从 (.+) 起生效$/, 'From $1'], [/^(.+) 起生效$/, 'From $1'],
+    [/^(.+) 起改为 RM (.+)$/, 'From $1: RM $2'], [/^(.+) 起改为 (.+)$/, 'From $1: $2'],
+    [/^(Legends|WM) (.+) 起 (.+)$/, '$1 from $2: $3'], [/^(.+) 起$/, 'From $1'],
+    [/^查看记录 \((\d+)\)$/, 'History ($1)'], [/^选或输入，例如 (.+)$/, 'Pick or type, e.g. $1'],
+    [/^(.+) 有 (\d+) 个活动没有勾选 Legends 或 WM，没有计入任何金额。$/, (_, p, n) => `${n} events in ${fix(p)} have no Legends or WM tick and are not counted.`],
+    [/^Dashboard 读取失败：(.*)$/, 'Could not load the dashboard: $1'],
+  ];
+  // 句子里面的词（最长的先换）
+  const WORDS = [['Rate 未齐', 'rate missing'], ['按品牌/按月', 'by brand/month'], ['按日期', 'by date'], ['+ 未设定', '+ not set'], ['未设定', 'not set'],
+    ['上门了解', 'Visit'], ['VC了解', 'VC'], ['合计', 'Total'], ['场', ' events']];
+  function fix(s) {
+    const k = s.trim();
+    if (!k || !/[一-鿿]/.test(k)) return s;
+    if (FULL[k]) return s.replace(k, FULL[k]);
+    for (const [re, to] of PAT) if (re.test(k)) return s.replace(k, k.replace(re, to));
+    let out = k.replace(/(\d{4})年(\d{1,2})月/g, (_, y, m) => MON(y, m));
+    for (const [a, b] of WORDS) out = out.split(a).join(b);
+    return s.replace(k, out);
+  }
+  const ATTRS = ['aria-label', 'title', 'placeholder'];
+  function walk(node) {
+    if (node.nodeType === 3) { const v = fix(node.nodeValue); if (v !== node.nodeValue) node.nodeValue = v; return; }
+    if (node.nodeType !== 1 || node.tagName === 'SCRIPT' || node.tagName === 'STYLE') return;
+    for (const a of ATTRS) if (node.hasAttribute(a)) { const v = fix(node.getAttribute(a)); if (v !== node.getAttribute(a)) node.setAttribute(a, v); }
+    for (const c of node.childNodes) walk(c);
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    walk(document.body);
+    new MutationObserver((ms) => { for (const m of ms) { if (m.type === 'characterData') walk(m.target); else m.addedNodes.forEach(walk); if (m.type === 'attributes') walk(m.target); } })
+      .observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS });
+  });
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
 <style>
@@ -491,7 +555,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   // ---------- 和网站的后台连线 ----------
   const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } } };
   async function server(path, opts = {}) {
-    const headers = { 'x-lang': store.get('lang') || 'zh', ...(store.get('token') ? { Authorization: `Bearer ${store.get('token')}` } : {}), ...(store.get('cal') ? { 'x-cal': store.get('cal') } : {}) };
+    const headers = { 'x-lang': new URLSearchParams(location.search).get('lang') || store.get('lang') || 'zh', ...(store.get('token') ? { Authorization: `Bearer ${store.get('token')}` } : {}), ...(store.get('cal') ? { 'x-cal': store.get('cal') } : {}) };
     if (opts.body) headers['Content-Type'] = 'application/json';
     const res = await fetch((window.APP_CONFIG?.apiBase || '') + path, { ...opts, headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
     const out = await res.json().catch(() => ({}));
