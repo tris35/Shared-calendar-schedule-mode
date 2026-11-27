@@ -131,6 +131,13 @@ const feed = (await call(S, "GET", "activity")).data;
 const acts = feed.map((a: any) => a.action);
 check("activity: created, deleted, label, template, joined", ["event_created", "event_deleted", "label_added", "template_renamed", "joined"].every((x) => acts.includes(x)), acts);
 
+// 最新动态的未看数字：别人做的才算；看过就归零
+let un = (await call(B, "GET", "activity/unread")).data.unread;
+check("Elsa has unread activity from Amy", un >= 2, un);
+await call(B, "POST", "activity/seen", { upTo: feed[0].id });
+un = (await call(B, "GET", "activity/unread")).data.unread;
+check("after opening 最新动态 → 0 unread", un === 0, un);
+
 // 6. 移除员工：名字变「未知用户」，资料保留，不能再登录
 const ev2 = (await call(S, "POST", "events", { title: "Amy 的行程", start: new Date(Date.now() + 2 * 86400_000).toISOString(), all_day: true, template_id: "normal" })).data;
 r = await call(S, "DELETE", "people/1");

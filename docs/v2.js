@@ -162,6 +162,24 @@ function toast(msg, bad = false) {
 }
 const fail = (e) => { toast(e.message || String(e), true); chime("bad"); };
 
+// ---------------- 点击波纹 ----------------
+const RIPPLE = "button,.btn,.nav-btn,.icon-btn,.lab,.tpl-btn,.cal-cell,.ev-row,.sw,.emo,.gear,.warn-bar,.linkish,.check";
+document.addEventListener("pointerdown", (e) => {
+  const el = e.target.closest?.(RIPPLE);
+  if (!el || el.disabled || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const r = el.getBoundingClientRect(), size = Math.max(r.width, r.height) * 2.2;
+  if (getComputedStyle(el).position === "static") el.style.position = "relative";
+  const wrap = document.createElement("span"), dot = document.createElement("span");
+  wrap.className = "rip-wrap"; dot.className = "ripple";
+  Object.assign(dot.style, { width: size + "px", height: size + "px", left: e.clientX - r.left - size / 2 + "px", top: e.clientY - r.top - size / 2 + "px" });
+  wrap.append(dot); el.append(wrap);
+  setTimeout(() => wrap.remove(), 800);
+}, { passive: true });
+
+// ---------------- 骨架屏（等待中：高光闪过） ----------------
+const sk = (cls = "", style = "") => `<span class="sk ${cls}" style="${style}"></span>`;
+const skRows = (n, h = 56) => Array.from({ length: n }, (_, i) => sk("sk-row", `height:${h}px;animation-delay:${i * 0.08}s`)).join("");
+
 // ---------------- 图示 ----------------
 const ICON = {
   calendar: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
@@ -184,7 +202,7 @@ const PROFILE_COLORS = ["#2563eb", "#0ea5e9", "#14b8a6", "#22c55e", "#84cc16", "
 // ---------------- 状态 ----------------
 const state = {
   me: null, config: null, cals: [], page: "calendar", cursor: null, sel: null, events: [], untagged: [],
-  notes: { items: [], unread: 0, seen: Number(store.get("notes-seen") || 0) },
+  notes: { items: [], unread: 0, seen: Number(store.get("notes-seen") || 0) }, actUnread: 0, loadingMonth: false,
 };
 const isAdmin = () => !!state.me?.admin;
 const isTop = () => !!state.me?.top;
@@ -399,7 +417,7 @@ function renderApp() {
   const want = location.hash.slice(1);
   if (items.some((x) => x.id === want)) state.page = want;
   const cal = state.cals.find((c) => String(c.id) === store.get("cal"));
-  const btn = (x) => `<button class="nav-btn" data-nav="${x.id}" ${x.id === state.page ? 'aria-current="page"' : ""}>${ICON[x.icon]}<span class="t">${t("nav_" + x.id)}</span>${x.id === "calendar" ? '<span class="count" id="untag-count" hidden></span>' : ""}</button>`;
+  const btn = (x) => `<button class="nav-btn" data-nav="${x.id}" ${x.id === state.page ? 'aria-current="page"' : ""}>${ICON[x.icon]}<span class="t">${t("nav_" + x.id)}</span>${x.id === "calendar" ? '<span class="count" id="untag-count" hidden></span>' : ""}${x.id === "activity" ? `<span class="count" id="act-count" ${state.actUnread ? "" : "hidden"}>${state.actUnread > 99 ? "99+" : state.actUnread}</span>` : ""}</button>`;
   $("#root").innerHTML = `<div class="app">
     <aside class="side">
       <div class="logo"><div class="logo-mark">L</div><div><div class="logo-name">THE LEGEND</div><div class="logo-cal">${esc(cal?.name || "")}</div></div></div>
@@ -429,7 +447,16 @@ function renderPage() {
   const main = $("#main");
   const p = state.page;
   if (["photo", "sales", "rates"].includes(p)) {
-    main.innerHTML = `<section class="frame-page"><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}"></iframe></section>`;
+    main.innerHTML = `<section class="frame-page"><div class="frame-sk" id="frame-sk">
+        <div class="row" style="justify-content:space-between">${sk("", "width:220px;height:34px")}${sk("", "width:300px;height:40px")}</div>
+        ${sk("", "width:min(520px,80%);height:46px")}
+        <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
+        <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}"></iframe></section>`;
+    const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
+    const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
+    window.addEventListener("message", onMsg);
+    setTimeout(hide, 10000);
     return;
   }
   if (p === "calendar") return renderCalendar();
@@ -480,9 +507,11 @@ function gridDays() {
 }
 async function loadMonth() {
   const days = gridDays();
+  state.loadingMonth = true; drawGrid();
   try {
     state.events = await api(`/api/events?from=${encodeURIComponent(wallToIso(days[0]))}&to=${encodeURIComponent(wallToIso(addDays(days[41], 1)))}`);
-  } catch (e) { if (e.status === 409) return boot(); return fail(e); }
+  } catch (e) { state.loadingMonth = false; drawGrid(); if (e.status === 409) return boot(); return fail(e); }
+  state.loadingMonth = false;
   drawGrid();
 }
 function eventDays(e) {
@@ -504,8 +533,9 @@ function drawGrid() {
   const map = byDay(), today = ymdIn(Date.now()), days = gridDays();
   const dows = Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(2024, 0, 1 + i)).toLocaleDateString(loc(), { weekday: "short", timeZone: "UTC" }));
   grid.innerHTML = dows.map((d) => `<div class="cal-dow">${esc(d)}</div>`).join("") + days.map((d) => {
-    const list = map.get(d) || [];
-    const chips = list.slice(0, 4).map((e) => `<span class="chip ${untaggedEv(e) ? "untag" : ""}" style="--c:${esc(evColor(e))}"><b>${esc(e.title)}</b></span>`).join("");
+    const list = state.loadingMonth ? [] : map.get(d) || [];
+    const fake = state.loadingMonth ? Array.from({ length: (d.charCodeAt(9) + d.charCodeAt(8)) % 3 }, (_, k) => sk("sk-chip", `animation-delay:${(k * 0.1 + (Number(d.slice(8)) % 7) * 0.05).toFixed(2)}s`)).join("") : "";
+    const chips = fake + list.slice(0, 4).map((e) => `<span class="chip ${untaggedEv(e) ? "untag" : ""}" style="--c:${esc(evColor(e))}"><b>${esc(e.title)}</b></span>`).join("");
     return `<button class="cal-cell ${d.slice(0, 7) !== state.cursor ? "out" : ""} ${d === today ? "today" : ""} ${d === state.sel ? "sel" : ""}" data-day="${d}" aria-label="${esc(fmtDay(d))}">
       <span class="cal-num">${Number(d.slice(8))}</span>${chips}${list.length > 4 ? `<span class="chip-more">+${list.length - 4}</span>` : ""}</button>`;
   }).join("");
@@ -528,6 +558,7 @@ function evRow(e, withDate = false) {
 }
 function drawDay(map) {
   const list = (map || byDay()).get(state.sel) || [];
+  if (state.loadingMonth) { $("#day-title").textContent = fmtDay(state.sel, { year: "numeric", month: "long", day: "numeric", weekday: "long" }); $("#day-list").innerHTML = skRows(2, 62); return; }
   $("#day-title").textContent = fmtDay(state.sel, { year: "numeric", month: "long", day: "numeric", weekday: "long" });
   $("#day-list").innerHTML = list.length ? list.map((e) => evRow(e)).join("") : `<p class="empty">${t("no_events")}</p>`;
   $("#day-list").onclick = (e) => { const r = e.target.closest("[data-ev]"); if (r) openDetail(Number(r.dataset.ev)); };
@@ -793,10 +824,11 @@ async function renderPeople() {
   </section>`;
   $("#lab-add")?.addEventListener("click", () => openLabelDlg(() => drawLabels()));
   drawLabels();
+  $("#people").innerHTML = Array.from({ length: 4 }, (_, i) => sk("sk-person", `animation-delay:${i * 0.08}s`)).join("");
   let people = [];
   try { people = await api("/api/people"); } catch (e) { return fail(e); }
   const bd = (p) => (p.birth_month ? new Date(Date.UTC(2024, p.birth_month - 1, p.birth_day)).toLocaleDateString(loc(), { month: "long", day: "numeric", timeZone: "UTC" }) : "");
-  $("#people").innerHTML = people.map((p) => `<div class="person">${avatar(p.emoji, p.color)}
+  $("#people").innerHTML = people.map((p, i) => `<div class="person rise" style="--i:${i}">${avatar(p.emoji, p.color)}
     <div class="grow"><div class="person-name">${esc(p.name)}</div><div class="person-sub">${[p.admin ? t("admin") : "", p.role === "viewer" ? t("viewer") : "", bd(p) ? "🎂 " + esc(bd(p)) : ""].filter(Boolean).join(" · ")}</div></div>
     ${isAdmin() && p.id !== state.me.id ? `<button class="btn danger sm" data-rm="${p.id}">${t("remove")}</button>` : ""}</div>`).join("");
   $("#people").onclick = async (e) => {
@@ -816,16 +848,19 @@ function drawLabels() {
 
 // ================= 最新动态 =================
 async function renderActivity() {
-  $("#main").innerHTML = topBar(t("nav_activity")) + `<section class="page"><div class="card"><div class="list" id="acts"></div><button class="btn ghost" id="act-more" hidden>${t("more")}</button></div></section>`;
+  $("#main").innerHTML = topBar(t("nav_activity")) + `<section class="page"><div class="card"><div class="list" id="acts">${skRows(6, 58)}</div><button class="btn ghost" id="act-more" hidden>${t("more")}</button></div></section>`;
   let items = [];
+  const row = (a, i) => `<div class="item rise" style="--i:${i}">${avatar(a.emoji, a.color, "sm")}
+        <div class="grow act-text">${t("a_" + a.action, { who: a.name, t: a.title || "" })}</div><span class="act-when">${esc(ago(a.created_at))}</span></div>`;
   const load = async (before) => {
     try {
       const more = await api(`/api/activity${before ? `?before=${before}` : ""}`);
+      // 第一次：整个清单错峰进来；按「更多」：只有新的那几笔错峰进来
+      if (!before) $("#acts").innerHTML = more.length ? more.map(row).join("") : `<p class="empty">${t("no_activity")}</p>`;
+      else $("#acts").insertAdjacentHTML("beforeend", more.map(row).join(""));
       items = [...items, ...more];
-      $("#acts").innerHTML = items.length ? items.map((a) => `<div class="item">${avatar(a.emoji, a.color, "sm")}
-        <div class="grow act-text">${t("a_" + a.action, { who: a.name, t: a.title || "" })}</div><span class="act-when">${esc(ago(a.created_at))}</span></div>`).join("") : `<p class="empty">${t("no_activity")}</p>`;
       $("#act-more").hidden = more.length < 50;
-      $("#acts").onclick = (e) => {};
+      if (!before && more[0]) { api("/api/activity/seen", { method: "POST", body: { upTo: more[0].id } }).catch(() => {}); setActUnread(0); }
     } catch (e) { fail(e); }
   };
   $("#act-more").onclick = () => load(items[items.length - 1]?.id);
@@ -904,6 +939,7 @@ async function openSettings() {
 }
 async function drawApply(d) {
   const box = $("#apply-box", d);
+  if (!box.children.length) box.innerHTML = sk("", "width:180px;height:42px");
   try {
     const r = await api("/api/admin-request");
     const pendingReq = r.request?.status === "pending";
@@ -942,6 +978,7 @@ function wireAdmin(d) {
 }
 async function drawRequests(d) {
   const box = $("#req-list", d);
+  if (!box.children.length) box.innerHTML = skRows(1, 58);
   try {
     const list = await api("/api/admin/requests");
     box.innerHTML = list.length ? list.map((r) => `<div class="item">${avatar(r.emoji, r.color, "sm")}<div class="grow"><b>${esc(r.name)}</b><div class="sub">${esc(r.email)}</div></div>
@@ -954,6 +991,7 @@ async function drawRequests(d) {
 }
 async function drawAdmins(d) {
   const box = $("#adm-list", d);
+  if (!box.children.length) box.innerHTML = skRows(2, 58);
   try {
     const list = await api("/api/admin/list");
     box.innerHTML = list.map((a) => `<div class="item">${avatar(a.emoji, a.color, "sm")}<div class="grow"><b>${esc(a.name)}</b> ${a.top ? `<span class="tag ok">${t("top_admin")}</span>` : ""}<div class="sub">${esc(a.email)}</div></div>
@@ -976,6 +1014,7 @@ async function drawAdmins(d) {
 }
 async function drawGoogle(d) {
   const box = $("#g-box", d);
+  if (!box.children.length) box.innerHTML = skRows(3, 50);
   const me = await api("/api/auth/me").catch(() => state.me);
   if (!me.google) {
     box.innerHTML = `<div class="row"><div class="field"><label for="g-mail">${t("gmail_for_sync")}</label><input class="input" id="g-mail" type="email" value="${esc(me.email)}"></div>
@@ -1012,7 +1051,12 @@ async function syncNow(box) {
 }
 
 // ================= 通知（弹出 + 声音） =================
+function setActUnread(n) {
+  state.actUnread = n;
+  const c = $("#act-count"); if (c) { c.hidden = !n; c.textContent = n > 99 ? "99+" : n; }
+}
 async function pollNotes() {
+  api("/api/activity/unread").then((r) => setActUnread(state.page === "activity" ? 0 : r.unread)).catch(() => {});
   try {
     const r = await api("/api/notifications");
     state.notes.items = r.items; state.notes.unread = r.unread;

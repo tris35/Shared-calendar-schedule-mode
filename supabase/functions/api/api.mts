@@ -515,7 +515,9 @@ export async function handleApi(req: Request): Promise<Response> {
       if (seg[1] === "read" && method === "POST") { await db.readNotifications(me.id, Number((await body()).upTo) || 0); return Response.json({ ok: true }); }
     }
     // 最新动态（所有人）
-    if (r === "activity" && method === "GET") {
+    if (r === "activity" && seg[1] === "unread" && method === "GET") return Response.json({ unread: await db.activityUnread(me.id, myCals.map((c) => c.id)) });
+    if (r === "activity" && seg[1] === "seen" && method === "POST") { await db.setActivitySeen(me.id, Math.floor(Number((await body()).upTo) || 0)); return Response.json({ ok: true }); }
+    if (r === "activity" && !seg[1] && method === "GET") {
       const before = Number(url.searchParams.get("before")) || null;
       return Response.json(await db.listActivity(myCals.map((c) => c.id), before));
     }

@@ -801,6 +801,16 @@ export async function readNotifications(userId: number, upTo: number) {
 export async function logActivity(calendarId: number | null, userId: number | null, action: string, title: string | null = null, eventId: number | null = null) {
   await sql`INSERT INTO activity (calendar_id, user_id, action, title, event_id) VALUES (${calendarId}, ${userId}, ${action}, ${clean(title, 300)}, ${eventId})`;
 }
+/** 最新动态：别人做的、我还没看的有几笔（加入之前的不算） */
+export async function activityUnread(userId: number, calendarIds: number[]) {
+  const [r] = await q(`SELECT COUNT(*)::int AS n FROM activity a JOIN users me ON me.id = $1
+    WHERE (a.calendar_id = ANY($2::int[]) OR a.calendar_id IS NULL) AND a.id > me.activity_seen
+      AND a.user_id IS DISTINCT FROM $1 AND a.created_at > me.created_at`, [userId, calendarIds]);
+  return r?.n ?? 0;
+}
+export async function setActivitySeen(userId: number, upTo: number) {
+  await sql`UPDATE users SET activity_seen = GREATEST(activity_seen, ${upTo}) WHERE id = ${userId}`;
+}
 export async function listActivity(calendarIds: number[], before: number | null, limit = 50) {
   return (await q(`SELECT a.id, a.action, a.title, a.event_id, a.created_at, a.user_id,
       COALESCE(u.name, $3) AS name, u.emoji, u.color

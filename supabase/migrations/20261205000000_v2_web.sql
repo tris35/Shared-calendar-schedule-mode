@@ -8,6 +8,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_day SMALLINT CHECK (birth_day I
 ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarded BOOLEAN NOT NULL DEFAULT FALSE;  -- 第一次登录的步骤做完了
 ALTER TABLE users ADD COLUMN IF NOT EXISTS removed_at TIMESTAMPTZ;                     -- 管理员移除（离职）：名字变成「未知用户」，资料保留
+ALTER TABLE users ADD COLUMN IF NOT EXISTS activity_seen INTEGER NOT NULL DEFAULT 0;   -- 最新动态：看到第几笔（之后的算未看）
 
 -- 生日行程：每年一笔（这个人的生日）
 ALTER TABLE events ADD COLUMN IF NOT EXISTS birthday_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;

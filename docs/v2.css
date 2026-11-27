@@ -244,6 +244,32 @@ dialog.sheet .dlg{height:100%;max-height:none;border-radius:18px 0 0 18px}
 }
 @media (prefers-reduced-motion:reduce){.saved-burst{animation:wFade 1.7s ease forwards}.saved-burst i{display:none}}
 
+/* ---------- 点击波纹 ---------- */
+.rip-wrap{position:absolute;inset:0;overflow:hidden;border-radius:inherit;pointer-events:none;z-index:0}
+.ripple{position:absolute;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.5) 0%,rgba(186,230,253,.32) 40%,rgba(125,211,252,.12) 62%,transparent 72%);transform:scale(0);animation:ripple .75s ease-out forwards}
+@keyframes ripple{0%{transform:scale(0);opacity:1}55%{opacity:.85}100%{transform:scale(1);opacity:0}}
+
+/* ---------- 骨架屏：高光闪过 ---------- */
+.sk{display:block;border-radius:10px;background:linear-gradient(100deg,rgba(143,166,207,.08) 30%,rgba(186,220,255,.22) 50%,rgba(143,166,207,.08) 70%);background-size:250% 100%;animation:shimmer 1.4s ease-in-out infinite}
+@keyframes shimmer{from{background-position:120% 0}to{background-position:-120% 0}}
+.sk-row{width:100%;border-radius:12px}
+.sk-chip{height:22px;border-radius:6px}
+.sk-person{height:76px;border-radius:14px}
+.sk-card{height:160px;border-radius:var(--r)}
+.sk-card.tall{height:300px}
+.sk-grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:18px}
+.sk-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:18px}
+.frame-page{position:relative}
+.frame-sk{position:absolute;inset:0;z-index:2;padding:24px 28px;display:flex;flex-direction:column;gap:22px;background:var(--bg);transition:opacity .35s ease}
+.frame-sk.gone{opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}}
+
+/* ---------- 错峰进场 ---------- */
+@media (prefers-reduced-motion:no-preference){
+  .rise{animation:riseIn .55s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(min(var(--i,0),14) * 55ms)}
+  @keyframes riseIn{from{opacity:0;transform:translateY(16px)}}
+}
+
 /* ---------- toast + notification popup ---------- */
 .toasts{position:fixed;z-index:120;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
 .toast{background:var(--panel-solid);border:1px solid var(--line);border-radius:12px;padding:11px 18px;box-shadow:0 12px 30px rgba(0,0,0,.5);font-weight:600;animation:pop .25s ease}
