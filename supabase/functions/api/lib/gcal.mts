@@ -7,6 +7,7 @@ import { Buffer } from "node:buffer";
 import * as db from "./db.mts";
 import { env, apiBase, appUrl } from "./env.mts";
 import { deletePhotoData } from "./photos.mts";
+import { isAdmin } from "./auth.mts";
 import { getSettings, sign, verify, photoSignature, type Settings } from "./settings.mts";
 import { reminderAt, wallToUtc } from "./time.mts";
 import { desc, normLang, LOCALES, type Lang } from "./i18n.mts";
@@ -178,7 +179,9 @@ export async function eventDescription(e: any, siteUrl: string, tz: string, html
   const L = (k: string) => desc(lang, k);
   const feed = await db.eventFeed(e.id);
   const lines: string[] = [];
-  if (e.member_name) lines.push(`👤 ${e.member_name}`);
+  // 负责人 = 建立的人
+  const owner = e.creator_name || e.member_name;
+  if (owner) lines.push(`👤 ${owner}`);
   if (e.notes) lines.push(e.notes);
   const posts = feed.filter((f: any) => f.type !== "log");
   if (posts.length) {
@@ -215,7 +218,7 @@ async function buildGoogleEvent(e: any, siteUrl: string, s: Settings, lang: Lang
     summary: e.title,
     description: await eventDescription(e, siteUrl, tz, true, lang),
     ...timing,
-    ...(e.label ? { colorId: e.label } : {}),
+    ...(e.label ? { colorId: db.googleColor(e.label) } : {}),
     reminders,
     extendedProperties: { private: { familyCalendarId: String(e.id) } },
     source: { title: desc(lang, "calendar"), url: `${siteUrl}/#event-${e.id}` },
@@ -264,6 +267,7 @@ async function syncOne(l: Link, e: any, body: any, s: Settings) {
     const error = String(err?.message || err);
     await db.setEventGoogle(e.id, l.user_id, { google_event_id: gid, error }).catch(() => {});
     console.error(`[Google 日历] 行程 #${e.id} → ${l.gmail} 同步失败：${error}`);
+    await reportSyncError(l, `「${e.title}」${error}`);
     return { ok: false, error };
   }
 }
@@ -499,6 +503,7 @@ async function pullOnce(userId: number, siteUrl: string, deadline: number) {
     return { ok: true, created: ctx.created, updated: ctx.updated, deleted: ctx.deleted, done };
   } catch (err: any) {
     console.error(`[Google 日历] 从 ${l.gmail} 读取失败：`, err?.message || err);
+    await reportSyncError(l, String(err?.message || err));
     return { ok: false, error: String(err?.message || err) };
   }
 }
@@ -543,7 +548,9 @@ async function pullCalendar(ctx: any, cal: any) {
         if (!cur) continue;
         const g = fromGoogle(ev, tz, false);
         const diff: any = {};
-        for (const k of ["title", "start", "end", "label"]) if ((g as any)[k] !== (cur as any)[k] && !(g[k] == null && cur[k] == null)) diff[k] = (g as any)[k];
+        for (const k of ["title", "start", "end"]) if ((g as any)[k] !== (cur as any)[k] && !(g[k] == null && cur[k] == null)) diff[k] = (g as any)[k];
+        // 颜色：App 有 20 种，Google 只有 11 种 → 对应到同一个 Google 颜色就算没改
+        if ((g.label ?? null) !== (db.googleColor(cur.label) ?? null)) { diff.label = g.label; if (cur.label_id) await db.setEventExtra(map.event_id, { label_id: null }); }
         if (g.all_day !== !!cur.all_day) diff.all_day = g.all_day;
         await db.setEventGoogle(map.event_id, userId, { google_event_id: ev.id, calendar_id: calId, etag: ev.etag });
         if (Object.keys(diff).length) { await db.updateEvent(map.event_id, diff, who); ctx.touched.add(map.event_id); ctx.updated++; }
@@ -595,6 +602,15 @@ export async function retryFailedSyncs(siteUrl: string, userId: number | null = 
     if (r?.ok) fixed++;
   }
   return fixed;
+}
+
+/** Google 同步出错 → 通知管理员（弹出 + 声音；同一个人的错误 6 小时内只通知一次） */
+async function reportSyncError(l: { user_id: number; gmail: string }, msg: string) {
+  try {
+    await getSettings(); // 载入在 App 里加的管理员
+    const admins = (await db.activeUsers()).filter((u: any) => isAdmin(u)).map((u: any) => u.id);
+    await db.notify(admins, "sync_error", `Google 同步出错（${l.gmail}）：${msg.slice(0, 300)}`, `sync:${l.user_id}`);
+  } catch (e) { console.error(e); }
 }
 
 /** 排程用：读取所有人的 Google 变更，并重试失败的同步 */

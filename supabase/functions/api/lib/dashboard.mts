@@ -34,12 +34,25 @@ export function cleanTemplates(list: any): any[] {
   return out;
 }
 
-// ---------- 标签（颜色可以重复；Google 日历只有 11 种颜色） ----------
+/** 第 2 版：模板固定 3 个（选片 / 了解 / 普通），只能改名字 */
+export function renameTemplates(current: any[], input: any): any[] {
+  if (!Array.isArray(input)) throw new Error("模板格式不正确");
+  const names = new Map(input.map((t: any) => [String(t?.id ?? ""), String(t?.name ?? "").trim().slice(0, 20)]));
+  return DEFAULT_TEMPLATES.map((d) => {
+    const old = current.find((t) => t.id === d.id) || d;
+    const n = names.get(d.id);
+    if (n === "") throw new Error("请填写模板名称");
+    return { id: d.id, name: n ?? old.name, kind: d.kind };
+  });
+}
+
+// ---------- 标签（20 种颜色，可以重复；Google 日历只有 11 种颜色，同步时用最接近的） ----------
 const DEFAULT_LABEL_NAMES = ["选片", "取礼服", "选礼服/Coat", "选AD礼服", "拍摄", "全体开会", "放假（PH）", "生日", "Offday", "FAIR", "其他"];
 export function calLabels(cal: any): any[] {
   if (Array.isArray(cal?.labels) && cal.labels.length) return cal.labels;
   const names = cal?.label_names || {};
-  return Object.keys(LABELS).map((color, i) => ({ id: `l${color}`, name: names[color] || DEFAULT_LABEL_NAMES[i] || LABELS[color].name, color }));
+  return Object.keys(LABELS).slice(0, 11).map((color, i) => ({ id: `l${color}`, name: names[color] || DEFAULT_LABEL_NAMES[i] || LABELS[color].name, color,
+    template_id: DEFAULT_LABEL_NAMES[i] === "选片" ? "photo" : null }));
 }
 export function cleanLabels(list: any): any[] {
   if (!Array.isArray(list)) throw new Error("标签格式不正确");
@@ -52,7 +65,10 @@ export function cleanLabels(list: any): any[] {
     let id = String(l?.id ?? "").trim().slice(0, 40) || `l${Date.now().toString(36)}${out.length}`;
     if (!/^[\w-]+$/.test(id) || ids.has(id)) id = `l${Date.now().toString(36)}${out.length}`;
     ids.add(id);
-    out.push({ id, name, color });
+    // 选这个标签时自动选的模板（可以没有）
+    const tid = l?.template_id ? String(l.template_id) : null;
+    if (tid && !DEFAULT_TEMPLATES.some((t) => t.id === tid)) throw new Error("无效的模板");
+    out.push({ id, name, color, template_id: tid });
   }
   return out;
 }

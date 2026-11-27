@@ -53,8 +53,7 @@ export async function signup(body: any) {
   if (!passwordOk(password)) throw new AuthError(PW_RULE, 400);
   if (await db.getUserByEmail(email)) throw new AuthError("这个 Gmail 已经注册过了，请直接登录", 400);
   const user = await db.createUser({ email, name, password_hash: await hashPassword(password), lang: normLang(body.lang) });
-  const calId = await db.createCalendar(name, user.id); // 每个帐号自己一个日历
-  await db.ensureMember(name, calId); // 自己出现在这个日历的「成员」列表
+  // 日历在第一次登录的步骤里建立或加入
   return { token: await makeToken(user), user: publicUser(user) };
 }
 
@@ -132,7 +131,7 @@ export async function currentUser(req: Request, url: URL) {
   try { data = JSON.parse(Buffer.from(payload, "base64url").toString()); } catch { throw new AuthError("请先登录"); }
   if (!Number.isInteger(data?.u)) throw new AuthError("请重新登录"); // 不检查期限：永久登录
   const user = await db.getUser(data.u);
-  if (!user || !(await verify(tokenText(payload, user), sig))) throw new AuthError("请重新登录");
+  if (!user || user.removed_at || !(await verify(tokenText(payload, user), sig))) throw new AuthError("请重新登录");
   return user;
 }
 
@@ -145,10 +144,14 @@ export async function changePassword(user: any, body: any) {
 }
 
 // 管理员：Supabase 函数密钥 ADMIN_EMAILS（固定的）＋ 在 App「设置」里加的
-export const fixedAdmins = () => (env("ADMIN_EMAILS") || "").toLowerCase().split(/[,\s]+/).filter(Boolean);
+// 第一批管理员（固定，不能被移除）
+const FIRST_ADMINS = ["szeweielsa@gmail.com", "szeyinkeow@gmail.com"];
+export const fixedAdmins = () => [...new Set([...FIRST_ADMINS, ...(env("ADMIN_EMAILS") || "").toLowerCase().split(/[,\s]+/).filter(Boolean)])];
 export const isAdmin = (u: any) => {
   const email = String(u?.email || "").toLowerCase();
-  return !!email && (fixedAdmins().includes(email) || extraAdmins.includes(email));
+  return !!email && !u?.removed_at && (fixedAdmins().includes(email) || extraAdmins.includes(email));
 };
 export const canWhatsApp = (u: any) => isAdmin(u) || !!u?.wa_allowed;
-export const publicUser = (u: any) => ({ id: u.id, email: u.email, name: u.name, lang: u.lang || "en", admin: isAdmin(u), can_whatsapp: canWhatsApp(u) });
+export const publicUser = (u: any) => ({ id: u.id, email: u.email, name: u.name, lang: u.lang || "en", admin: isAdmin(u),
+  emoji: u.emoji || null, color: u.color || null, birth_month: u.birth_month ?? null, birth_day: u.birth_day ?? null,
+  timezone: u.timezone || null, onboarded: !!u.onboarded });
