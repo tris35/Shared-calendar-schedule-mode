@@ -49,6 +49,27 @@ export function normPhone(raw: string, cc = "60") {
   return d.length >= 8 && d.length <= 15 ? d : "";
 }
 
+// ---------- 自动提醒：按预约类型选 Meta 模板（每个模板只有 {{1}} = 时间，例如 11:30am） ----------
+// 顺序重要：「选AD礼服」要排在「选礼服」前面。标题先去掉空格、转小写再比对（「选 Ad 礼服」也算）。
+// 其他行程（pack AD、邮寄AD、没有类型的）→ 不发
+export const TYPE_TEMPLATES: { re: RegExp; template: string }[] = [
+  { re: /选ad礼服/, template: "reminder_ad_gown" },
+  { re: /选礼服/, template: "reminder_gown_selection" },
+  { re: /选片/, template: "reminder_photo_select" },
+  { re: /[取去](ad|礼服)/, template: "reminder_pickup" },
+  { re: /拍摄/, template: "reminder_shooting" },
+];
+/** 行程标题 → 模板名字；不需要提醒的类型 → null */
+export function templateForTitle(title: string): string | null {
+  const s = String(title || "").replace(/\s+/g, "").toLowerCase();
+  return TYPE_TEMPLATES.find((t) => t.re.test(s))?.template ?? null;
+}
+/** {{1}} 的时间：11:30am、3:00pm（App 时区） */
+export function amPmTime(start: string | Date, tz: string) {
+  return new Date(start).toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true })
+    .replace(/\s+/g, "").toLowerCase();
+}
+
 /** WhatsApp 模板的参数不能有换行 → 换行变成「 | 」 */
 /** 给客户的讯息 = 自己写的开头 + 这个行程的讯息 + 自己写的结尾（{title} {date} {time} 会换成行程资料） */
 export async function customerText(e: any, settings?: any) {
@@ -119,16 +140,17 @@ async function sendCustomerText(to: string, e: any) {
   try { return await sendPlainText(to, full); }
   catch { return await sendTemplate(to, await customerText(e)); }
 }
-async function sendTemplate(to: string, text: string) {
+async function sendTemplate(to: string, text: string, name?: string) {
   const c = waConfig();
   if (!c) throw new Error("WhatsApp 还没设定");
+  const template = name || c.template;
   const res = await fetch(`${c.base}/${c.version}/${c.phoneId}/messages`, {
     method: "POST",
     headers: { ...c.headers, "Content-Type": "application/json" } as unknown as Record<string, string>,
     body: JSON.stringify({
       messaging_product: "whatsapp", to, type: "template",
-      template: { name: c.template, language: { code: c.lang },
-        ...(c.template === "hello_world" ? {} : { components: [{ type: "body", parameters: [{ type: "text", text }] }] }) }, // Meta 测试模板 hello_world 没有变量
+      template: { name: template, language: { code: c.lang },
+        ...(template === "hello_world" ? {} : { components: [{ type: "body", parameters: [{ type: "text", text }] }] }) }, // Meta 测试模板 hello_world 没有变量
     }),
   });
   const data: any = await res.json().catch(() => ({}));
@@ -158,7 +180,15 @@ export async function sendCustomerMessage(eventId: number, opts: { force?: boole
   if (!c) throw new Error("WhatsApp 还没设定");
   const e: any = await db.getEvent(eventId);
   if (!e) throw new Error("找不到");
-  if (e.customer_source === "auto" || e.customer_source === "typed") { // 所有自动提醒都用「WhatsApp 提醒」页签现在的讯息
+  const auto = e.customer_source === "auto" || e.customer_source === "typed";
+  // 自动提醒：按预约类型用对应的 Meta 模板，{{1}} = 时间；不需要提醒的类型 → 不发
+  const typeTemplate = auto ? templateForTitle(e.title) : null;
+  if (auto && !typeTemplate && !opts.force) return { skipped: true, reason: "notype" }; // 员工按「立即发送」→ 照旧用通用讯息
+  if (typeTemplate && e.all_day) {
+    await db.setCustomerError(eventId, "全天行程没有时间，不能发提醒");
+    throw new Error("全天行程没有时间，不能发提醒");
+  }
+  if (auto) { // 所有自动提醒都用「WhatsApp 提醒」页签现在的讯息（手动发送 / wa.me 按钮用）
     const s = await getSettings();
     e.customer_note = s.schedule?.text || e.customer_note;
   }
@@ -174,7 +204,8 @@ export async function sendCustomerMessage(eventId: number, opts: { force?: boole
   }
   if (!(await db.claimCustomerSend(eventId, !!opts.force))) return { skipped: true };
   try {
-    await sendCustomerText(to, e);
+    if (typeTemplate) await sendTemplate(to, amPmTime(e.start, (await getSettings()).timezone), typeTemplate);
+    else await sendCustomerText(to, e);
     await db.recordWaSent(eventId);
     await db.logEvent(eventId, opts.author ?? null, "customer_sent");
     return { ok: true };
@@ -194,12 +225,12 @@ export async function sendDueCustomerMessages() {
   const due = (await db.pendingCustomerMessages()).filter((e: any) => sendTimeFor(e, timezone, hour).getTime() <= Date.now());
   if (isPreview(s)) return { preview: true, due: due.length }; // 预览模式：不发
   if (!waConfig()) return { skipped: true };
-  let sent = 0, failed = 0;
+  let sent = 0, failed = 0, skipped = 0;
   for (const e of due) {
-    try { const r: any = await sendCustomerMessage(e.id); if (r.ok) sent++; }
+    try { const r: any = await sendCustomerMessage(e.id); if (r.ok) sent++; else if (r.skipped) skipped++; }
     catch (err: any) { failed++; console.error(`[WhatsApp] 行程 ${e.id} 发送失败：`, err?.message || err); }
   }
-  return { sent, failed };
+  return { sent, failed, skipped };
 }
 
 // ---------- WhatsApp 行程摘要（每天早上 / 每周一早上） ----------

@@ -10,6 +10,7 @@
 > - 员工自己在行程里填的电话不会被通讯录覆盖
 > - 连接 Google 时多要一个「查看联络人（只读）」权限 → Google Cloud 要启用 **People API**
 > - Meta 商家验证通过前，保持**预览模式**；通过后把 `WHATSAPP_TOKEN`（永久 token）、`WHATSAPP_PHONE_NUMBER_ID`、`WHATSAPP_TEMPLATE`、`WHATSAPP_TEMPLATE_LANG=zh_CN` 加进 Supabase Secrets，再关掉预览模式
+> - **按预约类型用不同的 Meta 模板**（`{{1}}` = 时间，例如 `11:30am`）：标题有「选AD礼服」→ `reminder_ad_gown`、「选礼服」→ `reminder_gown_selection`、「选片」→ `reminder_photo_select`、「取AD / 取礼服 / 去AD」→ `reminder_pickup`、「拍摄」→ `reminder_shooting`；其他（例如 `pack AD`、`邮寄AD`、只写 `PW`）→ 不自动发。对照表在 `supabase/functions/api/lib/whatsapp.mts` 的 `TYPE_TEMPLATES`
 > - 测试：`deno run -A --config supabase/functions/api/deno.json test/schedule-mode.test.ts`（需要 `TEST_DB_URL`）
 
 

@@ -92,17 +92,18 @@ const p = await wa.sendDueCustomerMessages();
 check("preview mode → nothing sent", (p as any).preview === true && sent.length === 0, { p, sent });
 const ov = await scheduleOverview((x: any, t: string) => wa.sendTimeFor(x, t, 14));
 const st = Object.fromEntries(ov.map((x: any) => [x.booking, x.status]));
-check("overview statuses", st["6895"] === "multiple" && st["7030"] === "notfound" && st["6961"] === "preview" && st["8001"] === "preview" && ov.length === 6, st);
+check("overview statuses (PW without 拍摄 = no reminder type)", st["6895"] === "multiple" && st["7030"] === "notype" && st["6961"] === "preview" && st["8001"] === "notype" && ov.length === 6, st);
+check("overview has template per type", ov.find((x: any) => x.booking === "6961")?.template === "reminder_gown_selection" && ov.find((x: any) => x.booking === "6895")?.template === "reminder_photo_select", ov);
 
 // 5. 关掉预览 → 到时间的会发（现在 >= 下午 2 点才会发）
 await saveSettings({ schedule: { ...(s.schedule || {}), preview: false } });
 const res = await wa.sendDueCustomerMessages();
 if (nowMy >= 14) {
-  check("sent after 2pm (6961, WM1902, 6238 manual, 8001)", (res as any).sent === 4 && sent.length === 4, { res, n: sent.length });
+  check("sent after 2pm (6961 auto + 6238 manual; PW-only auto skipped)", (res as any).sent === 2 && (res as any).skipped === 2 && sent.length === 2, { res, n: sent.length });
   const m = sent.find((x) => x.to === "601156604342");
-  check("6961 message body: no internal title, Chinese", m && !m.text.body.includes("Sam & Ivy") && m.text.body.includes("6961"), m);
+  check("6961 → template reminder_gown_selection, {{1}} = 3:30pm", m?.template?.name === "reminder_gown_selection" && m.template.components[0].parameters[0].text === "3:30pm", m);
   const again = await wa.sendDueCustomerMessages();
-  check("not sent twice", (again as any).sent === 0 && sent.length === 4, again);
+  check("not sent twice", (again as any).sent === 0 && sent.length === 2, again);
 } else {
   check("before 2pm → nothing due yet", (res as any).sent === 0, res);
 }
@@ -112,7 +113,7 @@ await saveSettings({ schedule: { preview: false, text: "新讯息 {booking}" } }
 const n0 = sent.length;
 await db.query("UPDATE events SET customer_sent_at = NULL WHERE id = $1", [A]);
 await wa.sendCustomerMessage(A, { force: true });
-check("auto event uses current message", sent.length === n0 + 1 && sent.at(-1).text.body === "新讯息 6961", sent.at(-1));
+check("auto event with type → its template", sent.length === n0 + 1 && sent.at(-1).template?.name === "reminder_gown_selection" && sent.at(-1).template.components[0].parameters[0].text === "3:30pm", sent.at(-1));
 const tr = await wa.sendTest("011-5660 4342", "测试 {booking} {date}");
 check("test send", tr.to === "601156604342" && sent.at(-1).text.body.startsWith("测试 6961 "), sent.at(-1));
 
@@ -123,7 +124,7 @@ await autoFillUpcoming({ forceContacts: true });
 const d2 = await row(Dn);
 check("typed UK phone kept", d2.customer_phone === "447911123456" && d2.customer_source === "typed" && !d2.customer_lookup, d2);
 await wa.sendCustomerMessage(Dn, { force: true });
-check("typed event uses current message", sent.at(-1).to === "447911123456" && sent.at(-1).text.body === "新讯息 7030", sent.at(-1));
+check("typed event without type, manual send → current message", sent.at(-1).to === "447911123456" && sent.at(-1).text.body === "新讯息 7030", sent.at(-1));
 
 // 8. 员工改了电话 → 不再被通讯录覆盖
 await db.query("UPDATE events SET customer_phone = '0177777777', customer_source = 'manual' WHERE id = $1", [B]);
@@ -134,7 +135,7 @@ check("staff edit not overwritten", (await row(B)).customer_phone === "017777777
 const { weeklyScanIfDue } = await import("../supabase/functions/api/lib/schedule.mts");
 const far = new Date(Date.now() + 20 * 86400_000).toISOString();
 const H = (await db.query(`INSERT INTO events (title, start) VALUES ('6961 拍摄 (20 days later)', $1) RETURNING id`, [far])).rows[0].id;
-const J = (await db.query(`INSERT INTO events (title, start) VALUES ('9999 nobody', $1) RETURNING id`, [far])).rows[0].id;
+const J = (await db.query(`INSERT INTO events (title, start) VALUES ('9999 选片 nobody', $1) RETURNING id`, [far])).rows[0].id;
 const s0 = await getSettings(); await saveSettings({ schedule: { ...(s0.schedule || {}), weeklyDate: undefined } });
 const w1: any = await weeklyScanIfDue(new Date(`${today}T09:00:00+08:00`));
 check("first run scans a month ahead", w1.weekly && (await row(H)).customer_phone === "601156604342" && (await row(J)).customer_lookup === "notfound", { w1, H: await row(H), J: await row(J) });

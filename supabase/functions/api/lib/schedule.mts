@@ -10,7 +10,7 @@
 import * as db from "./db.mts";
 import { getSettings, saveSettings } from "./settings.mts";
 import { fetchContacts } from "./gcal.mts";
-import { normPhone } from "./whatsapp.mts";
+import { normPhone, templateForTitle } from "./whatsapp.mts";
 import { env } from "./env.mts";
 
 export const DEFAULT_TEXT =
@@ -143,14 +143,16 @@ export async function scheduleOverview(sendTimeFor: (e: any, tz: string) => Date
     const booking = bookingFromTitle(e.title);
     if (!booking) continue;
     let status: string;
+    const template = templateForTitle(e.title); // 这个预约类型用哪个 Meta 模板（null = 不需要提醒）
     if (e.customer_sent_at) status = "sent";
+    else if (!template) status = "notype";
     else if (e.customer_error) status = "failed";
     else if (e.customer_lookup === "multiple") status = "multiple";
     else if (!e.customer_phone) status = e.customer_lookup === "notfound" ? "notfound" : "pending"; // pending = 还没检查过
     else if (!e.customer_auto) status = "off";
     else status = s.schedule?.preview !== false ? "preview" : "scheduled";
     out.push({
-      id: e.id, calendar_id: e.calendar_id, booking, title: e.title, start: e.start, all_day: !!e.all_day,
+      id: e.id, calendar_id: e.calendar_id, booking, template, title: e.title, start: e.start, all_day: !!e.all_day,
       phone: e.customer_phone || null, name: e.customer_name || null, source: e.customer_source || null,
       contacts: e.customer_lookup_detail || null, status, error: e.customer_error || null,
       sent_at: e.customer_sent_at, send_at: sendTimeFor(e, s.timezone).toISOString(),
