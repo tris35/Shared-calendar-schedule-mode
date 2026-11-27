@@ -936,3 +936,31 @@ body.viewer #detailMenuBtn, body.viewer #deleteEventBtn, body.viewer #editEventB
 /* 月历下面的清单拿掉了：留空间给右下角的 ＋，最后一行不会被挡住 */
 #view-calendar { padding-bottom: 80px; }
 .sc-missing .sc-wa { text-decoration: none; }
+
+/* ===== Dashboard 整合：只留日历 + Dashboard，Settings 给管理员 ===== */
+[hidden] { display: none !important; }
+.tabbar .tab-settings { order: -1; }                      /* 左下角 */
+.top-logout { font-size: 18px; }
+#view-dashboard.active { display: block; padding: 0; overflow: hidden; }
+.dash-frame { display: block; width: 100%; height: 100%; border: 0; background: #050b1f; }
+/* 新增活动：模板 + 必填的勾 */
+.tpl-field .req, .tick-row .req { color: var(--danger, #d1495b); }
+.tpl-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.tpl-item { border: 1.5px solid var(--border); background: var(--surface); color: var(--text); border-radius: 999px; padding: 8px 16px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.tpl-item[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text, #fff); }
+.tpl-item:focus-visible, .tick input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tick-box { display: grid; gap: 10px; padding: 12px; border: 1px dashed var(--border); border-radius: 12px; background: var(--surface-2, var(--surface)); }
+.tick-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tick-row .field-label { width: 100%; }
+.tick { display: inline-flex; cursor: pointer; }
+.tick input { position: absolute; opacity: 0; pointer-events: none; }
+.tick span { border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 14px; font-weight: 600; background: var(--surface); }
+.tick input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-text, #fff); }
+#dTplRow.no-tpl { color: var(--danger, #d1495b); font-weight: 600; }
+/* Settings：模板、标签编辑 */
+.edit-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
+.edit-list li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.edit-list .ed-name { flex: 1 1 140px; min-width: 0; }
+.edit-list select { flex: 1 1 180px; min-width: 0; }
+.edit-list .label-swatch { width: 18px; height: 18px; border-radius: 50%; flex: none; }
+#adminEmails { width: 100%; box-sizing: border-box; }

@@ -192,18 +192,28 @@ $("#langSelect").addEventListener("change", (ev) => changeLang(ev.target.value, 
 // ---------- 页签 ----------
 document.querySelectorAll(".tabbar button").forEach((b) => b.addEventListener("click", () => showView(b.dataset.view)));
 function showView(v) {
-  if (v === "home") v = "calendar"; // 「今天」页签已拿掉
+  if (v === "home" || v === "board" || v === "week" || v === "claude") v = "calendar"; // 这些页签已拿掉
+  if (v === "settings" && !state.me?.admin) v = "calendar"; // Settings 只给管理员
   state.view = v;
   document.querySelectorAll(".view").forEach((s) => s.classList.toggle("active", s.id === `view-${v}`));
   document.querySelectorAll(".tabbar button").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
   const cal = v === "calendar";
   ["#prevMonth", "#nextMonth", "#todayBtn"].forEach((s) => ($(s).style.visibility = cal ? "visible" : "hidden"));
-  $("#title").textContent = cal ? monthTitle() : { home: t("tab_home"), board: t("tab_board"), members: t("tab_members"), week: t("tab_week"), claude: t("tab_claude"), settings: t("tab_settings") }[v];
+  $("#title").textContent = cal ? monthTitle() : { home: t("tab_home"), board: t("tab_board"), members: t("people_manage"), week: t("tab_week"), claude: t("tab_claude"), settings: t("tab_settings"), dashboard: t("tab_dashboard") }[v];
   if (v === "home") renderHome();
   if (v === "board") renderBoard();
   if (v === "members") renderMembers();
   if (v === "week") renderWeek();
   if (v === "settings") renderSettings();
+  if (v === "dashboard") openDashboard();
+}
+// ---------- Dashboard（B2）：放在 iframe 里，自己向后端拿资料 ----------
+function openDashboard(hash) {
+  const f = $("#dashFrame");
+  const want = "dashboard.html" + (hash || "");
+  if (!f.getAttribute("src")) f.setAttribute("src", want);
+  else if (hash) { try { f.contentWindow.location.hash = hash; } catch { f.setAttribute("src", want); } }
+  else { try { f.contentWindow.TheLegendDashboard?.reload?.(); } catch {} } // 每次打开都拿最新的数字
 }
 
 // ---------- 月历 ----------
@@ -441,6 +451,8 @@ function renderDetail() {
   if (end && !(e.all_day && sameDay)) { setDate("dEnd", end); $("#dEndBox").hidden = false; $("#dArrow").hidden = false; }
   else { $("#dEndBox").hidden = true; $("#dArrow").hidden = true; if (e.all_day) $("#dStartTime").textContent = t("all_day"); }
   $("#dArrow").style.color = color;
+  $("#dTpl").textContent = tplText(e);
+  $("#dTplRow").classList.toggle("no-tpl", !tplById(e.template_id));
   $("#dMemberRow").hidden = !e.member_name;
   $("#dMember").textContent = e.member_name ? (e.member_emoji ? e.member_emoji + " " : "") + e.member_name : "";
   $("#dRemind").textContent = e.remind ? t("remind_on") : t("remind_off");
@@ -692,9 +704,13 @@ function fillMemberSelect() {
     + `<option value="${NEW_MEMBER}">${esc(t("member_new_opt"))}</option>`;
   if (keep) eventForm.member_id.value = keep;
 }
+const labelList = () => state.config?.labelList || [];
+const labelHex = (color) => state.labels?.[color]?.hex || "transparent";
+// 行程的标签：有 label_id 用 label_id；旧的（只有颜色）用第一个同颜色的标签
+const eventLabelId = (e) => e?.label_id || labelList().find((l) => l.color === e?.label)?.id || "";
 function renderLabelPicker(selected) {
-  // 和「标签」页一样的顺序；有取名字的显示名字，没有就空白
-  const opts = [["", t("label_none"), "transparent", true], ...orderedLabels().map(([id, l]) => [id, state.labelNames?.[id] || "", l.hex, false])];
+  // Settings 里设定的标签（名字 + 颜色）
+  const opts = [["", t("label_none"), "transparent", true], ...labelList().map((l) => [l.id, l.name, labelHex(l.color), false])];
   $("#labelPicker").setAttribute("aria-label", t("f_label"));
   $("#labelPicker").innerHTML = opts.map(([id, name, hex, isNone]) => `
     <button type="button" role="radio" aria-checked="${String(id) === String(selected ?? "")}" data-label="${id}" title="${esc(name || labelName(id) || "")}" aria-label="${esc(name || labelName(id) || "")}" class="lp-item">
@@ -706,6 +722,43 @@ $("#labelPicker").addEventListener("click", (ev) => {
   if (b) $("#labelPicker").querySelectorAll("[data-label]").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
 });
 const selectedLabel = () => $("#labelPicker [aria-checked=true]")?.dataset.label || null;
+
+// ---------- 模板：新增活动先选模板；选片要勾 All Soft / Non-All Soft，了解要勾上门 / VC；两种都要勾 Legends / WM ----------
+const templatesList = () => state.config?.templates || [];
+const tplById = (id) => templatesList().find((x) => x.id === id) || null;
+function renderTplPicker(selected) {
+  $("#tplPicker").setAttribute("aria-label", t("f_template"));
+  $("#tplPicker").innerHTML = templatesList().map((x) => `
+    <button type="button" role="radio" class="tpl-item kind-${esc(x.kind)}" data-tpl="${esc(x.id)}" aria-checked="${String(x.id === selected)}">${esc(x.name)}</button>`).join("");
+  updateTicks();
+}
+const selectedTpl = () => tplById($("#tplPicker [aria-checked=true]")?.dataset.tpl || "");
+function updateTicks() {
+  const kind = selectedTpl()?.kind;
+  $("#tickBox").hidden = kind !== "photo" && kind !== "sales";
+  $("#tickBrand").hidden = kind !== "photo" && kind !== "sales";
+  $("#tickSoft").hidden = kind !== "photo";
+  $("#tickSales").hidden = kind !== "sales";
+}
+$("#tplPicker").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-tpl]");
+  if (!b) return;
+  $("#tplPicker").querySelectorAll("[data-tpl]").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+  $("#tplNone").hidden = true;
+  updateTicks();
+});
+const radioVal = (name) => eventForm.querySelector(`input[name="${name}"]:checked`)?.value || null;
+function setRadio(name, v) { eventForm.querySelectorAll(`input[name="${name}"]`).forEach((x) => { x.checked = x.value === v; }); }
+/** 行程的模板和勾选，写成一行字（详情页用） */
+function tplText(e) {
+  const x = tplById(e.template_id);
+  if (!x) return t("no_template");
+  const bits = [x.name];
+  if (x.kind !== "normal") bits.push(e.brand || "?");
+  if (x.kind === "photo") bits.push(e.soft === "all_soft" ? "All Soft" : e.soft === "non_all_soft" ? "Non-All Soft" : "?");
+  if (x.kind === "sales") bits.push(e.sales_type === "visit" ? "上门了解" : e.sales_type === "vc" ? "VC了解" : "?");
+  return bits.join(" · ");
+}
 
 function setAllDay(on) {
   for (const name of ["start", "end"]) {
@@ -814,7 +867,10 @@ function openEditor(e, day, hour) {
   $("#titleEmojis").hidden = true;
   fillStageSelect(eventForm.stage, e?.stage || "booked");
   if (!e) { eventForm.amount_total.value = ""; eventForm.amount_paid.value = ""; }
-  renderLabelPicker(e?.label);
+  renderLabelPicker(eventLabelId(e));
+  renderTplPicker(e?.template_id || null);
+  setRadio("brand", e?.brand || null); setRadio("soft", e?.soft || null); setRadio("sales_type", e?.sales_type || null);
+  $("#tplNone").hidden = !(e && !e.template_id); // 从 Google 同步进来、还没选模板
   $("#formChatInput").value = "";
   renderFormFeed();
   $("#eventDialog").showModal();
@@ -872,7 +928,7 @@ eventForm.addEventListener("submit", async (ev) => {
     title: f.title.value.trim(), all_day: allDay,
     start: toIso(f.start.value, false), end: toIso(f.end.value, true),
     member_id: f.member_id.value ? Number(f.member_id.value) : null,
-    label: selectedLabel(), remind: f.remind.checked, notes: f.notes.value.trim() || null,
+    label_id: selectedLabel(), remind: f.remind.checked, notes: f.notes.value.trim() || null,
     customer_phone: f.customer_phone.value.trim() || null, customer_note: f.customer_note.value.trim() || null,
     customer_name: f.customer_name.value.trim() || null,
     stage: f.stage.value || "booked",
@@ -880,6 +936,18 @@ eventForm.addEventListener("submit", async (ev) => {
     amount_paid: f.amount_paid.value === "" ? null : Number(f.amount_paid.value),
     customer_auto: f.customer_auto.checked,
   };
+  // 模板和勾选（新增一定要选模板）
+  const tpl = selectedTpl();
+  if (!tpl && !editing) { toast(t("need_template")); $("#tplPicker").scrollIntoView({ block: "center" }); return; }
+  if (tpl) {
+    body.template_id = tpl.id;
+    if (tpl.kind !== "normal") {
+      body.brand = radioVal("brand");
+      if (!body.brand) { toast(t("need_brand")); $("#tickBrand").scrollIntoView({ block: "center" }); return; }
+    }
+    if (tpl.kind === "photo") { body.soft = radioVal("soft"); if (!body.soft) { toast(t("need_soft")); $("#tickSoft").scrollIntoView({ block: "center" }); return; } }
+    if (tpl.kind === "sales") { body.sales_type = radioVal("sales_type"); if (!body.sales_type) { toast(t("need_sales")); $("#tickSales").scrollIntoView({ block: "center" }); return; } }
+  }
   const saveBtn = eventForm.querySelector('button[type="submit"]');
   const saveText = saveBtn.textContent;
   savingEvent = true; saveBtn.disabled = true; saveBtn.textContent = t("saving"); saveBtn.classList.add("busy");
@@ -998,7 +1066,55 @@ $("#deleteMemberBtn").onclick = async () => {
 };
 
 // ---------- 设置 ----------
+// ---------- Settings（管理员）：模板、标签、Rates、管理员 ----------
+const KIND_KEYS = ["photo", "sales", "normal"];
+function renderTplEdit(list) {
+  $("#tplEditList").innerHTML = list.map((x) => `
+    <li data-id="${esc(x.id || "")}"><input class="ed-name" value="${esc(x.name)}" maxlength="20" aria-label="${esc(t("f_template"))}" />
+      <select class="ed-kind" aria-label="kind">${KIND_KEYS.map((k) => `<option value="${k}" ${k === x.kind ? "selected" : ""}>${esc(t("kind_" + k))}</option>`).join("")}</select>
+      <button type="button" class="btn small danger ed-del">${esc(t("remove"))}</button></li>`).join("");
+}
+function renderLabelEdit(list) {
+  $("#labelEditList").innerHTML = list.map((l) => `
+    <li data-id="${esc(l.id || "")}"><span class="label-swatch" style="background:${esc(labelHex(l.color))}"></span>
+      <input class="ed-name" value="${esc(l.name)}" maxlength="30" aria-label="${esc(t("set_labels_title"))}" />
+      <select class="ed-color" aria-label="colour">${LABEL_ORDER.filter((c) => state.labels[c]).map((c) => `<option value="${c}" ${c === l.color ? "selected" : ""}>${esc(t("label_" + c))}</option>`).join("")}</select>
+      <button type="button" class="btn small danger ed-del">${esc(t("remove"))}</button></li>`).join("");
+}
+const readTplEdit = () => [...$("#tplEditList").children].map((li) => ({ id: li.dataset.id || undefined, name: li.querySelector(".ed-name").value.trim(), kind: li.querySelector(".ed-kind").value }));
+const readLabelEdit = () => [...$("#labelEditList").children].map((li) => ({ id: li.dataset.id || undefined, name: li.querySelector(".ed-name").value.trim(), color: li.querySelector(".ed-color").value }));
+$("#tplEditList").addEventListener("click", (ev) => { if (ev.target.closest(".ed-del")) ev.target.closest("li").remove(); });
+$("#labelEditList").addEventListener("click", (ev) => { if (ev.target.closest(".ed-del")) ev.target.closest("li").remove(); });
+$("#labelEditList").addEventListener("change", (ev) => {
+  const sel = ev.target.closest(".ed-color");
+  if (sel) sel.closest("li").querySelector(".label-swatch").style.background = labelHex(sel.value);
+});
+$("#tplEditAdd").onclick = () => { renderTplEdit([...readTplEdit(), { name: "", kind: "normal" }]); $("#tplEditList").lastElementChild?.querySelector(".ed-name").focus(); };
+$("#labelEditAdd").onclick = () => { renderLabelEdit([...readLabelEdit(), { name: "", color: LABEL_ORDER[0] }]); $("#labelEditList").lastElementChild?.querySelector(".ed-name").focus(); };
+$("#tplEditSave").onclick = async () => {
+  try { const r = await api("/api/event-templates", { method: "PUT", body: { templates: readTplEdit() } }); state.config.templates = r.templates; renderTplEdit(r.templates); toast(t("saved")); }
+  catch (e) { toast(t("save_failed", { error: e.message })); }
+};
+$("#labelEditSave").onclick = async () => {
+  try { const r = await api("/api/label-list", { method: "PUT", body: { labels: readLabelEdit() } }); state.config.labelList = r.labelList; renderLabelEdit(r.labelList); toast(t("saved")); renderMonth(); }
+  catch (e) { toast(t("save_failed", { error: e.message })); }
+};
+$("#peopleBtn").onclick = () => showView("members");
+$("#openRatesBtn").onclick = () => { showView("dashboard"); openDashboard("#rates"); };
+async function renderAdminCard() {
+  try {
+    const a = await api("/api/admin/admins");
+    $("#adminFixed").textContent = a.fixed?.length ? `${t("admin_fixed")}: ${a.fixed.join(", ")}` : "";
+    $("#adminEmails").value = (a.extra || []).join("\n");
+  } catch {}
+}
+$("#adminSave").onclick = async () => {
+  try { const a = await api("/api/admin/admins", { method: "PUT", body: { emails: $("#adminEmails").value } }); $("#adminEmails").value = (a.extra || []).join("\n"); toast(t("saved")); }
+  catch (e) { toast(t("save_failed", { error: e.message })); }
+};
+
 async function renderSettings() {
+  if (state.me?.admin) { renderTplEdit(templatesList()); renderLabelEdit(labelList()); renderAdminCard(); }
   try {
     const [me, set] = await Promise.all([api("/api/auth/me"), api("/api/settings")]);
     state.me = me;
@@ -1535,6 +1651,7 @@ $("#pwForm").addEventListener("submit", async (ev) => {
     toast(t("pw_changed"));
   } catch (e) { toast(e.message); }
 });
+$("#topLogout").onclick = () => $("#logoutBtn").click();
 $("#logoutBtn").onclick = async () => {
   if (!(await askConfirm(t("logout_confirm"), t("logout")))) return;
   store.set("token", "");
@@ -2031,8 +2148,11 @@ async function loadCalendars(ownFirst = false) {
   const r = await api("/api/calendars");
   state.calendars = (r.calendars || []).sort((a, b) => (b.role === "owner") - (a.role === "owner")); // 自己的日历排第一
   const own = state.calendars.find((c) => c.role === "owner");
-  if (ownFirst && own) store.set("cal", String(own.id));
-  if (!state.calendars.some((c) => c.id === curCalId())) store.set("cal", String(r.current));
+  // 还没选过：有被邀请加入的日历（例如公司的）就先用那个，没有才用自己的
+  if (!state.calendars.some((c) => c.id === curCalId())) {
+    const shared = state.calendars.find((c) => c.role !== "owner");
+    store.set("cal", String((shared || own || { id: r.current }).id));
+  }
   state.cal = state.calendars.find((c) => c.id === curCalId()) || state.calendars[0];
   document.body.classList.toggle("viewer", state.cal?.role === "viewer"); // 只能查看：隐藏新增 / 编辑 / 删除
   renderCalSelects();
@@ -2127,6 +2247,8 @@ async function startApp() {
   await loadCalendars(!joined); // 我的日历清单；打开 App 时默认用自己的日历
   if (state.me.lang && state.me.lang !== getLang()) setLang(state.me.lang); // 帐号里存的语言，所有设备一致
   document.body.classList.remove("locked");
+  $("#settingsTab").hidden = !state.me.admin;   // Settings 在左下角，只有管理员看得到
+  $("#topLogout").hidden = !!state.me.admin;    // 不是管理员：右上角可以退出登录
   [state.config, state.members] = await Promise.all([api("/api/config"), api("/api/members")]);
   state.labels = state.config.labels || {};
   state.labelNames = state.config.labelNames || {};
