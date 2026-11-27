@@ -102,7 +102,7 @@ textarea.input{min-height:90px;resize:vertical}
 .cal-cell.sel{background:rgba(37,99,235,.18)}
 .cal-num{font-size:13px;font-weight:700;color:var(--muted);width:26px;height:26px;display:grid;place-items:center;border-radius:50%}
 .cal-cell.today .cal-num{background:var(--accent);color:#fff;box-shadow:0 0 12px var(--glow)}
-.chip{display:flex;align-items:center;gap:5px;font-size:12px;line-height:1.3;padding:2px 6px;border-radius:6px;background:color-mix(in srgb,var(--c,#3b82f6) 22%,transparent);border-left:3px solid var(--c,#3b82f6);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+.chip{display:flex;align-items:center;gap:5px;font-size:12px;line-height:1.3;padding:2px 6px;border-radius:6px;background:color-mix(in srgb,var(--c,#3b82f6) 20%,transparent);border-left:3px solid var(--c,#3b82f6);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
 .chip b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
 .chip.untag{box-shadow:inset 0 0 0 1px rgba(255,107,138,.6)}
 .chip-more{font-size:11px;color:var(--muted);padding-left:6px}
@@ -116,7 +116,7 @@ textarea.input{min-height:90px;resize:vertical}
 .tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--panel-2);border:1px solid var(--line);white-space:nowrap}
 .tag.bad{color:var(--bad);border-color:rgba(255,107,138,.45);background:rgba(255,107,138,.1)}
 .tag.ok{color:var(--amt);border-color:rgba(52,229,168,.4)}
-.tag i{width:9px;height:9px;border-radius:50%;background:var(--c);display:inline-block}
+.tag i{width:9px;height:9px;border-radius:50%;background:var(--c);display:inline-block;box-shadow:0 0 8px var(--c)}
 
 /* ---------- dialogs ---------- */
 dialog{border:none;padding:0;background:transparent;color:var(--fg);max-width:min(620px,calc(100vw - 24px));width:100%;max-height:calc(100dvh - 24px)}
@@ -146,9 +146,9 @@ dialog.sheet .dlg{height:100%;max-height:none;border-radius:18px 0 0 18px}
 .tpl-btn:focus-visible{outline:2px solid var(--cyan)}
 .ticks{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line)}
 .labels{display:flex;flex-wrap:wrap;gap:8px}
-.lab{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:20px;border:1px solid var(--line);background:rgba(255,255,255,.03);font-size:14px;font-weight:600}
+.lab{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:20px;border:1px solid color-mix(in srgb,var(--c,#8fa6cf) 38%,transparent);background:color-mix(in srgb,var(--c,#8fa6cf) 13%,transparent);font-size:14px;font-weight:600;transition:background .2s,box-shadow .2s}
 .lab i{width:12px;height:12px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c)}
-.lab[aria-pressed="true"]{border-color:var(--c);background:color-mix(in srgb,var(--c) 25%,transparent)}
+.lab[aria-pressed="true"]{border-color:var(--c);background:color-mix(in srgb,var(--c) 30%,transparent);box-shadow:0 0 14px color-mix(in srgb,var(--c) 45%,transparent)}
 .lab:focus-visible{outline:2px solid var(--cyan)}
 .lab.add{border-style:dashed;color:var(--cyan);font-size:18px;padding:4px 14px}
 .swatches{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:8px}

@@ -31,17 +31,17 @@ function toIso(v: any) {
 const clean = (s: any, max = 2000) => (s == null ? null : String(s).trim().slice(0, max) || null);
 
 // Google 日历的 11 种活动颜色（label 存 Google 的 colorId）
-// App 里显示的是柔和的粉彩色（由浅到深）；Google 日历上仍是 Google 自己的 11 种颜色
+// App 里显示的是亮色（萤光笔一样的 highlight 颜色，网页用半透明）；Google 日历上仍是 Google 自己的 11 种颜色
 export const LABELS: Record<string, { name: string; hex: string; google?: string }> = {
   // 每个颜色只有一个（黄、橘、粉、绿、天蓝、薰衣草、青、蓝、红、紫、灰）
-  "5": { name: "香蕉黄", hex: "#ffe8a3" }, "6": { name: "橘子", hex: "#ffcfb5" }, "4": { name: "火鹤粉", hex: "#f6c9e3" },
-  "2": { name: "鼠尾草", hex: "#bfe9cf" }, "7": { name: "孔雀蓝", hex: "#bfe6fb" }, "1": { name: "薰衣草", hex: "#ddd3ff" },
-  "10": { name: "罗勒绿", hex: "#97d9d1" }, "9": { name: "蓝莓", hex: "#a3bfff" }, "11": { name: "番茄红", hex: "#f39a9a" },
-  "3": { name: "葡萄紫", hex: "#c7a3ee" }, "8": { name: "石墨灰", hex: "#b9c1d1" },
+  "5": { name: "香蕉黄", hex: "#facc15" }, "6": { name: "橘子", hex: "#fb923c" }, "4": { name: "火鹤粉", hex: "#f472b6" },
+  "2": { name: "鼠尾草", hex: "#4ade80" }, "7": { name: "孔雀蓝", hex: "#38bdf8" }, "1": { name: "薰衣草", hex: "#b38cff" },
+  "10": { name: "罗勒绿", hex: "#2dd4bf" }, "9": { name: "蓝莓", hex: "#6d8bff" }, "11": { name: "番茄红", hex: "#f87171" },
+  "3": { name: "葡萄紫", hex: "#c084fc" }, "8": { name: "石墨灰", hex: "#94a3b8" },
   // 第 2 版：多 9 种（共 20 种）。Google 只有 11 种，同步到 Google 时用最接近的颜色（google）
-  "12": { name: "柠檬", hex: "#f4f28a", google: "5" }, "13": { name: "珊瑚", hex: "#ff9f8f", google: "6" }, "14": { name: "玫瑰", hex: "#ff8fb8", google: "4" },
-  "15": { name: "薄荷", hex: "#9ff0c0", google: "2" }, "16": { name: "湖水", hex: "#7fe3f0", google: "7" }, "17": { name: "海军蓝", hex: "#7f9cf5", google: "9" },
-  "18": { name: "紫罗兰", hex: "#b48cff", google: "3" }, "19": { name: "金色", hex: "#e8c36a", google: "5" }, "20": { name: "可可", hex: "#c9a38a", google: "6" },
+  "12": { name: "柠檬", hex: "#e6ff4d", google: "5" }, "13": { name: "珊瑚", hex: "#ff7a6b", google: "6" }, "14": { name: "玫瑰", hex: "#ff4fa3", google: "4" },
+  "15": { name: "薄荷", hex: "#5cffb1", google: "2" }, "16": { name: "湖水", hex: "#22e5ff", google: "7" }, "17": { name: "海军蓝", hex: "#4f7bff", google: "9" },
+  "18": { name: "紫罗兰", hex: "#9d6bff", google: "3" }, "19": { name: "金色", hex: "#ffc94d", google: "5" }, "20": { name: "可可", hex: "#d4a373", google: "6" },
 };
 /** App 的颜色 → Google 日历的 colorId（1–11） */
 export const googleColor = (label: any) => (label && LABELS[String(label)] ? (LABELS[String(label)] as any).google || String(label) : null);
