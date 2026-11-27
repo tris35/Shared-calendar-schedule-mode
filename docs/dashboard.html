@@ -1,0 +1,1050 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dashboard</title>
+<script src="config.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* Layout: fixed sidebar (brand + two analyses) beside a scrolling main column; collapses to a top bar on phones. */
+:root{
+  color-scheme:dark;
+  --bg:#13122a; --side:#18173a; --panel:#1e1d42; --panel-2:#26245a; --line:#2f2d63;
+  --fg:#f4f3ff; --muted:#a6a3d8; --faint:#6f6ca6;
+  --gold:#ffd166; --violet:#6c5ce7; --cyan:#22d3ee; --lilac:#9b93e8;
+  --bad:#ff7a8a; --ok:#5ee6a0;
+  --font:"Montserrat","Noto Sans SC",system-ui,sans-serif;
+  --r:14px;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px}
+button,select,input{font:inherit;color:inherit}
+.app{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:100vh}
+/* sidebar */
+.side{background:var(--side);border-right:1px solid var(--line);padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px;display:flex;flex-direction:column;gap:28px;position:sticky;top:0;height:100vh}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-mark{width:44px;height:44px;border-radius:50%;background:var(--violet);display:grid;place-items:center;font-weight:700;font-size:18px;flex:none}
+.logo-name{font-size:20px;font-weight:500;line-height:1.2}
+.logo-sub{color:var(--lilac);font-size:14px}
+.nav-group{display:flex;flex-direction:column;gap:4px}
+.nav-label{color:var(--muted);font-size:13px;font-weight:500;padding:0 8px 6px}
+.nav-btn{all:unset;cursor:pointer;display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;font-weight:500;color:var(--fg)}
+.nav-btn svg{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-btn:hover{background:var(--panel)}
+.nav-btn[aria-current="page"]{background:var(--panel-2);color:var(--cyan)}
+.nav-btn:focus-visible,.seg button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.side-foot{margin-top:auto;color:var(--faint);font-size:12px;line-height:1.5}
+/* main */
+.main{min-width:0;display:flex;flex-direction:column}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;justify-content:space-between;padding-block:18px;padding-left:28px;padding-right:max(28px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5}
+.top h1{margin:0;font-size:22px;font-weight:500}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.sel{appearance:none;background:var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a6a3d8' stroke-width='1.8' fill='none'/%3E%3C/svg%3E") no-repeat right 14px center;border:1px solid var(--line);border-radius:10px;padding:9px 38px 9px 14px;min-width:0}
+.seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{all:unset;cursor:pointer;padding:6px 14px;border-radius:7px;color:var(--muted);font-weight:500;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--violet);color:#fff}
+.page{padding-block:28px 48px;padding-left:28px;padding-right:max(28px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:24px;max-width:1180px;width:100%}
+.eyebrow{color:var(--cyan);letter-spacing:.18em;font-weight:600;font-size:14px;text-transform:uppercase}
+.title{margin:4px 0 0;font-size:clamp(30px,5vw,46px);font-weight:700;line-height:1.1}
+.note{background:var(--panel-2);color:var(--muted);border-radius:10px;padding:14px 18px;line-height:1.6;margin:0}
+.note.warn{background:rgba(255,122,138,.12);color:var(--bad)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-bottom:4px solid var(--gold);border-radius:var(--r);padding:24px 26px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.kpi-label{color:var(--gold);font-weight:700;letter-spacing:.14em;font-size:13px;text-transform:uppercase}
+.kpi-val{font-size:clamp(30px,4vw,46px);font-weight:800;color:var(--gold);line-height:1.05;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.kpi-val small{font-size:.45em;font-weight:600;margin-right:6px;color:inherit;opacity:.85}
+.kpi-sub{color:var(--muted);line-height:1.45;font-variant-numeric:tabular-nums}
+.kpi.total{background:var(--violet);border-color:var(--violet);border-bottom-color:var(--cyan)}
+.kpi.total .kpi-label{color:#e7e4ff}.kpi.total .kpi-val{color:#fff}.kpi.total .kpi-sub{color:#e7e4ff}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:24px 26px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.card h2{margin:0;font-size:20px;font-weight:700}
+.card .sub{margin:4px 0 0;color:var(--muted);font-size:13px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:18px}
+/* rate settings */
+.rate-row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px 16px;align-items:end}
+.rate-row + .rate-row{border-top:1px solid var(--line);padding-top:18px}
+.rate-brand{grid-column:1/-1;font-weight:700;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.rate-brand span{color:var(--muted);font-weight:500;font-size:13px}
+.field{display:flex;flex-direction:column;gap:8px;min-width:0}
+.field label{font-size:14px;font-weight:500}
+.field .sel,.field input{width:100%}
+.field input{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 14px}
+.or{color:var(--muted);font-weight:700;padding-bottom:10px}
+.inuse{grid-column:1/-1;font-size:13px;color:var(--muted)}
+.inuse b{color:var(--gold);font-variant-numeric:tabular-nums}
+/* chart */
+.legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:13px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.chart{width:100%;min-height:120px;position:relative}
+.chart svg{display:block;width:100%}
+.chart text{font-family:var(--font);font-size:13px;fill:var(--muted)}
+.chart .lbl{fill:var(--fg);font-weight:600}
+.chart .amt{fill:var(--gold);font-weight:700}
+.chart .in{fill:#1b1a3c;font-weight:700;font-size:12px}
+.chart .in-l{fill:var(--fg);font-weight:700;font-size:12px}
+.empty{color:var(--muted);margin:0}
+/* table */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{text-align:right;padding:12px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td.amt{color:var(--gold);font-weight:700}
+tfoot td{font-weight:700;border-top:2px solid var(--gold);border-bottom:none}
+tfoot td.amt{color:var(--gold)}
+details.rules{color:var(--muted);font-size:13px;line-height:1.6}
+details.rules summary{cursor:pointer;color:var(--fg);font-weight:500}
+[hidden]{display:none!important}
+@media (max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px 20px;padding-block:14px;padding-right:max(16px,env(safe-area-inset-right,0px));border-right:none;border-bottom:1px solid var(--line)}
+  .nav-group{flex-direction:row}.nav-label,.side-foot{display:none}
+  .nav-btn{padding:8px 10px}
+  .top{position:static;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .page{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .rate-row{grid-template-columns:minmax(0,1fr)}.or{padding:0}
+}
+
+/* ===== Theme A: deep navy with blue/green glow ===== */
+:root{--bg:#050b1f;--side:rgba(7,15,38,.92);--panel:rgba(12,24,58,.72);--panel-2:rgba(37,99,235,.22);--line:rgba(96,150,255,.18);
+  --fg:#eaf2ff;--muted:#8fa6cf;--faint:#5b6f96;--gold:#34e5a8;--violet:#2563eb;--cyan:#38bdf8;--lilac:#3b82f6;--bad:#ff6b8a;--ok:#34e5a8}
+body{background:radial-gradient(1100px 600px at 90% -10%,rgba(37,99,235,.38),transparent 60%),radial-gradient(900px 520px at -10% 110%,rgba(52,229,168,.16),transparent 60%),var(--bg);background-attachment:fixed}
+.side{border-right:1px solid var(--line);box-shadow:inset -1px 0 0 rgba(56,189,248,.06)}
+.logo-mark{background:linear-gradient(135deg,#2563eb,#34e5a8);box-shadow:0 0 18px rgba(56,189,248,.45)}
+.logo-sub{color:var(--cyan)}
+.nav-btn[aria-current="page"]{background:linear-gradient(90deg,rgba(37,99,235,.55),rgba(37,99,235,.08));color:#fff;box-shadow:inset 3px 0 0 var(--cyan)}
+.top{background:rgba(5,11,31,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.title{background:linear-gradient(90deg,#ffffff 30%,#7dd3fc);-webkit-background-clip:text;background-clip:text;color:transparent}
+.seg button[aria-pressed="true"]{background:linear-gradient(135deg,#2563eb,#0ea5e9);box-shadow:0 0 14px rgba(56,189,248,.45)}
+.card,.kpi{backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 12px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05);transition:box-shadow .3s,border-color .3s}
+.card:hover,.kpi:hover{border-color:rgba(56,189,248,.45);box-shadow:0 0 24px rgba(56,189,248,.18),0 12px 32px rgba(0,0,0,.45)}
+.kpi{border-bottom:1px solid var(--line);position:relative}
+.kpi-label{color:var(--muted);letter-spacing:.1em}
+.kpi-val{color:#fff}
+.kpi-ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#38bdf8);box-shadow:0 0 18px rgba(56,189,248,.45);margin-bottom:6px}
+.kpi:nth-child(2) .kpi-ico{background:linear-gradient(135deg,#059669,#34e5a8);box-shadow:0 0 18px rgba(52,229,168,.45)}
+.kpi-ico svg{width:21px;height:21px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.kpi.total{background:linear-gradient(135deg,#1d4ed8 0%,#0891b2 60%,#10b981 100%);border-color:transparent;box-shadow:0 0 34px rgba(56,189,248,.35)}
+.kpi.total .kpi-ico{background:rgba(255,255,255,.18);box-shadow:none}
+.note{background:rgba(37,99,235,.14);border:1px solid var(--line)}
+.note.warn{background:rgba(255,107,138,.1);border-color:rgba(255,107,138,.3)}
+.chart .in{fill:#03241a}
+tfoot td{border-top-color:var(--cyan)}
+
+/* ===== B2: B design, three brand palettes (合并 / Legends / WM) ===== */
+body{background:#050b18}
+.app[data-t="all"]{--bg:#050b1f;--panel:rgba(12,24,58,.72);--panel-2:rgba(37,99,235,.14);--line:rgba(96,150,255,.18);--side:rgba(7,15,38,.92);--fg:#eaf2ff;--muted:#8fa6cf;--gold:#34e5a8;--bar0-end:#34e5a8;--lilac:#3b82f6;--cyan:#3b82f6;--bar1-end:#3b82f6;--t-top:rgba(5,11,31,.72);--t-note:rgba(37,99,235,.14);--t-accent:linear-gradient(135deg,#2563eb,#0ea5e9);--t-on:#ffffff;--t-navbg:linear-gradient(90deg,rgba(37,99,235,.55),rgba(37,99,235,.08));--t-edge:#38bdf8;--t-glow:rgba(56,189,248,.45);--t-glow2:rgba(52,229,168,.45);--t-title:linear-gradient(90deg,#ffffff 30%,#7dd3fc);--t-sub:linear-gradient(90deg,#38bdf8,#38bdf8);--t-ico1:linear-gradient(135deg,#2563eb,#38bdf8);--t-ico2:linear-gradient(135deg,#059669,#34e5a8);--t-ico-ink:#ffffff;--t-tot:linear-gradient(135deg,#1d4ed8 0%,#0891b2 60%,#10b981 100%);--t-tot-ink:#ffffff;--t-tot-sub:#e0f2fe;--t-head0:#03241a;--t-head1:#ffffff;--t-in0:#03241a;--t-in1:#03241a;--t-amt:#34e5a8;--t-hover:rgba(56,189,248,.45);background:radial-gradient(1100px 600px at 90% -10%,rgba(37,99,235,.38),transparent 60%),radial-gradient(900px 520px at -10% 110%,rgba(52,229,168,.16),transparent 60%),#050b1f;color:var(--fg)}
+.app[data-t="Legends"]{--bg:#050b1f;--panel:rgba(12,24,58,.72);--panel-2:rgba(37,99,235,.14);--line:rgba(96,150,255,.18);--side:rgba(7,15,38,.92);--fg:#eaf2ff;--muted:#8fa6cf;--gold:#2563eb;--bar0-end:#60a5fa;--lilac:#22d3ee;--cyan:#22d3ee;--bar1-end:#a5f3fc;--t-top:rgba(5,11,31,.72);--t-note:rgba(37,99,235,.14);--t-accent:linear-gradient(135deg,#2563eb,#0ea5e9);--t-on:#ffffff;--t-navbg:linear-gradient(90deg,rgba(37,99,235,.55),rgba(37,99,235,.08));--t-edge:#38bdf8;--t-glow:rgba(56,189,248,.45);--t-glow2:rgba(34,211,238,.4);--t-title:linear-gradient(90deg,#ffffff 25%,#7dd3fc);--t-sub:linear-gradient(90deg,#38bdf8,#22d3ee);--t-ico1:linear-gradient(135deg,#1d4ed8,#3b82f6);--t-ico2:linear-gradient(135deg,#0891b2,#22d3ee);--t-ico-ink:#ffffff;--t-tot:linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 50%,#0891b2 100%);--t-tot-ink:#ffffff;--t-tot-sub:#dbeafe;--t-head0:#ffffff;--t-head1:#083344;--t-in0:#04122e;--t-in1:#083344;--t-amt:#7dd3fc;--t-hover:rgba(56,189,248,.5);background:radial-gradient(1100px 600px at 90% -10%,rgba(37,99,235,.4),transparent 60%),radial-gradient(900px 520px at -10% 110%,rgba(34,211,238,.16),transparent 60%),#050b1f;color:var(--fg)}
+.app[data-t="WM"]{--bg:#0e0a05;--panel:rgba(38,28,14,.74);--panel-2:rgba(168,133,74,.12);--line:rgba(201,163,94,.2);--side:rgba(18,13,6,.94);--fg:#f6efe1;--muted:#bba98a;--gold:#a8854a;--bar0-end:#e0c896;--lilac:#78716c;--cyan:#78716c;--bar1-end:#d6d3d1;--t-top:rgba(14,10,5,.74);--t-note:rgba(168,133,74,.12);--t-accent:linear-gradient(135deg,#6e5020,#8c6a2e 55%,#b08d4a);--t-on:#fffaf0;--t-navbg:linear-gradient(90deg,rgba(168,133,74,.5),rgba(168,133,74,.08));--t-edge:#d9c08a;--t-glow:rgba(201,163,94,.4);--t-glow2:rgba(201,163,94,.35);--t-title:linear-gradient(90deg,#e8cf98,#b8924f);--t-sub:linear-gradient(90deg,#e8cf98,#b8924f);--t-ico1:linear-gradient(135deg,#8c6a2e,#c9a35e);--t-ico2:linear-gradient(135deg,#57534e,#a8a29e);--t-ico-ink:#fffaf0;--t-tot:linear-gradient(135deg,#4a3514 0%,#7a5a24 50%,#b08d4a 100%);--t-tot-ink:#fffaf0;--t-tot-sub:#f1e4c8;--t-head0:#1f1606;--t-head1:#ffffff;--t-in0:#2b1f08;--t-in1:#1c1917;--t-amt:#e0c896;--t-hover:rgba(201,163,94,.5);background:radial-gradient(1100px 600px at 90% -10%,rgba(168,133,74,.3),transparent 60%),radial-gradient(900px 520px at -10% 110%,rgba(201,173,120,.12),transparent 60%),#0e0a05;color:var(--fg)}
+
+.app .side{background:var(--side)}
+.app .logo-mark{background:var(--t-ico1);box-shadow:0 0 18px var(--t-glow)}
+.app .logo-name.logo-dash{font-size:19px;font-weight:700;letter-spacing:.14em;background:var(--t-title);-webkit-background-clip:text;background-clip:text;color:transparent}
+.app .nav-btn[aria-current="page"]{background:var(--t-navbg);color:#fff;box-shadow:inset 3px 0 0 var(--t-edge)}
+.app .top{background:var(--t-top)}
+.app .top h1{font-size:clamp(22px,2.6vw,32px);font-weight:700;letter-spacing:.14em}
+.app .top h1,.app .title{background:var(--t-title);-webkit-background-clip:text;background-clip:text;color:transparent}
+.app .eyebrow{background:var(--t-sub);-webkit-background-clip:text;background-clip:text;color:transparent}
+.app .seg button[aria-pressed="true"]{background:var(--t-accent);color:var(--t-on);box-shadow:0 0 14px var(--t-glow)}
+.app .card:hover,.app .kpi:hover{border-color:var(--t-hover);box-shadow:0 0 24px var(--t-glow),0 12px 32px rgba(0,0,0,.45)}
+.app .kpi-ico{background:var(--t-ico1);box-shadow:0 0 18px var(--t-glow)}
+.app .kpi:nth-child(2) .kpi-ico{background:var(--t-ico2);box-shadow:0 0 18px var(--t-glow2)}
+.app .kpi-ico svg{stroke:var(--t-ico-ink)}
+.app .kpi.total{background:var(--t-tot);border-color:transparent;box-shadow:0 0 34px var(--t-glow)}
+.app .kpi.total .kpi-ico{background:rgba(255,255,255,.18);box-shadow:none}
+.app .kpi.total .kpi-ico svg{stroke:var(--t-tot-ink)}
+.app .kpi.total .kpi-val{color:var(--t-tot-ink)}
+.app .kpi.total .kpi-label,.app .kpi.total .kpi-sub{color:var(--t-tot-sub)}
+.app .note{background:var(--t-note);border-color:var(--line)}
+.app .type-head{background:var(--tc);color:var(--tc-ink);font-size:24px;font-weight:800;padding:10px 16px;border-radius:12px;margin:-4px -6px 0;box-shadow:0 0 22px color-mix(in srgb,var(--tc) 35%,transparent)}
+.app table.mini th{text-align:right}.app table.mini th:first-child{text-align:left}
+.app table.mini thead th{background:color-mix(in srgb,var(--tc,var(--t-amt)) 18%,transparent)}
+.app #s-visit-card table.mini thead th{border-bottom:2px solid var(--gold)} .app #s-vc-card table.mini thead th{border-bottom:2px solid var(--cyan)}
+.app table.mini td,.app table.mini th{padding:9px 10px}
+.app .tot-card{background:var(--panel);border:1px solid var(--line);border-bottom:3px solid var(--tc);border-radius:var(--r);overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.4);transition:box-shadow .3s,border-color .3s}
+.app .tot-card:hover{box-shadow:0 0 26px color-mix(in srgb,var(--tc) 40%,transparent),0 12px 32px rgba(0,0,0,.45)}
+.app .tot-head{background:var(--tc);color:var(--tc-ink);font-weight:800;font-size:clamp(20px,2.2vw,26px);letter-spacing:.04em;padding:14px 20px;text-align:center}
+.app .tot-val{text-align:center;font-size:clamp(32px,4vw,48px);font-weight:800;color:var(--t-amt);padding:18px 20px 4px;font-variant-numeric:tabular-nums;line-height:1.1}
+.app .tot-val small{font-size:.45em;margin-right:6px;opacity:.85}
+.app .tot-sub{text-align:center;color:var(--muted);font-weight:600;padding:2px 20px 18px;font-variant-numeric:tabular-nums}
+.app .rate-form{grid-template-columns:minmax(0,1.2fr) auto minmax(0,1fr) minmax(0,1.1fr) auto}
+.app .rate-form .field input[type="date"]{color-scheme:dark}
+.app .save-btn{all:unset;cursor:pointer;padding:10px 20px;border-radius:10px;background:var(--t-accent);color:var(--t-on);font-weight:700;text-align:center;box-shadow:0 0 14px var(--t-glow);transition:transform .25s,box-shadow .25s}
+.app .save-btn:hover{transform:translateY(-2px);box-shadow:0 0 22px var(--t-glow)}
+.app .save-btn:focus-visible,.app .hist-del:focus-visible{outline:2px solid var(--t-edge);outline-offset:2px}
+.app .rf-msg{color:var(--bad)}
+.app .rate-hist{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.app .hist-title{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.app .hist-row{display:grid;grid-template-columns:minmax(0,130px) minmax(0,110px) minmax(0,1fr) auto;gap:12px;align-items:center;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.app .hist-row.live{border-color:var(--t-amt);background:var(--t-note)}
+.app .hist-row b{color:var(--t-amt)}
+.app .hist-tag{color:var(--muted);font-size:12px}
+.app .hist-del{all:unset;cursor:pointer;font-size:12px;color:var(--muted);padding:4px 10px;border-radius:8px;border:1px solid var(--line)}
+.app .hist-del:hover{color:var(--bad);border-color:var(--bad)}
+.app .hist-del.armed{color:#fff;background:var(--bad);border-color:var(--bad)}
+@media (max-width:860px){.app .rate-form{grid-template-columns:minmax(0,1fr)}.app .hist-row{grid-template-columns:1fr auto;}.app .hist-tag{grid-column:1/-1}}
+.app .nav-label-2{margin-top:16px}
+.app .rates-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+.app .rate-card{gap:10px}
+.app .rc-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.app .rc-brand{font-size:18px;font-weight:800}
+.app .rc-cat{color:var(--muted);font-size:13px;font-weight:600}
+.app .rc-now{font-size:clamp(34px,4vw,46px);font-weight:800;color:var(--t-amt);font-variant-numeric:tabular-nums;line-height:1.1}
+.app .rc-now small{font-size:.42em;margin-right:6px;opacity:.85}
+.app .rc-since{color:var(--muted);font-weight:600}
+.app .rc-next{color:var(--fg);font-size:13px;padding:6px 10px;border-radius:8px;background:var(--t-note);border:1px dashed var(--t-amt);align-self:flex-start}
+.app .rc-actions,.app .rc-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.app .rc-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:4px;padding:14px;border-radius:12px;background:var(--t-note);border:1px solid var(--line)}
+.app .rc-form label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--fg)}
+.app .rc-form input{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--fg);font:inherit;color-scheme:dark;min-width:0}
+.app .rc-form .rf-msg,.app .rc-form .rc-btns{grid-column:1/-1}
+.app .ghost-btn{all:unset;cursor:pointer;padding:10px 18px;border-radius:10px;border:1px solid var(--line);color:var(--muted);font-weight:600;transition:color .2s,border-color .2s}
+.app .ghost-btn:hover{color:var(--fg);border-color:var(--t-edge)}
+.app .ghost-btn:focus-visible{outline:2px solid var(--t-edge);outline-offset:2px}
+@media (max-width:860px){.app .rc-form{grid-template-columns:minmax(0,1fr)}.app .nav-label-2{display:none}}
+.app .rate-groups{display:flex;flex-direction:column;gap:30px}
+.app .group-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding-left:14px;border-left:4px solid var(--gold)}
+.app .rate-group[data-cat="sales"] .group-head{border-left-color:var(--cyan)}
+.app .group-head h3{margin:0;font-size:22px;font-weight:800}
+.app .group-head span{color:var(--muted);font-size:13px;font-weight:600}
+.app .snd-btn{all:unset;cursor:pointer;position:relative;overflow:hidden;width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:var(--panel);border:1px solid var(--line);color:var(--fg);transition:box-shadow .3s,border-color .3s,transform .25s}
+.app .snd-btn:hover{border-color:var(--t-edge);box-shadow:0 0 14px var(--t-glow);transform:translateY(-1px)}
+.app .snd-btn:focus-visible{outline:2px solid var(--t-edge);outline-offset:2px}
+.app .snd-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.app .snd-btn[aria-pressed="true"] .snd-off,.app .snd-btn[aria-pressed="false"] .snd-on{display:none}
+.app .snd-btn[aria-pressed="false"]{color:var(--muted)}
+.app .nav-btn,.app .seg button,.app .save-btn,.app .ghost-btn{position:relative;overflow:hidden}
+.app .ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.35);transform:scale(0);opacity:.9;pointer-events:none;animation:tlwRipple .65s ease-out forwards}
+@keyframes tlwRipple{to{transform:scale(1);opacity:0}}
+.app .to-top{all:unset;box-sizing:border-box;cursor:pointer;position:fixed;z-index:20;right:calc(22px + env(safe-area-inset-right,0px));bottom:calc(22px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border-radius:50%;display:grid;place-items:center;overflow:hidden;
+  background:var(--t-accent);color:var(--t-on);box-shadow:0 10px 26px rgba(0,0,0,.45),0 0 18px var(--t-glow);opacity:0;visibility:hidden;transform:translateY(16px) scale(.9);transition:opacity .3s,transform .35s cubic-bezier(.2,.8,.2,1),visibility .3s,box-shadow .3s}
+.app .to-top.show{opacity:1;visibility:visible;transform:none}
+.app .to-top:hover{box-shadow:0 14px 30px rgba(0,0,0,.5),0 0 28px var(--t-glow);transform:translateY(-4px)}
+.app .to-top:focus-visible{outline:2px solid var(--t-edge);outline-offset:3px}
+.app .to-top svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+@media (prefers-reduced-motion:no-preference){.app .to-top.show svg{animation:tlwNudge 2.4s ease-in-out infinite}@keyframes tlwNudge{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}}
+.app .tour-block{position:fixed;inset:0;z-index:48;background:transparent}
+.app .tour-spot{position:fixed;z-index:49;border-radius:18px;pointer-events:none;box-shadow:0 0 0 9999px rgba(2,6,16,.74),0 0 0 2px var(--t-edge),0 0 28px var(--t-glow)}
+.app .tour-tip{position:fixed;z-index:50;box-sizing:border-box;background:var(--side);border:1px solid var(--t-edge);border-radius:16px;padding:18px 20px;box-shadow:0 18px 40px rgba(0,0,0,.55),0 0 24px var(--t-glow);color:var(--fg)}
+.app .tour-tip h3{margin:4px 0 6px;font-size:19px;font-weight:800}
+.app .tour-tip p{margin:0;color:var(--fg);opacity:.9;line-height:1.6}
+.app .tour-step{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--t-amt)}
+.app .tour-dots{display:flex;gap:5px;margin:14px 0 12px}
+.app .tour-dots i{width:6px;height:6px;border-radius:50%;background:var(--line)}
+.app .tour-dots i.on{width:18px;border-radius:4px;background:var(--t-amt)}
+.app .tour-btns{display:flex;gap:8px;align-items:center}
+.app .tour-btns span{flex:1}
+.app .tour-btns .save-btn,.app .tour-btns .ghost-btn{padding:9px 14px}
+@media (prefers-reduced-motion:no-preference){
+  .app .tour-spot{transition:left .4s cubic-bezier(.2,.8,.2,1),top .4s cubic-bezier(.2,.8,.2,1),width .4s cubic-bezier(.2,.8,.2,1),height .4s cubic-bezier(.2,.8,.2,1)}
+  .app .tour-tip{transition:left .4s cubic-bezier(.2,.8,.2,1),top .4s cubic-bezier(.2,.8,.2,1);animation:tlwRise .35s cubic-bezier(.2,.8,.2,1) backwards}
+}
+.app .untag{padding:0;overflow:hidden}
+.app .untag-toggle{all:unset;box-sizing:border-box;cursor:pointer;width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;color:var(--bad)}
+.app .untag-toggle:focus-visible{outline:2px solid var(--bad);outline-offset:-2px;border-radius:10px}
+.app .untag-more{font-size:13px;font-weight:700;white-space:nowrap;display:inline-flex;gap:6px;align-items:center}
+.app .untag-more i{font-style:normal;transition:transform .25s}
+.app .untag-toggle[aria-expanded="true"] .untag-more i{transform:rotate(180deg)}
+.app .untag-list{padding:0 18px 14px}
+.app .untag-list .tw{max-height:50vh;overflow:auto}
+.app .untag-list table td{color:var(--fg)}
+.app .untag-list table th,.app .untag-list table td{text-align:left}
+.app .untag-list table th{color:var(--muted)}
+.app .untag-tip{margin:10px 0 0;color:var(--muted);font-size:13px}
+.app .title{text-transform:uppercase;letter-spacing:.03em}
+.app .grid1{grid-template-columns:minmax(0,1fr)}
+.app th small{display:block;font-size:10px;letter-spacing:.04em;text-transform:none;font-weight:500;opacity:.75;margin-top:2px}
+.app th.bill,.app td.bill{background:var(--t-note)}
+.app th.b-first,.app td.b-first{border-left:2px solid var(--t-amt)}
+.app tbody td.soft,.app th.soft{color:var(--muted);opacity:.85}
+.app td .op{color:var(--muted);font-weight:400;margin-right:6px}
+.app td .mix{font-size:13px;color:var(--fg);opacity:.9}
+.app tfoot td.bill{background:var(--t-note)}
+.app .chart .in{fill:var(--t-in0);font-weight:700}
+.app .chart .in2{fill:var(--t-in1)}
+.app .chart .amt{fill:var(--t-amt)}
+.app .inuse b,.app td.amt,.app tfoot td.amt{color:var(--t-amt)}
+.app tfoot td{border-top-color:var(--t-amt)}
+
+@media (prefers-reduced-motion:no-preference){
+  .app .card,.app .kpi,.app .tot-card{transition:transform .45s cubic-bezier(.2,.8,.2,1),box-shadow .45s,border-color .45s}
+  .app .card:hover,.app .kpi:hover,.app .tot-card:hover{transform:translateY(-8px)}
+  .app .kpi-ico{animation:tlwFloat 4.5s ease-in-out infinite}
+  .app .kpi:nth-child(2) .kpi-ico{animation-delay:-1.5s} .app .kpi:nth-child(3) .kpi-ico{animation-delay:-3s}
+  @keyframes tlwFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  .app .logo-mark{animation:tlwFloat 5.5s ease-in-out infinite}
+  .app .nav-btn{transition:transform .3s cubic-bezier(.2,.8,.2,1),background .3s}
+  .app .nav-btn:hover{transform:translateX(5px)}
+  .app .seg button,.app .sel{transition:background .3s,color .3s,box-shadow .3s,transform .3s}
+  .app .seg button:hover{transform:translateY(-1px)}
+  .app .type-head{transition:transform .4s cubic-bezier(.2,.8,.2,1),box-shadow .4s}
+  .app .type-card:hover .type-head{transform:translateY(-3px)}
+  .app tbody tr{transition:background .25s}
+  .app tbody tr:hover{background:rgba(255,255,255,.05)}
+  /* entrance when the page, brand or month changes */
+  .app .page.enter > :not(.kpis):not(.grid2),.app .page.enter > .kpis > *,.app .page.enter > .grid2 > *{animation:tlwRise .65s cubic-bezier(.2,.8,.2,1) backwards}
+  .app .page.enter > .kpis > :nth-child(2),.app .page.enter > .grid2 > :nth-child(2){animation-delay:.08s}
+  .app .page.enter > .kpis > :nth-child(3){animation-delay:.16s}
+  .app .page.enter > :nth-child(4){animation-delay:.04s} .app .page.enter > :nth-child(5) > *{animation-delay:.1s}
+  .app .page.enter > :nth-child(6) > *{animation-delay:.18s} .app .page.enter > :nth-child(7) > *{animation-delay:.24s}
+  .app .page.enter > :nth-child(8) > *,.app .page.enter > :nth-child(8){animation-delay:.3s}
+  .app .page.enter > :nth-child(9) > *,.app .page.enter > :nth-child(9){animation-delay:.36s}
+  @keyframes tlwRise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+  /* charts draw in */
+  .app #p-chart rect{transform-box:fill-box;transform-origin:left center;animation:tlwGrowX .9s cubic-bezier(.2,.8,.2,1) backwards}
+  .app .type-card .chart rect{transform-box:fill-box;transform-origin:center bottom;animation:tlwGrowY .9s cubic-bezier(.2,.8,.2,1) backwards}
+  .app .type-card .chart rect:nth-of-type(2){animation-delay:.06s} .app .type-card .chart rect:nth-of-type(3){animation-delay:.12s} .app .type-card .chart rect:nth-of-type(4){animation-delay:.18s} .app .type-card .chart rect:nth-of-type(5){animation-delay:.24s}
+  @keyframes tlwGrowX{from{transform:scaleX(0)}} @keyframes tlwGrowY{from{transform:scaleY(0)}}
+  .app #p-donut svg{animation:tlwPop .9s cubic-bezier(.2,.8,.2,1) backwards}
+  @keyframes tlwPop{from{opacity:0;transform:scale(.85) rotate(-30deg)}}
+}
+@media (prefers-reduced-motion:no-preference){::view-transition-old(root),::view-transition-new(root){animation-duration:.45s}}
+</style>
+
+</head>
+<body>
+<div class="app" data-t="all">
+  <button type="button" class="to-top" id="to-top" aria-label="回到顶部" title="回到顶部"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></button>
+  <aside class="side">
+    <div class="logo"><div class="logo-mark">L</div><div><div class="logo-name logo-dash">DASHBOARD</div></div></div>
+    <nav class="nav-group" aria-label="Analysis">
+      <div class="nav-label">Analysis</div>
+      <button class="nav-btn" id="nav-photo" data-page="photo" aria-current="page">
+        <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Photo Selection</button>
+      <button class="nav-btn" id="nav-sales" data-page="sales">
+        <svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>Sales Analysis</button>
+      <div class="nav-label nav-label-2" hidden>Settings</div>
+      <button class="nav-btn" id="nav-rates" data-page="rates" hidden>
+        <svg viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>Rates 设置</button>
+    </nav>
+    <div class="side-foot">金额单位：RM<br>Rate 按生效日期计算</div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <h1>DASHBOARD</h1>
+      <div class="controls">
+        <select class="sel" id="month" aria-label="月份"></select>
+        <div class="seg" role="group" aria-label="品牌">
+          <button type="button" data-brand="all" aria-pressed="true">合并</button>
+          <button type="button" data-brand="Legends" aria-pressed="false">Legends</button>
+          <button type="button" data-brand="WM" aria-pressed="false">WM</button>
+        </div>
+        <button type="button" class="snd-btn tour-btn" id="tour-btn" aria-label="导览" title="导览：介绍每个地方怎么用">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8"/><path d="M12 17.2v.1"/></svg>
+        </button>
+        <button type="button" class="snd-btn" id="snd" aria-pressed="true" aria-label="声音开关" title="声音开关">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="snd-on" d="M16.5 8.5a5 5 0 0 1 0 7"/><path class="snd-on" d="M19 6a8.5 8.5 0 0 1 0 12"/><path class="snd-off" d="M17 9l5 6M22 9l-5 6"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- PHOTO SELECTION -->
+    <section class="page" id="photo">
+      <div><div class="eyebrow"><span data-brand-name>The Legend Wedding + WM</span></div><h2 class="title">Photo Selection Analysis</h2></div>
+      <div class="note warn untag" data-untagged hidden></div>
+      <div class="kpis">
+        <div class="kpi"><span class="kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span><div class="kpi-label">Rate In Use</div><div class="kpi-val" id="p-rate">—</div><div class="kpi-sub" id="p-rate-sub">—</div></div>
+        <div class="kpi"><span class="kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg></span><div class="kpi-label">Non-All Soft</div><div class="kpi-val" id="p-non">—</div><div class="kpi-sub" id="p-non-sub">—</div></div>
+        <div class="kpi total"><span class="kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z"/><circle cx="16" cy="14.5" r="1.3"/></svg></span><div class="kpi-label">Total Amount</div><div class="kpi-val" id="p-amt">—</div><div class="kpi-sub" id="p-amt-sub">—</div></div>
+      </div>
+      <p class="note warn" id="p-norate" hidden>所选期间有日期还没设定 Photo Selection Rate，那些活动没有计入 Total Amount。请到 Rates 设置。</p>
+      <div class="grid2">
+        <div class="card" id="p-donut-card"><div><h2>Total Events</h2><p class="sub" id="p-donut-sub">—</p></div><div class="chart" id="p-donut"></div></div>
+        <div class="card"><div><h2>Events By Person</h2><p class="sub">Bars = Number Of Events  ·  RM = Total Amount (Non-All Soft Only)</p></div>
+          <div class="legend"><span><i style="background:var(--gold)"></i>Non-All Soft</span><span><i style="background:var(--lilac)"></i>All Soft</span></div>
+          <div class="chart" id="p-chart"></div></div>
+      </div>
+      <div class="card"><h2>Total Amount By Person</h2>
+        <div class="tw"><table><thead><tr><th>负责人</th><th>全部场次</th><th class="soft">All Soft<small>不计费</small></th><th class="bill b-first">Non-All Soft<small>计费场次</small></th><th class="bill">× Rate<small>RM</small></th><th class="bill">= Total Amount<small>RM</small></th></tr></thead><tbody id="p-rows"></tbody><tfoot id="p-foot"></tfoot></table></div></div>
+    </section>
+
+    <!-- SALES ANALYSIS -->
+    <section class="page" id="sales" hidden>
+      <div><div class="eyebrow"><span data-brand-name>The Legend Wedding + WM</span></div><h2 class="title">Sales Analysis</h2></div>
+      <div class="note warn untag" data-untagged hidden></div>
+      <div class="kpis">
+        <div class="kpi"><span class="kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span><div class="kpi-label">Rate In Use</div><div class="kpi-val" id="s-rate">—</div><div class="kpi-sub" id="s-rate-sub">—</div></div>
+        <div class="kpi"><span class="kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14a6 6 0 0 1 3.5 6"/></svg></span><div class="kpi-label">Applies To</div><div class="kpi-val" id="s-count">—</div><div class="kpi-sub" id="s-count-sub">—</div></div>
+        <div class="kpi total"><span class="kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z"/><circle cx="16" cy="14.5" r="1.3"/></svg></span><div class="kpi-label">Grand Total</div><div class="kpi-val" id="s-amt">—</div><div class="kpi-sub" id="s-amt-sub">—</div></div>
+      </div>
+      <p class="note warn" id="s-norate" hidden>所选期间有日期还没设定 Sales Rate，那些活动没有计入 Total Amount。请到 Rates 设置。</p>
+      <div class="grid2">
+        <div class="tot-card" style="--tc:var(--gold);--tc-ink:var(--t-head0)"><div class="tot-head">TOTAL 上门了解</div><div class="tot-val" id="s-visit-total">—</div><div class="tot-sub" id="s-visit-total-sub">—</div></div>
+        <div class="tot-card" style="--tc:var(--cyan);--tc-ink:var(--t-head1)"><div class="tot-head">TOTAL VC了解</div><div class="tot-val" id="s-vc-total">—</div><div class="tot-sub" id="s-vc-total-sub">—</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card type-card" id="s-visit-card"><div class="type-head" style="--tc:var(--gold);--tc-ink:var(--t-head0)">上门了解</div><p class="sub" id="s-visit-sub">—</p><div class="chart" id="s-visit-chart"></div>
+          <div class="tw"><table class="mini"><thead><tr><th>Person</th><th>次数</th><th>× Rate</th><th>= Total</th></tr></thead><tbody id="s-visit-rows"></tbody><tfoot id="s-visit-foot"></tfoot></table></div></div>
+        <div class="card type-card" id="s-vc-card"><div class="type-head" style="--tc:var(--cyan);--tc-ink:var(--t-head1)">VC了解</div><p class="sub" id="s-vc-sub">—</p><div class="chart" id="s-vc-chart"></div>
+          <div class="tw"><table class="mini"><thead><tr><th>Person</th><th>次数</th><th>× Rate</th><th>= Total</th></tr></thead><tbody id="s-vc-rows"></tbody><tfoot id="s-vc-foot"></tfoot></table></div></div>
+      </div>
+      <div class="card"><h2>Total Amount By Person</h2>
+        <div class="tw"><table><thead><tr><th>负责人</th><th>上门了解</th><th>VC了解</th><th class="bill b-first">合计次数<small>计费次数</small></th><th class="bill">× Rate<small>RM</small></th><th class="bill">= Total Amount<small>RM</small></th></tr></thead><tbody id="s-rows"></tbody><tfoot id="s-foot"></tfoot></table></div></div>
+
+    </section>
+
+    <!-- RATES -->
+    <section class="page" id="rates" hidden>
+      <div><div class="eyebrow">Settings</div><h2 class="title">Rates 设置</h2></div>
+      <p class="note">每个活动都用它<b>当天</b>的 Rate 计算。改 Rate 时选"从哪天开始"：那天之前的活动还是用旧的 Rate。</p>
+      <div class="rate-groups" id="rates-grid"></div>
+      <datalist id="dl-photo"></datalist><datalist id="dl-sales"></datalist>
+    </section>
+
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   DATA — 导入 app 时，用 TheLegendDashboard.setData({events, rates}) 替换。
+   events: [{date:"2026-11-03", brand:"Legends"|"WM"|"", person:"J", type:"Non-All Soft"|"All Soft"|"上门了解"|"VC了解"}]
+   rates:  {"Legends|photo": [{from:"2026-10-01", list:1400, custom:null}, {from:"2026-10-15", list:1800, custom:null}], ...}   cat = photo | sales
+           (每条记录 = 从 from 那天起生效的费率；旧格式 {"2026-11|Legends|photo": {...}} 也可以，会当成那个月 1 号起生效)
+   ===================================================================== */
+const SAMPLE = { sample: false, events: [], rates: {} };
+
+(() => {
+  const DATA_START = '2026-10'; // 数据从 2026 年 10 月开始，之前的活动不计算
+  const RATE_LIST = { photo: [1000, 1400, 1800, 2200, 2500], sales: [2000, 2500, 3000, 3500] };
+  const BRANDS = ['Legends', 'WM'];
+  const PHOTO = ['Non-All Soft', 'All Soft'], SALES = ['上门了解', 'VC了解'];
+  const STORE = 'tlw-dashboard-rate-history-v2';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const money = (v) => (v == null ? '未设定' : v.toLocaleString('en-MY', { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 }));
+  const int = (v) => Number(v).toLocaleString('en-MY');
+  const monthLabel = (m) => (m ? `${m.slice(0, 4)}年${Number(m.slice(5, 7))}月` : '—');
+  const brandName = (b) => (b === 'all' ? 'The Legend Wedding + WM' : b === 'Legends' ? 'The Legend Wedding' : b);
+
+  let data = { events: [], rates: {}, sample: false };
+  const state = { page: 'photo', brand: 'all', month: null };
+  const api = (window.TheLegendDashboard = window.TheLegendDashboard || {});
+
+  /* ---------- data ---------- */
+  // rates: { "Legends|photo": [{ from: "2026-10-01", list: 1400, custom: null }, ...] } sorted by date
+  function toHistory(r) {
+    const out = {};
+    for (const [k, v] of Object.entries(r || {})) {
+      if (Array.isArray(v)) { out[k] = v.map((x) => ({ from: x.from, list: x.list ?? null, custom: x.custom ?? null })); continue; }
+      const p = k.split('|');
+      if (p.length === 3) (out[`${p[1]}|${p[2]}`] ||= []).push({ from: p[0].length === 7 ? p[0] + '-01' : p[0], list: v.list ?? null, custom: v.custom ?? null });
+    }
+    const minD = DATA_START + '-01';
+    for (const k of Object.keys(out)) {
+      const h = out[k].sort((x, y) => x.from.localeCompare(y.from));
+      const before = h.filter((r) => r.from <= minD), after = h.filter((r) => r.from > minD);
+      if (before.length) after.unshift({ ...before[before.length - 1], from: minD });
+      const kept = [];
+      for (const r of after) { if (kept.length && recRate(kept[kept.length - 1]) === recRate(r)) continue; kept.push(r); }
+      out[k] = kept;
+    }
+    return out;
+  }
+  function persist() { if (data.sample) { try { localStorage.setItem(STORE, JSON.stringify(data.rates)); } catch {} } }
+  api.setData = (d) => {
+    data = { events: (d.events || []).map((e) => ({ ...e, month: String(e.date || '').slice(0, 7) })).filter((e) => e.month >= DATA_START), rates: toHistory(d.rates), sample: !!d.sample };
+    if (d.sample) {
+      // demo of a mid-month change: Legends photo rate becomes 1,800 from 15 Oct 2026
+      const h = hist('Legends', 'photo');
+      if (!h.some((r) => r.from === '2026-10-15')) { h.push({ from: '2026-10-15', list: 1800, custom: null }, { from: '2026-11-01', list: 1400, custom: null }); h.sort((x, y) => x.from.localeCompare(y.from)); }
+      try { const saved = JSON.parse(localStorage.getItem(STORE) || 'null'); if (saved) data.rates = saved; } catch {}
+    }
+    const ms = months();
+    if (!periodOptions().includes(state.month)) state.month = ms[ms.length - 1] || null;
+    render();
+  };
+  api.getRates = () => JSON.parse(JSON.stringify(data.rates));
+  const months = () => [...new Set(data.events.map((e) => e.month).filter((m) => /^\d{4}-\d{2}$/.test(m)))].sort();
+  const years = () => [...new Set(months().map((m) => m.slice(0, 4)))].sort();
+  const periodOptions = () => [...months(), ...years().map((y) => 'Y' + y)];
+  const isYear = () => String(state.month || '').startsWith('Y');
+  const periodMonths = () => (isYear() ? months().filter((m) => m.startsWith(state.month.slice(1) + '-')) : state.month ? [state.month] : []);
+  const periodLabel = () => (isYear() ? `${state.month.slice(1)}` : monthLabel(state.month));
+  const brandsNow = () => (state.brand === 'all' ? BRANDS : [state.brand]);
+  const hist = (b, cat) => (data.rates[`${b}|${cat}`] ||= []);
+  const recRate = (r) => { const c = Number(r.custom), l = Number(r.list); return c > 0 ? c : l > 0 ? l : null; };
+  const fmtDate = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
+  const monthEnd = (m) => { const [y, mo] = m.split('-').map(Number); return `${m}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`; };
+  // the rate in force on a given day (the latest record whose start date is on or before that day)
+  function rateAt(date, b, cat) { let v = null; for (const r of hist(b, cat)) { if (r.from <= date) v = recRate(r); else break; } return v; }
+  // every rate that applies at some point in a month, in order
+  function ratesInMonth(m, b, cat) {
+    if (!m || String(m).startsWith('Y')) return [];
+    const start = m + '-01', end = monthEnd(m), out = [];
+    let cur = null;
+    for (const r of hist(b, cat)) if (r.from <= start) cur = { from: r.from, rate: recRate(r) };
+    if (cur && cur.rate != null) out.push(cur);
+    for (const r of hist(b, cat)) if (r.from > start && r.from <= end && recRate(r) != null) out.push({ from: r.from, rate: recRate(r) });
+    return out;
+  }
+  // ---------- 和网站的后台连线 ----------
+  const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } } };
+  async function server(path, opts = {}) {
+    const headers = { 'x-lang': store.get('lang') || 'zh', ...(store.get('token') ? { Authorization: `Bearer ${store.get('token')}` } : {}), ...(store.get('cal') ? { 'x-cal': store.get('cal') } : {}) };
+    if (opts.body) headers['Content-Type'] = 'application/json';
+    const res = await fetch((window.APP_CONFIG?.apiBase || '') + path, { ...opts, headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(out.error || `Error ${res.status}`);
+    return out;
+  }
+  let isAdmin = false;
+  function showLoadError(msg) {
+    document.querySelectorAll('[data-untagged]').forEach((n) => { n.hidden = false; n.innerHTML = ''; n.textContent = msg; });
+  }
+  async function loadData() {
+    try {
+      const d = await server('/api/dashboard');
+      isAdmin = !!d.admin;
+      document.querySelectorAll('#nav-rates, .nav-label-2').forEach((x) => { x.hidden = !isAdmin; });
+      if (!isAdmin) { for (let i = TOUR.length - 1; i >= 0; i--) if (TOUR[i].page === 'rates') TOUR.splice(i, 1); if (state.page === 'rates') state.page = 'photo'; }
+      api.setData({ events: d.events || [], rates: d.rates || {}, sample: false });
+    } catch (e) { showLoadError('Dashboard 读取失败：' + e.message); }
+  }
+  api.reload = () => loadData().then(() => enter());
+  async function saveRate(b, cat, from, list, custom) {
+    try { const r = await server('/api/dashboard/rates', { method: 'PUT', body: { brand: b, cat, from, list, custom } }); data.rates = toHistory(r.rates); sfx.success(); render(); }
+    catch (e) { sfx.blip(); alertCard(b, cat, e.message); }
+  }
+  async function deleteRate(b, cat, from) {
+    try { const r = await server(`/api/dashboard/rates?brand=${encodeURIComponent(b)}&cat=${cat}&from=${from}`, { method: 'DELETE' }); data.rates = toHistory(r.rates); sfx.remove(); render(); }
+    catch (e) { sfx.blip(); alertCard(b, cat, e.message); }
+  }
+  function alertCard(b, cat, msg) {
+    const card = document.querySelector(`.rate-card[data-key="${b}|${cat}"]`);
+    const m = card && card.querySelector('.rf-msg');
+    if (m) { m.hidden = false; m.textContent = msg; } else showLoadError(msg);
+  }
+
+  /* ---------- calculations ---------- */
+  // ms = months in the chosen period (one month, or every month of a year). Each event uses its own month's rate.
+  function periodCalc(cat, ms) {
+    const types = cat === 'photo' ? PHOTO : SALES;
+    const set = new Set(ms), strict = ms.length === 1;
+    const people = {}, byBrand = {};
+    BRANDS.forEach((b) => { byBrand[b] = { a: 0, b: 0, amt: 0, rates: new Set(), counts: new Map(), missing: false }; });
+    for (const e of data.events) {
+      if (!set.has(e.month) || !brandsNow().includes(e.brand) || !types.includes(e.type)) continue;
+      const p = (people[e.person] ??= { person: e.person, a: 0, b: 0, amount: 0 });
+      const first = e.type === types[0], bb = byBrand[e.brand];
+      first ? (p.a++, bb.a++) : (p.b++, bb.b++);
+      if (cat === 'photo' && !first) continue;
+      const rt = rateAt(e.date, e.brand, cat);
+      if (rt == null) { bb.missing = true; if (strict) p.amount = null; continue; }
+      bb.amt = r2(bb.amt + rt); bb.rates.add(rt); bb.counts.set(rt, (bb.counts.get(rt) || 0) + 1);
+      p.rates ??= new Map(); p.rates.set(rt, (p.rates.get(rt) || 0) + 1);
+      if (p.amount != null) p.amount = r2(p.amount + rt);
+    }
+    const per = Object.fromEntries(brandsNow().map((b) => {
+      const bb = byBrand[b], n = cat === 'photo' ? bb.a : bb.a + bb.b;
+      const rate = bb.rates.size === 1 && !bb.missing ? [...bb.rates][0] : null;
+      return [b, { n, rate, counts: bb.counts, mixed: bb.rates.size > 1, amount: strict && bb.missing ? null : bb.amt, missing: bb.missing }];
+    }));
+    const vals = Object.values(per);
+    const amount = vals.some((v) => v.amount == null) ? null : r2(vals.reduce((s, v) => s + v.amount, 0));
+    const a = brandsNow().reduce((s, b) => s + byBrand[b].a, 0), b = brandsNow().reduce((s, k) => s + byBrand[k].b, 0);
+    const missing = vals.some((v) => v.missing);
+    const rows = Object.values(people).sort((x, y) => (y.amount ?? -1) - (x.amount ?? -1) || (y.a + y.b) - (x.a + x.b) || x.person.localeCompare(y.person));
+    return { rows, per, a, b, amount, missing };
+  }
+
+  /* ---------- drawing helpers ---------- */
+  const ctx2d = document.createElement('canvas').getContext('2d');
+  function textW(s, weight = 600) { ctx2d.font = `${weight} 13px Montserrat, "Noto Sans SC", sans-serif`; return ctx2d.measureText(s).width; }
+  function hbars(el, rows, colors) {
+    if (!rows.length) { el.innerHTML = '<p class="empty">这个月份没有活动。</p>'; return; }
+    const W = Math.max(260, el.clientWidth || 360), rowH = 36;
+    const nameW = Math.max(...rows.map((r) => textW(r.person))) + 14;
+    const amtW = Math.max(...rows.map((r) => textW('RM ' + money(r.amount), 700))) + 14;
+    const max = Math.max(1, ...rows.map((r) => r.a + r.b));
+    const x0 = nameW, x1 = W - amtW, sx = (v) => (v / max) * (x1 - x0);
+    const H = rows.length * rowH;
+    let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="每位负责人的场次与 Total Amount">`;
+    const gid = 'grad-' + (el.id || 'c');
+    s += `<defs>${colors.map((c, i) => `<linearGradient id="${gid}${i}" x1="0" x2="1" y1="0" y2="0"><stop offset="0" style="stop-color:${c}"/><stop offset="1" style="stop-color:var(--bar${i}-end, ${c})"/></linearGradient>`).join('')}</defs>`;
+    rows.forEach((r, i) => {
+      const y = i * rowH + 6, h = rowH - 12, cy = y + h / 2;
+      const wa = sx(r.a), wb = sx(r.b);
+      s += `<text class="lbl" x="${x0 - 10}" y="${cy}" dy="0.35em" text-anchor="end">${esc(r.person)}</text>`;
+      s += `<rect x="${x0}" y="${y}" width="${wa}" height="${h}" rx="6" fill="url(#${gid}0)"/>`;
+      s += `<rect x="${x0 + wa}" y="${y}" width="${wb}" height="${h}" rx="6" fill="url(#${gid}1)"/>`;
+      if (wa > 22) s += `<text class="in" x="${x0 + wa - 7}" y="${cy}" dy="0.35em" text-anchor="end">${r.a}</text>`;
+      if (wb > 22) s += `<text class="in in2" x="${x0 + wa + wb - 7}" y="${cy}" dy="0.35em" text-anchor="end">${r.b}</text>`;
+      s += `<text class="amt" x="${x0 + wa + wb + 8}" y="${cy}" dy="0.35em">RM ${esc(money(r.amount))}</text>`;
+    });
+    el.innerHTML = s + '</svg>';
+  }
+  function columns(el, rows, selected) {
+    if (!rows.length) { el.innerHTML = '<p class="empty">还没有任何月份的活动。</p>'; return; }
+    const W = Math.max(260, el.clientWidth || 360), H = 230, top = 28, bot = 30;
+    const max = Math.max(1, ...rows.map((r) => r.sum));
+    const step = W / rows.length, bw = Math.min(70, step * 0.6);
+    let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="每月 Total Amount">`;
+    s += `<line x1="0" x2="${W}" y1="${H - bot}" y2="${H - bot}" stroke="var(--line)"/>`;
+    rows.forEach((r, i) => {
+      const h = (r.sum / max) * (H - top - bot), x = i * step + (step - bw) / 2, y = H - bot - h;
+      const val = r.sum >= 1000 ? (r.sum / 1000).toLocaleString('en-MY', { maximumFractionDigits: 1 }) + 'K' : money(r.sum);
+      s += `<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="5" fill="${r.month === selected ? 'var(--gold)' : 'var(--line)'}"/>`;
+      s += `<text class="${r.month === selected ? 'amt' : 'lbl'}" x="${x + bw / 2}" y="${y - 8}" text-anchor="middle">${r.partial ? 'Rate 未齐 ' : ''}${val}</text>`;
+      s += `<text x="${x + bw / 2}" y="${H - 9}" text-anchor="middle">${rows.length > 6 ? Number(r.month.slice(5)) + '月' : monthLabel(r.month)}</text>`;
+    });
+    el.innerHTML = s + '</svg>';
+  }
+  // rate shown per person: one rate, or "按品牌/按月" when the person's events use more than one
+  // one rate -> "1,400"; several (different brands or months) -> "8 × 3,500 + 3 × 2,000"
+  function rateText(rates, amount) {
+    if (!rates || !rates.size) return amount == null ? '未设定' : '—';
+    if (rates.size === 1) return money([...rates.keys()][0]);
+    return [...rates].sort((x, y) => y[0] - x[0]).map(([r, n]) => `(${int(n)} × ${money(r)})`).join(' + ');
+  }
+  function tableRows(tbody, tfoot, rows, totals, cat) {
+    const op = (sym, v) => `<span class="op">${sym}</span>${v}`;
+    const cells = (name, a, b, rate, amount, isFoot) => {
+      const bill = cat === 'photo' ? a : a + b;
+      const lead = cat === 'photo'
+        ? `<td>${int(a + b)}</td><td class="soft">${int(b)}</td>`
+        : `<td>${int(a)}</td><td>${int(b)}</td>`;
+      const rateCell = rate.includes('×') ? `<span class="mix">${esc(rate)}</span>` : op('×', esc(rate));
+      return `<tr><td>${name}</td>${lead}<td class="bill b-first">${int(bill)}</td><td class="bill">${rateCell}</td><td class="bill amt">${op('=', esc(money(amount)))}</td></tr>`;
+    };
+    tbody.innerHTML = rows.length
+      ? rows.map((r) => cells(esc(r.person), r.a, r.b, rateText(r.rates, r.amount), r.amount)).join('')
+      : '<tr><td colspan="6" style="text-align:left;color:var(--muted)">没有活动。</td></tr>';
+    const all = new Map(); let miss = false;
+    Object.values(totals.per || {}).forEach((v) => { if (v.missing) miss = true; (v.counts || new Map()).forEach((n, r) => all.set(r, (all.get(r) || 0) + n)); });
+    const footRate = all.size === 1 && !miss ? money([...all.keys()][0])
+      : [...all].sort((x, y) => y[0] - x[0]).map(([r, n]) => `(${int(n)} × ${money(r)})`).join(' + ') + (miss ? ' + 未设定' : '') || '未设定';
+    tfoot.innerHTML = rows.length ? cells(totals.label, totals.a, totals.b, footRate, totals.amount, true) : '';
+  }
+  // one sales type (上门了解 or VC了解) per person, each event at its own month/brand rate
+  function typeCalc(type, ms) {
+    const set = new Set(ms), strict = ms.length === 1, people = {}, rates = new Map();
+    let n = 0, amount = 0, missing = false;
+    for (const e of data.events) {
+      if (!set.has(e.month) || !brandsNow().includes(e.brand) || e.type !== type) continue;
+      const p = (people[e.person] ??= { person: e.person, n: 0, amount: 0, rates: new Map() });
+      p.n++; n++;
+      const rt = rateAt(e.date, e.brand, 'sales');
+      if (rt == null) { missing = true; if (strict) p.amount = null; continue; }
+      p.rates.set(rt, (p.rates.get(rt) || 0) + 1); rates.set(rt, (rates.get(rt) || 0) + 1);
+      if (p.amount != null) p.amount = r2(p.amount + rt);
+      amount = r2(amount + rt);
+    }
+    const rows = Object.values(people).sort((x, y) => x.person.localeCompare(y.person));
+    return { rows, n, amount: strict && missing ? null : amount, rates, missing };
+  }
+  function cols(el, rows, color, cls) {
+    if (!rows.length) { el.innerHTML = '<p class="empty">这个期间没有活动。</p>'; return; }
+    const W = Math.max(240, el.clientWidth || 360), H = 230, top = 24, bot = 30, left = 28;
+    const max = Math.max(1, ...rows.map((r) => r.n)), step = Math.max(1, Math.ceil(max / 5)), yMax = Math.ceil(max / step) * step;
+    const y = (v) => H - bot - (v / yMax) * (H - top - bot);
+    let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="每位负责人的次数">`;
+    for (let v = 0; v <= yMax; v += step) s += `<line x1="${left}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${left - 8}" y="${y(v)}" dy="0.35em" text-anchor="end">${v}</text>`;
+    const band = (W - left) / rows.length, bw = Math.min(64, band * 0.6);
+    rows.forEach((r, i) => {
+      const x = left + i * band + (band - bw) / 2;
+      s += `<rect x="${x}" y="${y(r.n)}" width="${bw}" height="${y(0) - y(r.n)}" rx="5" fill="${color}"/>`;
+      s += `<text x="${x + bw / 2}" y="${y(r.n) - 8}" text-anchor="middle" class="lbl">${int(r.n)}</text>`;
+      s += `<text x="${x + bw / 2}" y="${H - 9}" text-anchor="middle" class="lbl" style="font-weight:700">${esc(r.person)}</text>`;
+    });
+    el.innerHTML = s + '</svg>';
+  }
+  function rateSummary(t) {
+    if (!t.rates.size) return t.n ? '未设定' : '—';
+    return [...t.rates.keys()].sort((x, y) => x - y).map(money).join(' / ');
+  }
+  function typePanel(key, type) {
+    const t = typeCalc(type, periodMonths());
+    $(`s-${key}-sub`).textContent = `Events Per Person  ·  Rate ${rateSummary(t)}`;
+    cols($(`s-${key}-chart`), t.rows, key === 'visit' ? 'var(--gold)' : 'var(--cyan)');
+    const rcell = (rates, amount) => { const txt = rateText(rates, amount); return txt.includes('×') ? `<span class="mix">${esc(txt)}</span>` : `<span class="op">×</span>${esc(txt)}`; };
+    $(`s-${key}-rows`).innerHTML = t.rows.length
+      ? t.rows.map((r) => `<tr><td>${esc(r.person)}</td><td>${int(r.n)}</td><td>${rcell(r.rates, r.amount)}</td><td class="amt"><span class="op">=</span>${esc(money(r.amount))}</td></tr>`).join('')
+      : '<tr><td colspan="4" style="text-align:left;color:var(--muted)">没有活动。</td></tr>';
+    $(`s-${key}-total`).innerHTML = t.amount == null ? '未设定' : `<small>RM</small>${esc(money(t.amount))}`;
+    const tr = rateText(t.rates, t.amount);
+    $(`s-${key}-total-sub`).textContent = t.n ? (tr.includes('×') ? `${int(t.n)} Events  ·  ${tr}` : `${int(t.n)} Events  ×  ${tr}`) : '没有活动';
+    $(`s-${key}-foot`).innerHTML = t.rows.length ? `<tr><td>TOTAL ${type}</td><td>${int(t.n)}</td><td>${rcell(t.rates, t.amount)}</td><td class="amt"><span class="op">=</span>${esc(money(t.amount))}</td></tr>` : '';
+  }
+  function donut(el, parts) {
+    const total = parts.reduce((t, p) => t + p.value, 0);
+    if (!total) { el.innerHTML = '<p class="empty">这个期间没有活动。</p>'; return; }
+    const W = Math.max(260, el.clientWidth || 360), wide = W >= 430;
+    const R = 96, rIn = 58, m = (R + rIn) / 2, sw = R - rIn, C = 2 * Math.PI * m;
+    const H = wide ? 230 : 230 + 30 * parts.length, cx = wide ? Math.min(W * 0.36, W - 200) : W / 2, cy = 115;
+    let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Total Events ${total}">`;
+    let off = 0;
+    parts.forEach((p) => {
+      if (!p.value) return;
+      const len = (p.value / total) * C;
+      s += `<circle cx="${cx}" cy="${cy}" r="${m}" fill="none" stroke="${p.color}" stroke-width="${sw}" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}" transform="rotate(-90 ${cx} ${cy})"/>`;
+      const mid = ((off + len / 2) / C) * 2 * Math.PI - Math.PI / 2;
+      if (p.value / total > 0.06) s += `<text class="${p.cls}" x="${cx + m * Math.cos(mid)}" y="${cy + m * Math.sin(mid)}" dy="0.35em" text-anchor="middle">${int(p.value)}</text>`;
+      off += len;
+    });
+    s += `<text x="${cx}" y="${cy - 8}" text-anchor="middle" class="lbl" style="font-size:14px;font-weight:500">Total Events</text>`;
+    s += `<text x="${cx}" y="${cy + 20}" text-anchor="middle" class="lbl" style="font-size:26px;font-weight:800">${int(total)}</text>`;
+    parts.forEach((p, i) => {
+      const lx = wide ? cx + R + 36 : W / 2 - 90, ly = wide ? cy - 18 + i * 34 : 2 * R + 40 + i * 30;
+      s += `<rect x="${lx}" y="${ly - 6}" width="12" height="12" rx="3" fill="${p.color}"/>`;
+      s += `<text x="${lx + 20}" y="${ly}" dy="0.35em" class="lbl">${esc(p.label)}</text>`;
+      s += `<text x="${lx + 130}" y="${ly}" dy="0.35em" class="amt">${int(p.value)} · ${Math.round((p.value / total) * 100)}%</text>`;
+    });
+    el.innerHTML = s + '</svg>';
+  }
+  // ---- Rates page: one card per brand × type; edit opens a 2-field form; history is folded away ----
+  const ui = { edit: null, hist: new Set(), armed: null, untagOpen: false };
+  const todayStr = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+  const RATE_CARDS = [['Legends', 'photo'], ['WM', 'photo'], ['Legends', 'sales'], ['WM', 'sales']];
+  const CAT_NAME = { photo: '选片 · Photo Selection', sales: '上门了解 + VC了解 · Sales' };
+  function renderRates() {
+    ['photo', 'sales'].forEach((c) => { $('dl-' + c).innerHTML = RATE_LIST[c].map((v) => `<option value="${v}">`).join(''); });
+    const minDate = DATA_START + '-01', today = todayStr() < minDate ? minDate : todayStr();
+    const card = ([b, cat]) => {
+      const key = `${b}|${cat}`, h = hist(b, cat), now = rateAt(today, b, cat);
+      const cur = [...h].reverse().find((r) => r.from <= today);
+      const next = h.filter((r) => r.from > today);
+      const editing = ui.edit === key, showHist = ui.hist.has(key);
+      let html = `<div class="card rate-card" data-key="${key}">
+        <div class="rc-head"><span class="rc-brand">${b === 'Legends' ? 'The Legend Wedding' : 'WM'}</span></div>
+        <div class="rc-now">${now == null ? '未设定' : `<small>RM</small>${esc(money(now))}`}</div>
+        <div class="rc-since">${cur ? `从 ${fmtDate(cur.from)} 起生效` : '还没有设定 Rate'}</div>`;
+      next.forEach((r) => { html += `<div class="rc-next">${fmtDate(r.from)} 起改为 RM ${esc(money(recRate(r)))}</div>`; });
+      if (editing) {
+        html += `<div class="rc-form">
+          <label>新 Rate (RM)<input type="number" min="0.01" step="0.01" inputmode="decimal" list="dl-${cat}" placeholder="选或输入，例如 ${RATE_LIST[cat][1]}" data-rf="rate"></label>
+          <label>从哪天开始<input type="date" min="${minDate}" value="${today}" data-rf="from"></label>
+          <p class="rf-msg" hidden></p>
+          <div class="rc-btns"><button type="button" class="save-btn" data-save>保存</button><button type="button" class="ghost-btn" data-cancel>取消</button></div>
+        </div>`;
+      } else {
+        html += `<div class="rc-actions"><button type="button" class="save-btn" data-edit="${key}">改 Rate</button><button type="button" class="ghost-btn" data-hist="${key}">${showHist ? '收起记录' : `查看记录 (${h.length})`}</button></div>`;
+      }
+      if (showHist && !editing) {
+        html += `<div class="rate-hist">${[...h].reverse().map((r) => {
+          const k = `${key}|${r.from}`, live = cur && r.from === cur.from;
+          return `<div class="hist-row${live ? ' live' : ''}"><span class="hist-date">${fmtDate(r.from)} 起</span><b>RM ${money(recRate(r))}</b><span class="hist-tag">${live ? '目前使用' : r.from > today ? '未来' : '过去'}</span><button type="button" class="hist-del${ui.armed === k ? ' armed' : ''}" data-del="${k}">${ui.armed === k ? '确定删除？' : '删除'}</button></div>`;
+        }).join('') || '<p class="empty">没有记录。</p>'}</div>`;
+      }
+      return html + '</div>';
+    };
+    $('rates-grid').innerHTML = [['photo', 'Photo Selection Rate', '选片 · 每场 Non-All Soft 的 Rate'], ['sales', 'Sales Analysis Rate', '上门了解 + VC了解 · 每次的 Rate']]
+      .map(([cat, title, sub]) => `<div class="rate-group" data-cat="${cat}"><div class="group-head"><h3>${title}</h3><span>${sub}</span></div><div class="grid2 rates-grid">${RATE_CARDS.filter((x) => x[1] === cat).map(card).join('')}</div></div>`).join('');
+    const f = document.querySelector('.rc-form [data-rf="rate"]'); if (f) f.focus();
+  }
+  function rateKpi(cat, c) {
+    const used = new Map();
+    Object.values(c.per).forEach((v) => (v.counts || new Map()).forEach((n, r) => used.set(r, (used.get(r) || 0) + n)));
+    if (isYear()) return used.size === 1 ? [money([...used.keys()][0]), '全年 Rate 相同'] : used.size ? ['按日期', '每个活动用当天有效的 Rate'] : ['未设定', '请到 Rates 设置'];
+    const m = state.month, show = (rs) => (rs.length ? rs.map((x) => money(x.rate)).join(' → ') : '—');
+    if (state.brand !== 'all') {
+      const rs = ratesInMonth(m, state.brand, cat);
+      if (!rs.length) return ['未设定', '请到 Rates 设置'];
+      if (rs.length === 1) return [money(rs[0].rate), `${fmtDate(rs[0].from)} 起生效`];
+      return [show(rs), rs.slice(1).map((x) => `${fmtDate(x.from)} 起改为 ${money(x.rate)}`).join('；')];
+    }
+    const l = ratesInMonth(m, 'Legends', cat), w = ratesInMonth(m, 'WM', cat);
+    if (l.length === 1 && w.length === 1 && l[0].rate === w[0].rate) return [money(l[0].rate), 'Legends + WM'];
+    const change = [...l.slice(1).map((x) => `Legends ${fmtDate(x.from)} 起 ${money(x.rate)}`), ...w.slice(1).map((x) => `WM ${fmtDate(x.from)} 起 ${money(x.rate)}`)];
+    return [`${show(l)} / ${show(w)}`, change.length ? change.join('；') : 'Legends / WM'];
+  }
+  // "17 × RM 1,400" for one rate; "(Legends 17 × RM 1,400) + (WM 13 × RM 1,400)" when there are several
+  const formula = (calc) => {
+    const terms = [];
+    Object.entries(calc.per).forEach(([b, v]) => {
+      const pre = state.brand === 'all' ? b + ' ' : '';
+      if (v.counts && v.counts.size > 1) [...v.counts].sort((x, y) => x[0] - y[0]).forEach(([r, n]) => terms.push(`${pre}${int(n)} × RM ${money(r)}`));
+      else terms.push(`${pre}${int(v.n)} × ${v.rate == null ? (v.n ? '未设定' : '—') : 'RM ' + money(v.rate)}`);
+    });
+    return terms.length > 1 ? terms.map((t) => `(${t})`).join(' + ') : terms[0] || '—';
+  };
+  const rm = (v) => (v == null ? '未设定' : `<small>RM</small>${esc(money(v))}`);
+
+  /* ---------- render ---------- */
+  function render() {
+    const ms = months();
+    const opt = (v, label) => `<option value="${v}"${v === state.month ? ' selected' : ''}>${label}</option>`;
+    $('month').innerHTML = years().slice().reverse().map((y) => `<optgroup label="${y}">${opt('Y' + y, y)}${ms.filter((m) => m.startsWith(y + '-')).reverse().map((m) => opt(m, monthLabel(m))).join('')}</optgroup>`).join('');
+    document.querySelectorAll('[data-period]').forEach((s) => { s.textContent = periodLabel(); });
+    document.querySelectorAll('[data-brand]').forEach((b) => { if (b.tagName === 'BUTTON') b.setAttribute('aria-pressed', String(b.dataset.brand === state.brand)); });
+    document.querySelectorAll('.app').forEach((a) => { a.dataset.t = state.brand; });
+    document.querySelectorAll('[data-brand-name]').forEach((s) => { s.textContent = brandName(state.brand); });
+    document.querySelectorAll('[data-sample]').forEach((n) => { n.hidden = !data.sample; });
+    const pm = new Set(periodMonths());
+    const untagged = data.events.filter((e) => pm.has(e.month) && !BRANDS.includes(e.brand)).length;
+    const missingBrand = data.events.filter((e) => pm.has(e.month) && !BRANDS.includes(e.brand)).sort((x, y) => String(x.date).localeCompare(String(y.date)));
+    const listHtml = `<div class="untag-list"${ui.untagOpen ? '' : ' hidden'}><div class="tw"><table class="mini"><thead><tr><th>日期</th><th>添加的人</th><th>类型</th><th>活动名称</th></tr></thead><tbody>${
+      missingBrand.map((e) => `<tr><td>${fmtDate(String(e.date))}</td><td>${esc(e.person || '—')}</td><td>${esc(e.type || '—')}</td><td>${esc(e.title || '—')}</td></tr>`).join('')
+    }</tbody></table></div><p class="untag-tip">请在日历上帮这些活动勾选 Legends 或 WM，勾好后就会自动算进去。</p></div>`;
+    document.querySelectorAll('[data-untagged]').forEach((n) => {
+      n.hidden = !untagged;
+      if (!untagged) { n.innerHTML = ''; return; }
+      n.innerHTML = `<button type="button" class="untag-toggle" aria-expanded="${ui.untagOpen}"><span>${periodLabel()} 有 ${untagged} 个活动没有勾选 Legends 或 WM，没有计入任何金额。</span><span class="untag-more">${ui.untagOpen ? '收起' : '查看是哪几个'}<i aria-hidden="true">▾</i></span></button>${listHtml}`;
+    });
+    document.querySelectorAll('.nav-btn').forEach((b) => (b.dataset.page === state.page ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current')));
+    $('photo').hidden = state.page !== 'photo';
+    $('sales').hidden = state.page !== 'sales';
+    $('rates').hidden = state.page !== 'rates';
+    document.querySelectorAll('.controls > .sel, .controls > .seg').forEach((c) => { c.hidden = state.page === 'rates'; });
+    if (state.page === 'photo') renderPhoto(); else if (state.page === 'sales') renderSales(); else renderRates();
+  }
+  function renderPhoto() {
+    const c = periodCalc('photo', periodMonths());
+    const [rv, rs] = rateKpi('photo', c);
+    $('p-rate').innerHTML = esc(rv); $('p-rate-sub').textContent = rs;
+    $('p-non').textContent = int(c.a);
+    $('p-non-sub').textContent = `${c.a + c.b ? Math.round((c.a / (c.a + c.b)) * 100) : 0}% Of ${int(c.a + c.b)} Total Events · ${int(c.b)} All Soft`;
+    $('p-amt').innerHTML = rm(c.amount); $('p-amt-sub').textContent = formula(c);
+    $('p-norate').hidden = !c.missing;
+    hbars($('p-chart'), c.rows, ['var(--gold)', 'var(--lilac)']);
+    tableRows($('p-rows'), $('p-foot'), c.rows, { label: '合计', a: c.a, b: c.b, amount: c.amount, per: c.per }, 'photo');
+    donut($('p-donut'), [{ label: 'Non-All Soft', value: c.a, color: 'var(--gold)', cls: 'in' }, { label: 'All Soft', value: c.b, color: 'var(--lilac)', cls: 'in in2' }]);
+    $('p-donut-sub').textContent = `${int(c.a + c.b)} Total Events  |  ${int(c.b)} All Soft  |  ${int(c.a)} Non-All Soft`;
+  }
+  function renderSales() {
+    const c = periodCalc('sales', periodMonths());
+    const [rv, rs] = rateKpi('sales', c);
+    $('s-rate').innerHTML = esc(rv); $('s-rate-sub').textContent = rs;
+    $('s-count').textContent = int(c.a + c.b);
+    $('s-count-sub').textContent = `上门了解 ${int(c.a)} + VC了解 ${int(c.b)}`;
+    $('s-amt').innerHTML = rm(c.amount); $('s-amt-sub').textContent = formula(c);
+    $('s-norate').hidden = !c.missing;
+    tableRows($('s-rows'), $('s-foot'), c.rows, { label: '合计', a: c.a, b: c.b, amount: c.amount, per: c.per }, 'sales');
+    typePanel('visit', '上门了解');
+    typePanel('vc', 'VC了解');
+  }
+
+  /* ---------- motion ---------- */
+  const calmMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function countUps() {
+    if (calmMotion()) return;
+    document.querySelectorAll(`#${state.page} .kpi-val, #${state.page} .tot-val`).forEach((el) => {
+      const node = [...el.childNodes].reverse().find((n) => n.nodeType === 3 && /\d/.test(n.nodeValue));
+      if (!node) return;
+      const txt = node.nodeValue.trim();
+      if (!/^[\d,]+(\.\d+)?$/.test(txt)) return;
+      const target = Number(txt.replace(/,/g, '')), dec = txt.includes('.') ? 2 : 0, t0 = performance.now(), dur = 850;
+      const step = (t) => {
+        const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+        node.nodeValue = k < 1 ? (target * e).toLocaleString('en-MY', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : txt;
+        if (k < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+  function enter(withSound) {
+    const pg = $(state.page); if (!pg) return;
+    pg.classList.remove('enter'); void pg.offsetWidth; pg.classList.add('enter');
+    countUps();
+    if (withSound && state.page !== 'rates') setTimeout(() => sfx.kaching(), 820);
+  }
+
+  /* ---------- sound effects: made in the browser, no audio files ---------- */
+  const sfx = (() => {
+    let ctx = null, on = true;
+    try { on = localStorage.getItem('tlw-sound') !== '0'; } catch {}
+    const ac = () => {
+      if (!ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; ctx = new C(); }
+      if (ctx.state === 'suspended') ctx.resume();
+      return ctx;
+    };
+    function tone(freq, at, dur, type, vol, freqEnd) {
+      const c = ac(); if (!c) return;
+      const o = c.createOscillator(), g = c.createGain(), t = c.currentTime + at;
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur + 0.03);
+    }
+    function air(at, dur, vol, f0, f1) {
+      const c = ac(); if (!c) return;
+      const buf = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const src = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain(), t = c.currentTime + at;
+      src.buffer = buf; bp.type = 'bandpass'; bp.Q.value = 1.4;
+      bp.frequency.setValueAtTime(f0, t); bp.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(bp).connect(g).connect(c.destination); src.start(t); src.stop(t + dur);
+    }
+    const play = (fn) => () => { if (!on) return; try { fn(); } catch {} };
+    return {
+      get on() { return on; },
+      set(v) { on = v; try { localStorage.setItem('tlw-sound', v ? '1' : '0'); } catch {} },
+      tick: play(() => tone(1500, 0, 0.07, 'sine', 0.05, 950)),
+      whoosh: play(() => { air(0, 0.34, 0.07, 280, 3200); tone(520, 0.02, 0.22, 'sine', 0.02, 880); }),
+      chime: play(() => { tone(1318.5, 0, 0.55, 'sine', 0.035); tone(1975.5, 0.08, 0.7, 'sine', 0.025); }),
+      // cash-register "ka-ching": a short metallic click, then a bright bell with a few inharmonic partials
+      kaching: play(() => {
+        air(0, 0.05, 0.14, 2500, 7000); air(0.05, 0.04, 0.08, 3500, 8000);
+        tone(2637, 0.09, 1.0, 'sine', 0.05); tone(3520, 0.09, 0.8, 'sine', 0.03); tone(5274, 0.1, 0.55, 'sine', 0.016);
+        tone(1975.5, 0.09, 0.7, 'triangle', 0.02); tone(2637, 0.2, 0.7, 'sine', 0.02);
+      }),
+      success: play(() => { tone(1046.5, 0, 0.2, 'triangle', 0.05); tone(1318.5, 0.09, 0.22, 'triangle', 0.05); tone(1568, 0.18, 0.5, 'triangle', 0.05); }),
+      remove: play(() => { tone(700, 0, 0.14, 'triangle', 0.05); tone(440, 0.1, 0.32, 'triangle', 0.05); }),
+      blip: play(() => tone(330, 0, 0.12, 'triangle', 0.05, 260)),
+      up: play(() => { tone(520, 0, 0.28, 'sine', 0.045, 1320); air(0, 0.25, 0.04, 600, 4000); }),
+    };
+  })();
+  function syncSoundBtn() { const b = $('snd'); if (b) { b.setAttribute('aria-pressed', String(sfx.on)); b.title = sfx.on ? '声音：开' : '声音：关'; } }
+
+  /* ripple on buttons */
+  document.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest && e.target.closest('.nav-btn, .seg button, .save-btn, .ghost-btn, .snd-btn, .to-top');
+    if (!btn || calmMotion()) return;
+    const r = btn.getBoundingClientRect(), size = Math.max(r.width, r.height) * 2.2, dot = document.createElement('span');
+    dot.className = 'ripple'; dot.style.width = dot.style.height = size + 'px';
+    dot.style.left = (e.clientX - r.left - size / 2) + 'px'; dot.style.top = (e.clientY - r.top - size / 2) + 'px';
+    btn.appendChild(dot); setTimeout(() => dot.remove(), 650);
+  });
+
+  /* ---------- events ---------- */
+  $('month').addEventListener('change', (e) => { sfx.tick(); state.month = e.target.value; render(); enter(true); });
+  $('snd').addEventListener('click', () => { sfx.set(!sfx.on); syncSoundBtn(); if (sfx.on) sfx.kaching(); });
+  syncSoundBtn();
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.untag-toggle'); if (!b) return;
+    ui.untagOpen = !ui.untagOpen; sfx.tick();
+    document.querySelectorAll('[data-untagged]').forEach((n) => {
+      const t = n.querySelector('.untag-toggle'), l = n.querySelector('.untag-list'), m = n.querySelector('.untag-more');
+      if (t) t.setAttribute('aria-expanded', String(ui.untagOpen));
+      if (l) l.hidden = !ui.untagOpen;
+      if (m) m.firstChild.nodeValue = ui.untagOpen ? '收起' : '查看是哪几个';
+    });
+  });
+
+  /* ---------- guided tour ---------- */
+  const TOUR = [
+    { title: '欢迎使用 DASHBOARD', text: '这是 The Legend Wedding 和 WM 的 Total Amount 仪表盘。花 30 秒，带你看一遍每个地方怎么用。' },
+    { page: 'photo', sel: '.nav-group', title: '三个页面', text: 'Photo Selection 看选片的 Total Amount；Sales Analysis 看上门了解和 VC了解；Rates 设置用来设定 Rate。' },
+    { page: 'photo', sel: '#month', title: '选月份', text: '选一个月份，就看那个月的数字；选“2026”，就看全年合计。' },
+    { page: 'photo', sel: '.seg', title: '切换品牌', text: '合并 = The Legend Wedding + WM。切换品牌时，整页的颜色也会跟着换。' },
+    { page: 'photo', sel: '#photo .kpis', title: '三个重点数字', text: 'Rate In Use、Non-All Soft 场次、Total Amount。Total Amount 下面写着算式，例如 17 × RM 1,400。' },
+    { page: 'photo', sel: '#p-donut-card', title: 'Total Events', text: 'Non-All Soft 和 All Soft 各有几场。All Soft 不计算在 Total Amount 里。' },
+    { page: 'photo', sel: '#p-rows', up: '.card', title: '每个人的 Total Amount', text: '每一行：Count × Rate = Total Amount，只算 Non-All Soft。有底色的三栏就是这条算式。' },
+    { page: 'sales', sel: '#sales .tot-card', up: '.grid2', title: '销售合计', text: 'TOTAL 上门了解 和 TOTAL VC了解，下面写着 Count × Rate。' },
+    { page: 'sales', sel: '#s-visit-card', title: '每个人的次数', text: '柱状图看谁做得最多，下面的小表写清楚 次数 × Rate = Total。' },
+    { page: 'rates', sel: '#rates-grid .rate-group', title: '改 Rate', text: '按“改 Rate”，填新的 Rate 和“从哪天开始”，再按保存。那天之前的活动还是用旧的 Rate。' },
+        { page: 'photo', title: '完成！', text: '想再看一次，随时按右上角的 ? 按钮。' },
+  ];
+  const tour = { i: -1, spot: null, tip: null, block: null, raf: 0 };
+  function tourTarget(st) {
+    if (!st.sel) return null;
+    let el = document.querySelector(st.sel);
+    if (el && st.up) el = el.closest(st.up) || el;
+    return el && el.offsetParent !== null ? el : null;
+  }
+  function tourPlace() {
+    if (tour.i < 0) return;
+    const st = TOUR[tour.i], el = tourTarget(st), pad = 8, W = innerWidth, H = innerHeight;
+    const tip = tour.tip, tw = Math.min(380, W - 24);
+    tip.style.width = tw + 'px';
+    if (!el) {
+      Object.assign(tour.spot.style, { left: W / 2 + 'px', top: H / 2 + 'px', width: '0px', height: '0px' });
+      Object.assign(tip.style, { left: (W - tw) / 2 + 'px', top: Math.max(12, (H - tip.offsetHeight) / 2) + 'px' });
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    Object.assign(tour.spot.style, { left: r.left - pad + 'px', top: r.top - pad + 'px', width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px' });
+    const th = tip.offsetHeight, gap = pad + 14, clampTop = (v) => Math.min(Math.max(12, v), H - th - 12);
+    let left = Math.min(Math.max(12, r.left), W - tw - 12), top;
+    if (r.bottom + gap + th <= H - 12) top = r.bottom + gap;                       // below
+    else if (r.top - gap - th >= 12) top = r.top - gap - th;                       // above
+    else if (r.right + gap + tw <= W - 12) { left = r.right + gap; top = clampTop(r.top); }   // right side
+    else if (r.left - gap - tw >= 12) { left = r.left - gap - tw; top = clampTop(r.top); }    // left side
+    else top = H - th - 12;                                                         // nothing fits: bottom
+    Object.assign(tip.style, { left: left + 'px', top: top + 'px' });
+  }
+  function tourShow() {
+    const st = TOUR[tour.i], last = tour.i === TOUR.length - 1;
+    tour.tip.innerHTML = `<div class="tour-step">${tour.i + 1} / ${TOUR.length}</div><h3 id="tour-title">${st.title}</h3><p>${st.text}</p>
+      <div class="tour-dots">${TOUR.map((_, k) => `<i class="${k === tour.i ? 'on' : ''}"></i>`).join('')}</div>
+      <div class="tour-btns"><button type="button" class="ghost-btn" data-tour="skip">${last ? '关闭' : '跳过'}</button><span></span>
+      ${tour.i > 0 ? '<button type="button" class="ghost-btn" data-tour="prev">上一步</button>' : ''}
+      <button type="button" class="save-btn" data-tour="next">${last ? '开始使用' : '下一步'}</button></div>`;
+    const switching = st.page && st.page !== state.page;
+    if (switching) go(st.page); else sfx.tick();
+    const el = tourTarget(st);
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'auto' });
+    tourPlace();
+    setTimeout(tourPlace, switching && !calmMotion() ? 760 : 60);
+    const nx = tour.tip.querySelector('[data-tour="next"]'); if (nx) nx.focus({ preventScroll: true });
+  }
+  function tourStart() {
+    if (tour.i >= 0) return;
+    const host = document.querySelector('.app');
+    tour.block = document.createElement('div'); tour.block.className = 'tour-block';
+    tour.spot = document.createElement('div'); tour.spot.className = 'tour-spot';
+    tour.tip = document.createElement('div'); tour.tip.className = 'tour-tip';
+    tour.tip.setAttribute('role', 'dialog'); tour.tip.setAttribute('aria-modal', 'true'); tour.tip.setAttribute('aria-labelledby', 'tour-title');
+    host.append(tour.block, tour.spot, tour.tip);
+    tour.i = 0; tourShow();
+  }
+  function tourEnd() {
+    if (tour.i < 0) return;
+    tour.i = -1; [tour.block, tour.spot, tour.tip].forEach((n) => n && n.remove());
+    try { localStorage.setItem('tlw-tour-done', '1'); } catch {}
+    if (state.page !== 'photo') go('photo');
+    $('tour-btn').focus({ preventScroll: true });
+  }
+  function tourStep(d) { const n = tour.i + d; if (n < 0) return; if (n >= TOUR.length) { sfx.kaching(); tourEnd(); return; } tour.i = n; tourShow(); }
+  $('tour-btn').addEventListener('click', () => { tourStart(); });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-tour]'); if (!b) return;
+    const a = b.dataset.tour; if (a === 'next') tourStep(1); else if (a === 'prev') tourStep(-1); else { sfx.tick(); tourEnd(); }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (tour.i < 0) return;
+    if (e.key === 'Escape') { e.preventDefault(); tourEnd(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); tourStep(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); tourStep(-1); }
+    else if (e.key === 'Tab') { const f = [...tour.tip.querySelectorAll('button')]; const i = f.indexOf(document.activeElement); e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus(); }
+  });
+  const tourRe = () => { cancelAnimationFrame(tour.raf); tour.raf = requestAnimationFrame(tourPlace); };
+  window.addEventListener('resize', tourRe); window.addEventListener('scroll', tourRe, { passive: true });
+  let tourSeen = false; try { tourSeen = localStorage.getItem('tlw-tour-done') === '1'; } catch {}
+  if (!tourSeen) setTimeout(tourStart, 1400);
+  const toTop = $('to-top');
+  const showTop = () => toTop.classList.toggle('show', window.scrollY > 360);
+  window.addEventListener('scroll', showTop, { passive: true }); showTop();
+  toTop.addEventListener('click', () => { sfx.up(); window.scrollTo({ top: 0, behavior: calmMotion() ? 'auto' : 'smooth' }); });
+  document.querySelectorAll('.seg [data-brand]').forEach((b) => b.addEventListener('click', () => {
+    sfx.tick();
+    const apply = () => { state.brand = b.dataset.brand; render(); enter(true); };
+    const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (document.startViewTransition && !calm) document.startViewTransition(apply); else apply();
+  }));
+  function go(page) { state.page = ['sales', 'rates'].includes(page) && (page !== 'rates' || isAdmin) ? page : 'photo'; try { history.replaceState(null, '', '#' + state.page); } catch {} sfx.whoosh(); render(); enter(true); window.scrollTo({ top: 0 }); }
+  document.querySelectorAll('.nav-btn').forEach((b) => b.addEventListener('click', () => go(b.dataset.page)));
+  window.addEventListener('hashchange', () => { const p = location.hash.slice(1); if (p !== state.page && ['photo', 'sales', 'rates'].includes(p)) go(p); });
+  document.addEventListener('click', (e) => {
+    const t = (sel) => e.target.closest && e.target.closest(sel);
+    let el;
+    if ((el = t('[data-edit]'))) { sfx.tick(); ui.edit = el.dataset.edit; ui.armed = null; renderRates(); return; }
+    if (t('[data-cancel]')) { sfx.tick(); ui.edit = null; renderRates(); return; }
+    if ((el = t('[data-hist]'))) { sfx.tick(); const k = el.dataset.hist; ui.hist.has(k) ? ui.hist.delete(k) : ui.hist.add(k); ui.armed = null; renderRates(); return; }
+    if ((el = t('[data-del]'))) {
+      const k = el.dataset.del;
+      if (ui.armed !== k) { sfx.blip(); ui.armed = k; renderRates(); return; }
+      ui.armed = null; const [b, cat, from] = k.split('|'); deleteRate(b, cat, from); return;
+    }
+    if ((el = t('[data-save]'))) {
+      const card = el.closest('.rate-card'), [b, cat] = card.dataset.key.split('|');
+      const v = Number(card.querySelector('[data-rf="rate"]').value), from = card.querySelector('[data-rf="from"]').value, msg = card.querySelector('.rf-msg');
+      if (!(v > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(from) || from < DATA_START + '-01') { sfx.blip(); msg.hidden = false; msg.textContent = '请输入 Rate，并选 2026 年 10 月 1 日或之后的日期。'; return; }
+      const rate = Math.round(v * 100) / 100, inList = RATE_LIST[cat].includes(rate);
+      ui.edit = null; saveRate(b, cat, from, inList ? rate : null, inList ? null : rate);
+    }
+  });
+  let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 120); });
+
+  state.page = ['sales', 'rates'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'photo';
+  api.setData(SAMPLE);
+  loadData();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { render(); enter(); }); else enter();
+})();
+</script>
+</body>
+</html>

@@ -71,6 +71,7 @@
     <h1 id="title"></h1>
     <button class="icon-btn" id="nextMonth" data-i18n-aria="next_month">›</button>
     <button class="today-btn" id="todayBtn" data-i18n="today">Today</button>
+    <button class="icon-btn top-logout" id="topLogout" data-i18n-aria="logout" data-i18n-title="logout" hidden>⎋</button>
   </header>
 
   <main>
@@ -120,9 +121,9 @@
 
     <!-- 成员 -->
     <section id="view-members" class="view">
-      <h3 class="section-title" data-i18n="labels_title"></h3>
-      <p class="hint" data-i18n="labels_hint"></p>
-      <ul id="labelList" class="label-list"></ul>
+      <h3 class="section-title" data-i18n="labels_title" hidden></h3>
+      <p class="hint" data-i18n="labels_hint" hidden></p>
+      <ul id="labelList" class="label-list" hidden></ul><!-- 标签改在 Settings 设定 -->
 
       <h3 class="section-title" data-i18n="people_title"></h3>
       <div class="toolbar">
@@ -257,9 +258,45 @@
       </form>
     </section>
 
-    <!-- 设置 -->
+    <!-- Dashboard：B2 仪表盘（docs/dashboard.html） -->
+    <section id="view-dashboard" class="view">
+      <iframe id="dashFrame" class="dash-frame" title="Dashboard"></iframe>
+    </section>
+
+    <!-- 设置（只有管理员） -->
     <section id="view-settings" class="view">
       <div class="settings">
+        <!-- 模板：新增活动时先选；选片 / 了解要勾选 -->
+        <section class="card" id="tplCard">
+          <h3 data-i18n="set_tpl_title"></h3>
+          <p class="hint" style="padding:0" data-i18n="set_tpl_hint"></p>
+          <ul id="tplEditList" class="edit-list"></ul>
+          <div class="actions"><button type="button" class="btn small" id="tplEditAdd" data-i18n="add_tpl"></button><span class="spacer"></span>
+            <button type="button" class="btn primary small" id="tplEditSave" data-i18n="save"></button></div>
+        </section>
+        <!-- 标签：名字 + 颜色（可以新增；颜色可以重复） -->
+        <section class="card" id="labelCard">
+          <h3 data-i18n="set_labels_title"></h3>
+          <p class="hint" style="padding:0" data-i18n="set_labels_hint"></p>
+          <ul id="labelEditList" class="edit-list"></ul>
+          <div class="actions"><button type="button" class="btn small" id="labelEditAdd" data-i18n="add_label"></button>
+            <button type="button" class="btn small" id="peopleBtn" data-i18n="people_manage"></button><span class="spacer"></span>
+            <button type="button" class="btn primary small" id="labelEditSave" data-i18n="save"></button></div>
+        </section>
+        <!-- Rates：在 Dashboard 里设定 -->
+        <section class="card">
+          <h3 data-i18n="set_rates_title"></h3>
+          <p class="hint" style="padding:0" data-i18n="set_rates_hint"></p>
+          <div class="actions"><button type="button" class="btn primary small" id="openRatesBtn" data-i18n="open_rates"></button></div>
+        </section>
+        <!-- 管理员名单 -->
+        <section class="card" id="adminCard">
+          <h3 data-i18n="set_admin_title"></h3>
+          <p class="hint" style="padding:0" data-i18n="set_admin_hint"></p>
+          <p class="hint" style="padding:0" id="adminFixed"></p>
+          <textarea id="adminEmails" rows="4" placeholder="name@gmail.com"></textarea>
+          <div class="actions"><span class="spacer"></span><button type="button" class="btn primary small" id="adminSave" data-i18n="save"></button></div>
+        </section>
         <section class="card">
           <h3 data-i18n="acct_title"></h3>
           <div class="acct-row"><span class="acct-label" data-i18n="acct_gmail"></span><span id="acctEmail"></span></div>
@@ -386,13 +423,15 @@
   </main>
 
   <nav class="tabbar">
-    <button data-view="home" hidden><span>🏠</span><b data-i18n="tab_home"></b></button>
+    <!-- 只留：Settings（管理员，左下角）· 日历 · Dashboard -->
+    <button data-view="settings" id="settingsTab" class="tab-settings" hidden><span>⚙️</span><b data-i18n="tab_settings"></b></button>
     <button data-view="calendar" class="active"><span>📅</span><b data-i18n="tab_calendar"></b></button>
+    <button data-view="dashboard" id="dashTab"><span>📊</span><b data-i18n="tab_dashboard"></b></button>
+    <button data-view="home" hidden><span>🏠</span><b data-i18n="tab_home"></b></button>
     <button data-view="board" hidden><span>📋</span><b data-i18n="tab_board"></b></button>
-    <button data-view="members"><span>🎨</span><b data-i18n="tab_members"></b></button>
-    <button data-view="week" id="waTab"><span>📲</span><b data-i18n="tab_week"></b></button>
+    <button data-view="members" hidden><span>🎨</span><b data-i18n="tab_members"></b></button>
+    <button data-view="week" id="waTab" hidden><span>📲</span><b data-i18n="tab_week"></b></button>
     <button data-view="claude" id="claudeTab" hidden><span>💬</span><b data-i18n="tab_claude"></b></button>
-    <button data-view="settings"><span>⚙️</span><b data-i18n="tab_settings"></b></button>
   </nav>
 
   <!-- 行程详情：资料 + 时间线（留言、照片、修改纪录） -->
@@ -438,6 +477,7 @@
       </div>
       <div class="d-stage" hidden><select id="dStage" data-i18n-aria="f_stage"></select></div>
       <ul class="d-rows">
+        <li id="dTplRow"><span class="ico">🏷️</span><span id="dTpl"></span></li>
         <li id="dMemberRow" class="editable" data-edit><span class="ico">👤</span><span id="dMember"></span></li>
         <li class="editable" data-edit><span class="ico">🔔</span><span id="dRemind"></span></li>
         <li id="dLabelRow" class="editable" data-edit><span class="ico">🏷</span><span id="dLabel"></span></li>
@@ -485,6 +525,22 @@
   <dialog id="eventDialog">
     <form id="eventForm" method="dialog">
       <h3 id="eventDialogTitle"></h3>
+      <div class="field tpl-field">
+        <span class="field-label"><span data-i18n="f_template"></span> <b class="req">*</b></span>
+        <div id="tplPicker" class="tpl-picker" role="radiogroup"></div>
+        <p class="hint warn" style="padding:0" id="tplNone" data-i18n="tpl_not_set" hidden></p>
+      </div>
+      <div class="tick-box" id="tickBox" hidden>
+        <div class="tick-row" id="tickBrand" role="radiogroup"><span class="field-label"><span data-i18n="f_brand"></span> <b class="req">*</b></span>
+          <label class="tick"><input type="radio" name="brand" value="Legends" /><span>Legends</span></label>
+          <label class="tick"><input type="radio" name="brand" value="WM" /><span>WM</span></label></div>
+        <div class="tick-row" id="tickSoft" role="radiogroup"><span class="field-label"><span data-i18n="f_soft"></span> <b class="req">*</b></span>
+          <label class="tick"><input type="radio" name="soft" value="non_all_soft" /><span>Non-All Soft</span></label>
+          <label class="tick"><input type="radio" name="soft" value="all_soft" /><span>All Soft</span></label></div>
+        <div class="tick-row" id="tickSales" role="radiogroup"><span class="field-label"><span data-i18n="f_sales"></span> <b class="req">*</b></span>
+          <label class="tick"><input type="radio" name="sales_type" value="visit" /><span>上门了解</span></label>
+          <label class="tick"><input type="radio" name="sales_type" value="vc" /><span>VC了解</span></label></div>
+      </div>
       <div class="title-field"><label for="titleInput"><span data-i18n="f_title"></span></label>
         <div class="title-row"><input id="titleInput" name="title" required data-i18n-placeholder="f_title_ph" />
           <button type="button" class="emoji-toggle" id="titleEmojiBtn" data-i18n-aria="add_emoji" data-i18n-title="add_emoji">😀</button></div>
