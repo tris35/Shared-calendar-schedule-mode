@@ -350,8 +350,8 @@ export async function unseenGoogleEvents(userId: number, calendarId: string, pas
 export async function listGoogleCals(userId: number) {
   return sql`SELECT * FROM google_calendars WHERE user_id = ${userId} ORDER BY calendar_id`;
 }
-export async function upsertGoogleCal(userId: number, calendarId: string, name: string | null, color: string | null = null) {
-  await sql`INSERT INTO google_calendars (user_id, calendar_id, name, color) VALUES (${userId}, ${calendarId}, ${name}, ${color})
+export async function upsertGoogleCal(userId: number, calendarId: string, name: string | null, color: string | null = null, enabled = true) {
+  await sql`INSERT INTO google_calendars (user_id, calendar_id, name, color, enabled) VALUES (${userId}, ${calendarId}, ${name}, ${color}, ${enabled})
     ON CONFLICT (user_id, calendar_id) DO UPDATE SET name = EXCLUDED.name, color = EXCLUDED.color`;
 }
 /** 行程来自哪个 Google 日历 → 记下那个日历的颜色 */

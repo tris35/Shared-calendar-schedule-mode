@@ -12,8 +12,6 @@ import { handleFeed } from "./calendar-feed.mts";
 import { handlePhotoLink } from "./photo-link.mts";
 import { getSettings } from "./lib/settings.mts";
 import { pullAll, mainUrl } from "./lib/gcal.mts";
-import { sendDueCustomerMessages, sendDigestIfDue } from "./lib/whatsapp.mts";
-import { autoFillUpcoming, weeklyScanIfDue } from "./lib/schedule.mts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*", // 登录用 Authorization 标头（不用 cookie），所以可以开放
@@ -44,13 +42,7 @@ export async function handle(req: Request): Promise<Response> {
     else if (seg[1] === "cron" && req.method === "POST") {
       if (!(await cronAllowed(req))) res = new Response("forbidden", { status: 403 });
       else if (seg[2] === "google-pull") { await pullAll(mainUrl("")); res = Response.json({ ok: true }); }
-      else if (seg[2] === "customer-messages") { // 每 15 分钟：通讯录找电话 → 给客户的讯息 + 行程摘要
-        const weekly = await weeklyScanIfDue().catch((e) => ({ error: String(e?.message || e) })); // 每 3 天：未来一个月
-        const schedule = await autoFillUpcoming().catch((e) => ({ error: String(e?.message || e) })); // 未来 3 天
-        const customers = await sendDueCustomerMessages();
-        const digest = await sendDigestIfDue().catch((e) => ({ error: String(e?.message || e) }));
-        res = Response.json({ weekly, schedule, customers, digest });
-      }
+      else if (seg[2] === "customer-messages") res = Response.json({ ok: true, off: "WhatsApp 提醒已停用" }); // 不再读通讯录、不发 WhatsApp
       else if (seg[2] === "warm") res = Response.json({ ok: true }); // 每分钟叫醒一次，保存时不用等伺服器启动
       else res = new Response("not found", { status: 404 });
     } else if (seg[0] === "api") res = await handleApi(req);

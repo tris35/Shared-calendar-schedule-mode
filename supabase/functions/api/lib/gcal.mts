@@ -15,7 +15,8 @@ const API = env("GOOGLE_API_BASE") || "https://www.googleapis.com";        // �
 const TOKEN_URL = env("GOOGLE_TOKEN_URL") || "https://oauth2.googleapis.com/token";
 const AUTH_URL = env("GOOGLE_AUTH_URL") || "https://accounts.google.com/o/oauth2/v2/auth";
 // Schedule Mode：多要「只读通讯录」，用 booking number 找客户电话
-const SCOPES = ["openid", "email", "https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/contacts.readonly"];
+// 只要日历权限（不再读通讯录：WhatsApp 提醒已经不用）
+const SCOPES = ["openid", "email", "https://www.googleapis.com/auth/calendar"];
 const PEOPLE_API = env("GOOGLE_PEOPLE_API_BASE") || "https://people.googleapis.com";
 type Link = { user_id: number; gmail: string; refresh_token: string; calendar_id: string };
 
@@ -394,19 +395,20 @@ export async function pullFromGoogle(userId: number, siteUrl: string, opts: { mi
   }
 }
 
-// 这个 Gmail「我的日历」里的日历（自己是拥有者；不包括节日、生日、联系人这类特殊日历）
+// 这个 Gmail 能修改的日历：自己的 + 别人共享过来、有修改权限的（例如 tlwcalender 共享给 tlwsalesmsg）
+// 不包括节日、生日、联系人这类特殊日历
 async function ownedCalendars(l: Link) {
-  const out: { id: string; name: string; primary: boolean; color?: string | null }[] = [];
+  const out: { id: string; name: string; primary: boolean; color?: string | null; shared?: boolean }[] = [];
   let pageToken = "";
   do {
-    const q = new URLSearchParams({ minAccessRole: "owner", maxResults: "250" });
+    const q = new URLSearchParams({ minAccessRole: "writer", maxResults: "250" });
     if (pageToken) q.set("pageToken", pageToken);
     const res = await gfetch(l, `/users/me/calendarList?${q}`);
     if (!res.ok) throw new Error(await gerror(res));
     const data: any = await res.json();
     for (const c of data.items || []) {
       if (c.deleted || String(c.id).includes("#")) continue; // 节日 / 生日 / 联系人 / 周数
-      out.push({ id: c.id, name: c.summaryOverride || c.summary || c.id, primary: !!c.primary || c.id === l.calendar_id, color: c.backgroundColor || null });
+      out.push({ id: c.id, name: c.summaryOverride || c.summary || c.id, primary: !!c.primary || c.id === l.calendar_id, color: c.backgroundColor || null, shared: !!c.accessRole && c.accessRole !== "owner" });
     }
     pageToken = data.nextPageToken || "";
   } while (pageToken);
@@ -427,7 +429,8 @@ export async function listSyncCalendars(userId: number) {
 async function refreshCalendars(l: any) {
   const cals = await ownedCalendars(l);
   const known = new Map((await db.listGoogleCals(l.user_id)).map((c: any) => [c.calendar_id, c]));
-  for (const c of cals) if (!known.has(c.id) || (known.get(c.id) as any).name !== c.name || (known.get(c.id) as any).color !== (c.color ?? null)) await db.upsertGoogleCal(l.user_id, c.id, c.name, c.color ?? null);
+  for (const c of cals) if (!known.has(c.id) || (known.get(c.id) as any).name !== c.name || (known.get(c.id) as any).color !== (c.color ?? null))
+    await db.upsertGoogleCal(l.user_id, c.id, c.name, c.color ?? null, !(c.shared && !known.has(c.id))); // 共享过来的新日历：先不勾，管理员自己选
   for (const id of known.keys()) if (!cals.some((c) => c.id === id) && id !== l.calendar_id) {
     // 这个日历在 Google 被删掉了 → 从它来的行程也从 App 删掉（以及其他人 Google 里的副本）
     await stopCalWatch(l, known.get(id));
@@ -503,6 +506,7 @@ async function pullOnce(userId: number, siteUrl: string, deadline: number) {
 // Schedule Mode：只读「过去 2 个月 ～ 未来 1 年」的行程（不用从好几年前的历史开始读），重复行程展开成每一次。
 // 每一轮把这段时间的行程完整读一遍（可分几次读完），读完后：这段时间里 Google 已经没有的 → 从 App 拿掉（Google 不动）。
 const WINDOW_PAST_DAYS = 60, WINDOW_AHEAD_DAYS = 365;
+const SYNC_FROM = Date.parse("2026-10-01T00:00:00+08:00"); // 只导入 2026 年 10 月以后的活动
 const W = "w2|"; // sync_token 格式：w2|<这一轮开始的时间>|<读到哪一页>（读完 = 没有页）
 
 /** 读取一个 Google 日历；这一轮读完回传 true，还没读完（时间到了）回传 false，下次从同一页继续 */
@@ -517,7 +521,7 @@ async function pullCalendar(ctx: any, cal: any) {
   const resume = parts.length === 2 && parts[1] !== "";
   const passStart = resume ? Number(parts[0]) : Date.now();
   let pageToken: string | null = resume ? parts[1] : null;
-  const timeMin = new Date(passStart - WINDOW_PAST_DAYS * 86400_000).toISOString();
+  const timeMin = new Date(Math.max(SYNC_FROM, passStart - WINDOW_PAST_DAYS * 86400_000)).toISOString();
   const timeMax = new Date(passStart + WINDOW_AHEAD_DAYS * 86400_000).toISOString();
   const known = new Map<string, any>((await db.listCalMappings(userId, calId)).map((m: any) => [m.google_event_id, m]));
   for (;;) {
