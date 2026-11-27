@@ -17,6 +17,7 @@ export type Settings = {
   waOutro?: string;            // 给客户的讯息：自己写的结尾
   waDefault?: string;          // 新行程「给客户的讯息」默认内容
   adminEmails?: string[];      // 在 App「设置」加的管理员（另外还有 Supabase 密钥 ADMIN_EMAILS）
+  topAdmins?: string[];        // Top Admin（可以批准管理员申请、收到弹出通知）；没设定 = 第一批管理员
   schedule?: Schedule;         // Schedule Mode：用 booking number 从通讯录找电话，自动提醒
 };
 
@@ -42,6 +43,8 @@ export type Digest = {
 
 /** 在 App 里加的管理员（小写），getSettings / saveSettings 时更新 */
 export let extraAdmins: string[] = [];
+/** Top Admin 的 Gmail（小写）；null = 还没设定过（用第一批管理员） */
+export let topAdmins: string[] | null = null;
 
 let cache: { at: number; value: Settings } | null = null;
 
@@ -57,6 +60,7 @@ export async function getSettings(): Promise<Settings> {
   if (changed) await setKv("app", s);
   cache = { at: Date.now(), value: s as Settings };
   extraAdmins = (s.adminEmails || []).map((x) => x.toLowerCase());
+  topAdmins = s.topAdmins ? s.topAdmins.map((x) => x.toLowerCase()) : null;
   return s as Settings;
 }
 
@@ -65,6 +69,7 @@ export async function saveSettings(patch: Partial<Settings>) {
   await setKv("app", s);
   cache = { at: Date.now(), value: s };
   extraAdmins = (s.adminEmails || []).map((x) => x.toLowerCase());
+  topAdmins = s.topAdmins ? s.topAdmins.map((x) => x.toLowerCase()) : null;
   return s;
 }
 

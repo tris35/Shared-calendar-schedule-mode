@@ -6,13 +6,18 @@ const calls: { cal: string; q: URLSearchParams }[] = [];
 const writes: string[] = [];
 let mainItems: any[] = [];
 let photoPages = 1;
+let sharedOn = false;
 const server = Deno.serve({ port: PORT, onListen() {} }, (req) => {
   const u = new URL(req.url);
   if (u.pathname === "/token") return Response.json({ access_token: "fake", expires_in: 3600 });
   if (req.method !== "GET") { if (u.pathname.startsWith("/calendar/v3/calendars")) writes.push(`${req.method} ${u.pathname}`); return Response.json({}); }
   if (u.pathname.endsWith("/calendarList")) return Response.json({ items: [
     { id: "aaa-photo@group.calendar.google.com", summary: "拍摄", backgroundColor: "#f6bf26" },
-    { id: "a@x.com", summary: "A", primary: true, backgroundColor: "#9fc6e7" }] });
+    { id: "a@x.com", summary: "A", primary: true, backgroundColor: "#9fc6e7" },
+    // 别人共享过来、有修改权限的日历（例如公司日历共享给同步用的帐号）
+    ...(sharedOn ? [{ id: "team@x.com", summary: "Team", accessRole: "writer", backgroundColor: "#a4bdfc" }] : [])] });
+  if (decodeURIComponent(u.pathname).includes("/calendars/team@x.com/events")) { calls.push({ cal: "team@x.com", q: u.searchParams }); return Response.json({ items: [
+    { id: "t1", summary: "WM0222 选片", start: { dateTime: "2026-11-26T10:00:00+08:00" }, end: { dateTime: "2026-11-26T11:00:00+08:00" }, etag: "t1" }] }); }
   if (u.pathname.includes("/events")) {
     const cal = decodeURIComponent(u.pathname.split("/calendars/")[1].split("/events")[0]);
     calls.push({ cal, q: u.searchParams });
@@ -44,7 +49,7 @@ mainItems = [
 const g = await import("../supabase/functions/api/lib/gcal.mts");
 let fails = 0;
 const check = (n: string, ok: boolean, got?: unknown) => { console.log(`${ok ? "✅" : "❌"} ${n}${ok ? "" : " got: " + JSON.stringify(got)}`); if (!ok) fails++; };
-const titles = async () => (await db.query("SELECT title FROM events ORDER BY start, title")).rows.map((r: any) => r.title);
+const titles = async () => (await db.query("SELECT title FROM events WHERE deleted_at IS NULL ORDER BY start, title")).rows.map((r: any) => r.title);
 const pull = (deadline?: number) => g.pullFromGoogle(1, "http://x", { minSeconds: 0, ...(deadline ? { deadline } : {}) });
 
 const r: any = await pull();
@@ -52,7 +57,9 @@ check("pull ok", r.ok && r.done, r);
 check("main calendar read first", calls[0]?.cal === "a@x.com", calls.map((c) => c.cal));
 const q0 = calls[0].q;
 const days = (iso: string) => Math.round((Date.parse(iso) - Date.now()) / 86400_000);
-check("only 2 months back … 1 year ahead, repeats expanded", q0.get("singleEvents") === "true" && days(q0.get("timeMin")!) === -60 && days(q0.get("timeMax")!) === 365 && !q0.get("syncToken"), Object.fromEntries(q0));
+// 从「2 个月前」和「2026-10-01」之间比较晚的那一天开始读（只导入 2026 年 10 月以后的活动）
+const expectFrom = Math.max(Date.parse("2026-10-01T00:00:00+08:00"), Date.now() - 60 * 86400_000);
+check("from 2026-10-01 (or 2 months back if later) … 1 year ahead, repeats expanded", q0.get("singleEvents") === "true" && Math.abs(Date.parse(q0.get("timeMin")!) - expectFrom) < 60_000 && days(q0.get("timeMax")!) === 365 && !q0.get("syncToken"), Object.fromEntries(q0));
 let t = await titles();
 check("old single copy removed; every repeat + STORY imported", t.filter((x) => x === "Meera off day").length === 2 && t.includes("(Esther) STORY") && t.includes("6961 选礼服") && t.includes("拍摄 2"), t);
 const story = (await db.query("SELECT label FROM events WHERE title = '(Esther) STORY'")).rows[0];
@@ -86,6 +93,17 @@ mainItems.push({ id: gid, summary: "建在 App 的行程", start: { dateTime: ne
 await pull();
 t = await titles();
 check("read back from Google → not duplicated", t.filter((x) => x === "建在 App 的行程").length === 1, t);
+
+// 共享过来的日历：列出来，但先不勾；管理员勾选后才导入
+sharedOn = true;
+await pull();
+const team = (await db.query("SELECT enabled FROM google_calendars WHERE calendar_id = 'team@x.com'")).rows[0];
+t = await titles();
+check("shared calendar listed but not ticked yet", team && team.enabled === false && !t.includes("WM0222 选片"), { team, t });
+await db.query("UPDATE google_calendars SET enabled = TRUE WHERE calendar_id = 'team@x.com'");
+await pull();
+t = await titles();
+check("after ticking, shared calendar events imported", t.includes("WM0222 选片"), t);
 
 await db.end(); await server.shutdown();
 console.log(fails ? `${fails} FAILED` : "ALL PASSED"); Deno.exit(fails ? 1 : 0);

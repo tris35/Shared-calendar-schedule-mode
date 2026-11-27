@@ -11,9 +11,9 @@ import { handleApi } from "./api.mts";
 import { handleFeed } from "./calendar-feed.mts";
 import { handlePhotoLink } from "./photo-link.mts";
 import { getSettings } from "./lib/settings.mts";
-import { pullAll, mainUrl } from "./lib/gcal.mts";
-import { sendDueCustomerMessages, sendDigestIfDue } from "./lib/whatsapp.mts";
-import { autoFillUpcoming, weeklyScanIfDue } from "./lib/schedule.mts";
+import { pullAll, mainUrl, syncEvent, deletePhotoData } from "./lib/gcal.mts";
+import * as db from "./lib/db.mts";
+import { calLabels } from "./lib/dashboard.mts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*", // 登录用 Authorization 标头（不用 cookie），所以可以开放
@@ -21,6 +21,24 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Headers": "authorization, content-type, x-lang, x-cal, apikey, x-client-info",
   "Access-Control-Max-Age": "86400",
 };
+
+/** 每个人的生日：补上今年和明年的生日行程，并同步到 Google */
+async function birthdays() {
+  try {
+    const tz = (await getSettings()).timezone || "Asia/Kuala_Lumpur";
+    const cals = await db.listAllCalendars();
+    const label = (cid: number) => {
+      const l = calLabels(cals.find((c: any) => c.id === cid)).find((x: any) => /生日|birthday/i.test(x.name));
+      return l ? { id: l.id, color: l.color } : null;
+    };
+    for (const id of await db.ensureBirthdays(tz, label)) await syncEvent(id, mainUrl(""));
+  } catch (e) { console.error("[生日]", e); }
+}
+
+/** 回收站超过 5 天的活动：真的删掉（连照片档案） */
+async function purgeTrash() {
+  try { for (const k of await db.purgeTrash()) await deletePhotoData(k); } catch (e) { console.error("[回收站]", e); }
+}
 
 async function cronAllowed(req: Request) {
   const got = req.headers.get("x-cron-key") || "";
@@ -43,14 +61,8 @@ export async function handle(req: Request): Promise<Response> {
     else if (seg[1] === "cal" && seg[2]) res = await handleFeed(req, seg[2]);
     else if (seg[1] === "cron" && req.method === "POST") {
       if (!(await cronAllowed(req))) res = new Response("forbidden", { status: 403 });
-      else if (seg[2] === "google-pull") { await pullAll(mainUrl("")); res = Response.json({ ok: true }); }
-      else if (seg[2] === "customer-messages") { // 每 15 分钟：通讯录找电话 → 给客户的讯息 + 行程摘要
-        const weekly = await weeklyScanIfDue().catch((e) => ({ error: String(e?.message || e) })); // 每 3 天：未来一个月
-        const schedule = await autoFillUpcoming().catch((e) => ({ error: String(e?.message || e) })); // 未来 3 天
-        const customers = await sendDueCustomerMessages();
-        const digest = await sendDigestIfDue().catch((e) => ({ error: String(e?.message || e) }));
-        res = Response.json({ weekly, schedule, customers, digest });
-      }
+      else if (seg[2] === "google-pull") { await pullAll(mainUrl("")); await birthdays(); await purgeTrash(); res = Response.json({ ok: true }); }
+      else if (seg[2] === "customer-messages") res = Response.json({ ok: true, off: "WhatsApp 提醒已停用" }); // 不再读通讯录、不发 WhatsApp
       else if (seg[2] === "warm") res = Response.json({ ok: true }); // 每分钟叫醒一次，保存时不用等伺服器启动
       else res = new Response("not found", { status: 404 });
     } else if (seg[0] === "api") res = await handleApi(req);

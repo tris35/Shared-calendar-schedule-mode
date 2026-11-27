@@ -9,7 +9,7 @@ import * as dash from "./lib/dashboard.mts";
 import { getSettings, saveSettings, sign } from "./lib/settings.mts";
 import { chat, claudeEnabled } from "./lib/claude.mts";
 import { syncEvent, deleteGoogleEvents, authUrl, handleCallback, disconnect, clientCredentials, redirectUri, mainUrl, listGoogleCalendars, listSyncCalendars, setCalendarEnabled, switchSyncCalendar, retryFailedSyncs, pullFromGoogle, ensureWatch, pushTarget } from "./lib/gcal.mts";
-import { AuthError, signup, login, forgotPassword, resetPassword, currentUser, changePassword, publicUser, isAdmin, canWhatsApp, fixedAdmins } from "./lib/auth.mts";
+import { AuthError, signup, login, forgotPassword, resetPassword, currentUser, changePassword, publicUser, isAdmin, canWhatsApp, fixedAdmins, isTopAdmin, topAdminEmails } from "./lib/auth.mts";
 import { waConfig, sendCustomerMessage, sendTimeFor, waUsage, buildDigest, sendHourOf, isPreview, fillText, DEFAULT_SEND_HOUR, sendTest, normPhone } from "./lib/whatsapp.mts";
 import { autoFillUpcoming, scheduleOverview, refreshContacts, DEFAULT_TEXT } from "./lib/schedule.mts";
 import { tr, langFrom, normLang, LANG_CODES, desc } from "./lib/i18n.mts";
@@ -23,16 +23,32 @@ class HttpError extends Error {
 }
 const notFound = (): never => { throw new HttpError(404, "找不到"); };
 
+// 照片空间上限（Supabase 免费方案 1GB）；用到 80%、95% 通知 Top Admin，满了就不能再上传
+const photoLimit = () => (Number(Deno.env.get("PHOTO_LIMIT_MB")) > 0 ? Number(Deno.env.get("PHOTO_LIMIT_MB")) : 1024) * 1024 * 1024;
+const mb = (b: number) => Math.round(b / 1048576);
+async function checkSpace(adding: number) {
+  const { bytes } = await db.photoBytes();
+  if (bytes + adding > photoLimit()) throw new Error("照片空间已满，请联络管理员");
+}
+async function warnSpace() {
+  const { bytes } = await db.photoBytes(), pct = bytes / photoLimit();
+  if (pct < 0.8) return;
+  const level = pct >= 0.95 ? 95 : 80;
+  const tops = (await db.activeUsers()).filter((u: any) => isTopAdmin(u)).map((u: any) => u.id);
+  await db.notify(tops, "storage", `照片空间已用 ${Math.round(pct * 100)}%（${mb(bytes)} MB / ${mb(photoLimit())} MB）`, `storage:${level}`, level === 95 ? 24 : 24 * 7);
+}
 async function savePhotos(files: File[], eventId: number | null, author: string | null) {
   const out: any[] = [];
-  for (const f of files) {
-    if (!(f instanceof File) || !IMAGE_TYPES.has(f.type)) continue;
-    if (f.size > MAX_PHOTO_BYTES) throw new Error("照片太大（上限 4MB）");
+  const good = files.filter((f) => f instanceof File && IMAGE_TYPES.has(f.type));
+  if (good.some((f) => f.size > MAX_PHOTO_BYTES)) throw new Error("照片太大（上限 4MB）");
+  if (good.length) await checkSpace(good.reduce((n, f) => n + f.size, 0));
+  for (const f of good) {
     const key = crypto.randomUUID();
     const buf = await f.arrayBuffer();
     await putPhoto(key, buf, f.type);
-    out.push({ ...(await db.addPhoto({ event_id: eventId, blob_key: key, mime: f.type, author })), _buf: buf });
+    out.push({ ...(await db.addPhoto({ event_id: eventId, blob_key: key, mime: f.type, author, size: buf.byteLength })), _buf: buf });
   }
+  if (good.length) later(warnSpace());
   return out;
 }
 const strip = (rows: any[]) => rows.map(({ _buf, blob_key, ...p }) => p);
@@ -84,23 +100,45 @@ export async function handleApi(req: Request): Promise<Response> {
 
     // ---------- 以下都要登录 ----------
     const me = await currentUser(req, url);
+    await getSettings(); // 载入在 App 里加的管理员
     const who = me.name;
-    if (!req.headers.get("x-lang")) lang = normLang(me.lang);
     const r = seg[0];
+    if (!req.headers.get("x-lang")) lang = normLang(me.lang);
     // ---------- 现在用的日历（每个帐号自己的 + 被邀请的） ----------
-    let myCals: any[] = await db.listMyCalendars(me.id);
-    if (!myCals.length) { await db.createCalendar(me.name, me.id); myCals = await db.listMyCalendars(me.id); }
+    const myCals: any[] = await db.listMyCalendars(me.id);
     const wantCal = Number(req.headers.get("x-cal") || url.searchParams.get("cal") || 0);
-    const cur: any = myCals.find((c) => c.id === wantCal) || myCals[0];
+    // 还没有日历（第一次登录的步骤还没做完）→ 只能用个人资料、建立 / 加入日历、通知
+    if (!myCals.length && !["auth", "calendars", "join", "notifications", "admin-request", "settings"].includes(r)) throw new HttpError(409, "请先建立或加入日历");
+    const cur: any = myCals.find((c) => c.id === wantCal) || myCals[0] || { id: 0, role: "viewer" };
     const calId: number = cur.id;
     const templates = dash.calTemplates(cur), labelList = dash.calLabels(cur); // 这个日历的模板和标签
     const mustAdmin = () => { if (!isAdmin(me)) throw new HttpError(403, "只有管理员可以设定"); };
+    const topIds = async () => (await db.activeUsers()).filter((u: any) => isTopAdmin(u)).map((u: any) => u.id);
+    // 把一些 Gmail 拿掉 Top Admin（取消 / 移除管理员 / 移除员工）：至少要留 1 位还在的 Top Admin
+    const dropTop = async (emails: string[]) => {
+      const left = topAdminEmails().filter((e) => !emails.includes(e));
+      const active = new Set((await db.activeUsers()).filter((u: any) => isAdmin(u)).map((u: any) => String(u.email).toLowerCase()));
+      if (!left.some((e) => active.has(e))) throw new Error("至少要有一位 Top Admin");
+      if (left.length !== topAdminEmails().length) await saveSettings({ topAdmins: left });
+    };
+    const act = (action: string, title: string | null = null, eventId: number | null = null, cid: number | null = calId || null) => db.logActivity(cid, me.id, action, title, eventId);
+    const tzOf = async () => (await getSettings()).timezone || "Asia/Kuala_Lumpur";
+    // 生日：在每个日历用名字是「生日」的标签
+    const birthdayLabel = (cals: any[]) => (cid: number) => {
+      const c = cals.find((x: any) => x.id === cid);
+      const l = dash.calLabels(c).find((x: any) => /生日|birthday/i.test(x.name));
+      return l ? { id: l.id, color: l.color } : null;
+    };
+    const refreshBirthdays = async (userId: number) => {
+      later(deleteGoogleEvents((await db.deleteFutureBirthdays(userId)) as any));
+      for (const eid of await db.ensureBirthdays(await tzOf(), birthdayLabel(await db.listMyCalendars(userId)), userId)) sync(eid);
+    };
     const roleIn = (cid: number | null) => myCals.find((c) => c.id === cid)?.role as string | undefined;
     const mustEdit = () => { if (cur.role === "viewer") throw new HttpError(403, "你只能查看这个日历"); };
     // 行程一定要在我有加入的日历里；要修改的话不能是「只能查看」
     const needEvent = async (eid: number, write: boolean) => {
       const e: any = await db.getEvent(eid);
-      if (!e || !roleIn(e.calendar_id)) notFound();
+      if (!e || e.deleted_at || !roleIn(e.calendar_id)) notFound();
       if (write && roleIn(e.calendar_id) === "viewer") throw new HttpError(403, "你只能查看这个日历");
       return e;
     };
@@ -128,12 +166,38 @@ export async function handleApi(req: Request): Promise<Response> {
       if (seg[1] === "me" && method === "PATCH") {
         const b = await body();
         const out: any = { ...publicUser(me) };
+        // 个人资料：名字、emoji、颜色、生日（只有月和日，可以不填）、时区
+        const prof: any = {};
         if (b.name !== undefined) {
           const name = String(b.name || "").trim().slice(0, 40);
           if (!name) throw new Error("请输入名字");
-          await db.setUserName(me.id, name);
-          await db.ensureMember(name, calId);
-          out.name = name;
+          if (name === db.UNKNOWN_USER) throw new Error("请换一个名字");
+          prof.name = name;
+        }
+        if (b.emoji !== undefined) prof.emoji = String(b.emoji || "").trim().slice(0, 16) || null;
+        if (b.color !== undefined) {
+          if (b.color && !/^#[0-9a-f]{6}$/i.test(String(b.color))) throw new Error("无效的颜色");
+          prof.color = b.color ? String(b.color).toLowerCase() : null;
+        }
+        if (b.birth_month !== undefined || b.birth_day !== undefined) {
+          const m = b.birth_month ? Math.floor(Number(b.birth_month)) : null, d = b.birth_day ? Math.floor(Number(b.birth_day)) : null;
+          if ((m == null) !== (d == null)) throw new Error("请选择生日的月和日");
+          if (m != null && (!(m >= 1 && m <= 12) || !(d! >= 1 && d! <= new Date(Date.UTC(2024, m, 0)).getUTCDate()))) throw new Error("生日日期不正确");
+          prof.birth_month = m; prof.birth_day = d;
+        }
+        if (b.timezone !== undefined) {
+          const tz = String(b.timezone || "");
+          if (tz) { try { new Intl.DateTimeFormat("en", { timeZone: tz }); } catch { throw new Error("无效的时区"); } }
+          prof.timezone = tz || null;
+        }
+        if (b.onboarded !== undefined) prof.onboarded = !!b.onboarded;
+        if (Object.keys(prof).length) {
+          const u2: any = await db.setProfile(me.id, prof);
+          Object.assign(out, publicUser({ ...u2, lang: me.lang }));
+          if (prof.name) for (const c of myCals) await db.ensureMember(prof.name, c.id);
+          // 名字或生日改了 → 以后的生日行程重建（同步到 Google）
+          const bdChanged = "birth_month" in prof && (prof.birth_month !== me.birth_month || prof.birth_day !== me.birth_day);
+          if (bdChanged || (prof.name && prof.name !== me.name && me.birth_month)) await refreshBirthdays(me.id);
         }
         if (b.lang !== undefined && LANG_CODES.includes(b.lang)) {
           await db.setUserLang(me.id, b.lang);
@@ -151,7 +215,7 @@ export async function handleApi(req: Request): Promise<Response> {
 
     if (r === "config" && method === "GET") {
       const s = await getSettings();
-      return Response.json({ claude: claudeEnabled(), timezone: s.timezone, labels: db.LABELS, labelNames: cur.label_names || {}, labelList, templates, calendarId: calId, calendarRole: cur.role, waDefault: s.waDefault || s.schedule?.text || DEFAULT_TEXT, waSendHour: sendHourOf(s), waPreviewMode: isPreview(s), googleLoginReady: !!clientCredentials(), whatsapp: !!waConfig(), siteUrl: mainUrl(siteUrl), googleRedirectUri: redirectUri() });
+      return Response.json({ admin: isAdmin(me), calendarName: cur.name || "", claude: claudeEnabled(), timezone: s.timezone, labels: db.LABELS, labelNames: cur.label_names || {}, labelList, templates, calendarId: calId, calendarRole: cur.role, waDefault: s.waDefault || s.schedule?.text || DEFAULT_TEXT, waSendHour: sendHourOf(s), waPreviewMode: isPreview(s), googleLoginReady: !!clientCredentials(), whatsapp: !!waConfig(), siteUrl: mainUrl(siteUrl), googleRedirectUri: redirectUri() });
     }
 
     // ---------- 行程 ----------
@@ -165,6 +229,7 @@ export async function handleApi(req: Request): Promise<Response> {
           dash.applyLabel(b, labelList);
           const e = await db.createEvent({ ...b, calendar_id: calId }, who);
           await db.setEventExtra(e.id, { ...ticks, ...("label_id" in b ? { label_id: b.label_id } : {}), created_by_id: me.id });
+          await act("event_created", e.title, e.id);
           sync(e.id);
           return Response.json(await db.getEvent(e.id));
         }
@@ -222,15 +287,17 @@ export async function handleApi(req: Request): Promise<Response> {
           // 从 Google 同步进来的行程没有负责人：第一个在网站里选模板的人就是负责人
           const owner = !old.created_by_id && ticks?.template_id ? { created_by_id: me.id } : {};
           await db.setEventExtra(id, { ...(ticks || {}), ...("label_id" in b ? { label_id: b.label_id } : {}), ...owner });
+          // 选了 / 换了模板 → 最新动态
+          if (ticks?.template_id && ticks.template_id !== old.template_id) await act("event_template", `${e.title} → ${templates.find((t: any) => t.id === ticks.template_id)?.name || ""}`, id);
           sync(id);
           return Response.json(await db.getEvent(id));
         }
         if (method === "DELETE") {
-          const photos = await db.listPhotos(id);
           const mappings = await db.listEventGoogle(id);
-          const ok = await db.deleteEvent(id);
+          const gone: any = await db.getEvent(id);
+          const ok = await db.deleteEvent(id, me.id); // 放进回收站（5 天内可以复原；照片 5 天后才删）
           if (ok) {
-            later(Promise.all(photos.map((p: any) => deletePhotoData(p.blob_key))));
+            await act("event_deleted", gone?.title || null, id);
             later(deleteGoogleEvents(mappings as any));
           }
           return Response.json({ ok });
@@ -326,17 +393,29 @@ export async function handleApi(req: Request): Promise<Response> {
       }
     }
     // ---------- 模板和标签（管理员在 Settings 新增 / 改名 / 删除） ----------
+    // 模板：固定 3 个，管理员只能改名字
     if (r === "event-templates" && method === "PUT") {
       mustAdmin();
-      const list = dash.cleanTemplates((await body()).templates);
+      const list = dash.renameTemplates(templates, (await body()).templates);
       await db.setCalendarTemplates(calId, list);
+      for (const t of list) { const o = templates.find((x: any) => x.id === t.id); if (o && o.name !== t.name) await act("template_renamed", `${o.name} → ${t.name}`); }
       return Response.json({ templates: list });
     }
+    // 标签：管理员可以改 / 删；新增行程时每个人都可以按「+」加一个
     if (r === "label-list" && method === "PUT") {
       mustAdmin();
       const list = dash.cleanLabels((await body()).labels);
       await db.setCalendarLabels(calId, list);
       return Response.json({ labelList: list });
+    }
+    if (r === "label-list" && method === "POST") {
+      mustEdit();
+      const b = await body();
+      const list = dash.cleanLabels([...labelList, { name: b.name, color: b.color, template_id: b.template_id || null }]);
+      if (list.length > 60) throw new Error("标签太多了");
+      await db.setCalendarLabels(calId, list);
+      await act("label_added", list[list.length - 1].name);
+      return Response.json({ labelList: list, label: list[list.length - 1] });
     }
 
     // ---------- 颜色标签的名称（所有人共用） ----------
@@ -357,6 +436,8 @@ export async function handleApi(req: Request): Promise<Response> {
       if (!seg[1] && method === "POST") { // 另外建立一个新日历
         const nid = await db.createCalendar(String((await body()).name || ""), me.id);
         await db.ensureMember(me.name, nid);
+        await db.logActivity(nid, me.id, "calendar_created", null, null);
+        for (const eid of await db.ensureBirthdays(await tzOf(), birthdayLabel(await db.listMyCalendars(me.id)), me.id)) sync(eid);
         return Response.json({ id: nid });
       }
       const cid = Number(seg[1]);
@@ -364,7 +445,7 @@ export async function handleApi(req: Request): Promise<Response> {
       if (!role) notFound();
       const ownerOnly = () => { if (role !== "owner") throw new HttpError(403, "只有日历拥有者可以这样做"); };
       if (!seg[2] && method === "PATCH") { ownerOnly(); await db.renameCalendar(cid, String((await body()).name || "")); return Response.json({ ok: true }); }
-      if (seg[2] === "people" && method === "GET") return Response.json(await db.listCalendarPeople(cid));
+      if (seg[2] === "people" && method === "GET") return Response.json((await db.listCalendarPeople(cid)).map((u: any) => ({ ...u, admin: isAdmin(u) })));
       if (seg[2] === "people" && seg[3] && method === "PATCH") {
         ownerOnly();
         const nr = (await body()).role === "viewer" ? "viewer" : "editor";
@@ -375,15 +456,15 @@ export async function handleApi(req: Request): Promise<Response> {
         if (uid !== me.id) ownerOnly(); // 自己可以离开；踢别人要是拥有者
         return Response.json({ ok: await db.removeCalendarMember(cid, uid) });
       }
-      // 邀请连结：拥有者和可以编辑的人都能产生；拥有者可以让旧连结全部失效
+      // 邀请连结（可以编辑 / 只能查看）：只有管理员可以产生，3 天有效；管理员可以让旧连结全部失效
       if (seg[2] === "invite" && method === "POST") {
-        if (role === "viewer") throw new HttpError(403, "你只能查看这个日历");
+        mustAdmin();
         const ir = (await body()).role === "viewer" ? "viewer" : "editor";
         const token = crypto.randomUUID().replace(/-/g, "");
         await db.createInvite(cid, ir, me.id, token);
-        return Response.json({ token, role: ir, url: `${mainUrl(siteUrl)}/?join=${token}` });
+        return Response.json({ token, role: ir, url: `${mainUrl(siteUrl)}/?join=${token}`, expires_at: new Date(Date.now() + 3 * 86400_000).toISOString() });
       }
-      if (seg[2] === "invite" && method === "DELETE") { ownerOnly(); await db.revokeInvites(cid); return Response.json({ ok: true }); }
+      if (seg[2] === "invite" && method === "DELETE") { mustAdmin(); await db.revokeInvites(cid); return Response.json({ ok: true }); }
     }
     // 用邀请连结加入
     if (r === "join") {
@@ -392,8 +473,13 @@ export async function handleApi(req: Request): Promise<Response> {
       if (!inv) throw new HttpError(404, "邀请连结无效或已经失效");
       if (method === "GET") return Response.json({ calendar: inv.calendar_name, role: inv.role });
       if (method === "POST") {
+        const already = roleIn(inv.calendar_id);
         await db.joinCalendar(inv.calendar_id, me.id, inv.role);
         await db.ensureMember(me.name, inv.calendar_id);
+        if (!already) {
+          await db.logActivity(inv.calendar_id, me.id, "joined", null, null);
+          for (const eid of await db.ensureBirthdays(await tzOf(), birthdayLabel(await db.listMyCalendars(me.id)), me.id)) sync(eid);
+        }
         return Response.json({ id: inv.calendar_id, name: inv.calendar_name, role: inv.role });
       }
     }
@@ -403,6 +489,71 @@ export async function handleApi(req: Request): Promise<Response> {
       if (!roleIn(cid)) notFound();
       await db.setGoogleAppCalendar(me.id, cid);
       return Response.json({ ok: true });
+    }
+
+    // ---------- 回收站：删除的活动留 5 天，可以复原 ----------
+    if (r === "trash") {
+      if (!seg[1] && method === "GET") return Response.json({ days: db.TRASH_DAYS, items: await db.listTrash(calId) });
+      if (seg[1] && seg[2] === "restore" && method === "POST") {
+        mustEdit();
+        const e: any = await db.getEvent(id);
+        if (!e || e.calendar_id !== calId || !e.deleted_at) notFound();
+        await db.restoreEvent(id);
+        await act("event_restored", e.title, id);
+        sync(id); // Google 上也救回来
+        return Response.json({ ok: true, items: await db.listTrash(calId) });
+      }
+    }
+    // 照片空间（管理员看）
+    if (r === "admin" && seg[1] === "storage" && method === "GET") {
+      mustAdmin();
+      const u = await db.photoBytes();
+      return Response.json({ bytes: u.bytes, count: u.count, limit: photoLimit() });
+    }
+
+    // ---------- 第 2 版：Label & People、申请管理员、通知、最新动态 ----------
+    // People：日历里的人（emoji、颜色、名字、生日）；管理员可以移除（离职 → 名字变成「未知用户」，资料保留）
+    if (r === "people") {
+      if (!seg[1] && method === "GET") return Response.json((await db.listCalendarPeople(calId)).map((u: any) => ({ ...u, admin: isAdmin(u) })));
+      if (seg[1] && method === "DELETE") {
+        mustAdmin();
+        const uid = Number(seg[1]);
+        if (uid === me.id) throw new Error("不能移除自己");
+        const u: any = await db.getUser(uid);
+        if (!u || !(await db.listCalendarPeople(calId)).some((x: any) => x.id === uid)) notFound();
+        if (fixedAdmins().includes(String(u.email).toLowerCase())) throw new Error("不能移除第一批管理员");
+        await dropTop([String(u.email).toLowerCase()]);
+        // 停止他的 Google 同步（Google 日历上的内容不动）；以后的生日行程删掉
+        await disconnect(uid).catch((e) => console.error(e));
+        later(deleteGoogleEvents((await db.deleteFutureBirthdays(uid)) as any));
+        const extra = ((await getSettings()).adminEmails || []).filter((x) => x !== String(u.email).toLowerCase());
+        await saveSettings({ adminEmails: extra });
+        await db.removeUser(uid);
+        await act("person_removed", u.name);
+        return Response.json({ ok: true });
+      }
+    }
+    // 员工申请成为管理员（要先注册、登录）→ 通知所有管理员
+    if (r === "admin-request") {
+      if (method === "GET") return Response.json({ admin: isAdmin(me), request: await db.myAdminRequest(me.id) });
+      if (method === "POST") {
+        if (isAdmin(me)) return Response.json({ admin: true });
+        const rid = await db.createAdminRequest(me.id);
+        if (rid) await db.notify(await topIds(), "admin_request", `${me.name}（${me.email}）申请成为管理员`, `admin_request:${rid}`);
+        return Response.json({ admin: false, request: await db.myAdminRequest(me.id) });
+      }
+    }
+    // 通知（弹出 + 声音）
+    if (r === "notifications") {
+      if (method === "GET") { const items = await db.listNotifications(me.id); return Response.json({ items, unread: items.filter((x: any) => !x.read_at).length }); }
+      if (seg[1] === "read" && method === "POST") { await db.readNotifications(me.id, Number((await body()).upTo) || 0); return Response.json({ ok: true }); }
+    }
+    // 最新动态（所有人）
+    if (r === "activity" && seg[1] === "unread" && method === "GET") return Response.json({ unread: await db.activityUnread(me.id, myCals.map((c) => c.id)) });
+    if (r === "activity" && seg[1] === "seen" && method === "POST") { await db.setActivitySeen(me.id, Math.floor(Number((await body()).upTo) || 0)); return Response.json({ ok: true }); }
+    if (r === "activity" && !seg[1] && method === "GET") {
+      const before = Number(url.searchParams.get("before")) || null;
+      return Response.json(await db.listActivity(myCals.map((c) => c.id), before));
     }
 
     // ---------- 成员 ----------
@@ -526,6 +677,45 @@ export async function handleApi(req: Request): Promise<Response> {
         await saveSettings({ waDefault: String((await body()).text ?? "").slice(0, 2000), waIntro: "", waOutro: "" });
         return Response.json({ ok: true });
       }
+      // 申请成为管理员：批准 / 拒绝
+      if (seg[1] === "requests" && !seg[2] && method === "GET") return Response.json(await db.listAdminRequests());
+      if (seg[1] === "requests" && seg[2] && method === "POST") {
+        if (!isTopAdmin(me)) throw new HttpError(403, "只有 Top Admin 可以批准");
+        const approve = !!(await body()).approve;
+        const d: any = await db.decideAdminRequest(Number(seg[2]), approve, me.id);
+        if (!d) notFound();
+        if (approve) {
+          const u: any = await db.getUser(d.user_id);
+          const extra = [...new Set([...((await getSettings()).adminEmails || []), String(u.email).toLowerCase()])];
+          await saveSettings({ adminEmails: extra });
+          await act("admin_added", u.name, null, null);
+        }
+        await db.readNotificationsByRef(`admin_request:${seg[2]}`);
+        return Response.json({ ok: true, requests: await db.listAdminRequests() });
+      }
+      // 管理员名单（第一批管理员不能移除）
+      if (seg[1] === "list" && method === "GET") {
+        return Response.json((await db.activeUsers()).filter((u: any) => isAdmin(u))
+          .map((u: any) => ({ id: u.id, name: u.name, email: u.email, emoji: u.emoji, color: u.color, fixed: fixedAdmins().includes(String(u.email).toLowerCase()), top: isTopAdmin(u) })));
+      }
+      // 设定 / 取消 Top Admin（所有管理员都可以；至少要留 1 位）
+      if (seg[1] === "list" && seg[2] && seg[3] === "top" && method === "PUT") {
+        const u: any = await db.getUser(Number(seg[2]));
+        if (!u || !isAdmin(u)) notFound();
+        const email = String(u.email).toLowerCase();
+        if ((await body()).top) { if (!topAdminEmails().includes(email)) await saveSettings({ topAdmins: [...topAdminEmails(), email] }); }
+        else await dropTop([email]);
+        await act(isTopAdmin(u) ? "top_added" : "top_removed", u.name, null, null);
+        return Response.json({ ok: true });
+      }
+      if (seg[1] === "list" && seg[2] && method === "DELETE") {
+        const u: any = await db.getUser(Number(seg[2]));
+        if (!u) notFound();
+        if (fixedAdmins().includes(String(u.email).toLowerCase())) throw new Error("不能移除第一批管理员");
+        await dropTop([String(u.email).toLowerCase()]);
+        await saveSettings({ adminEmails: ((await getSettings()).adminEmails || []).filter((x) => x !== String(u.email).toLowerCase()) });
+        return Response.json({ ok: true });
+      }
       // 管理员名单：固定的（Supabase 密钥）＋ App 里加的
       if (seg[1] === "admins" && method === "GET") return Response.json({ fixed: fixedAdmins(), extra: (await getSettings()).adminEmails || [] });
       if (seg[1] === "admins" && method === "PUT") {
@@ -555,6 +745,7 @@ export async function handleApi(req: Request): Promise<Response> {
         return Response.json({ timezone: s.timezone, icsUrl: `${apiBase()}/api/cal/${await sign("ics")}.ics?lang=${encodeURIComponent(normLang(me.lang))}` });
       }
       if (seg[1] === "timezone" && method === "PUT") {
+        mustAdmin();
         const tz = String((await body()).timezone || "");
         try { new Intl.DateTimeFormat("en", { timeZone: tz }); } catch { throw new Error("无效的时区"); }
         await saveSettings({ timezone: tz });

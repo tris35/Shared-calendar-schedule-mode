@@ -31,14 +31,20 @@ function toIso(v: any) {
 const clean = (s: any, max = 2000) => (s == null ? null : String(s).trim().slice(0, max) || null);
 
 // Google 日历的 11 种活动颜色（label 存 Google 的 colorId）
-// App 里显示的是柔和的粉彩色（由浅到深）；Google 日历上仍是 Google 自己的 11 种颜色
-export const LABELS: Record<string, { name: string; hex: string }> = {
+// App 里显示的是亮色（萤光笔一样的 highlight 颜色，网页用半透明）；Google 日历上仍是 Google 自己的 11 种颜色
+export const LABELS: Record<string, { name: string; hex: string; google?: string }> = {
   // 每个颜色只有一个（黄、橘、粉、绿、天蓝、薰衣草、青、蓝、红、紫、灰）
-  "5": { name: "香蕉黄", hex: "#ffe8a3" }, "6": { name: "橘子", hex: "#ffcfb5" }, "4": { name: "火鹤粉", hex: "#f6c9e3" },
-  "2": { name: "鼠尾草", hex: "#bfe9cf" }, "7": { name: "孔雀蓝", hex: "#bfe6fb" }, "1": { name: "薰衣草", hex: "#ddd3ff" },
-  "10": { name: "罗勒绿", hex: "#97d9d1" }, "9": { name: "蓝莓", hex: "#a3bfff" }, "11": { name: "番茄红", hex: "#f39a9a" },
-  "3": { name: "葡萄紫", hex: "#c7a3ee" }, "8": { name: "石墨灰", hex: "#b9c1d1" },
+  "5": { name: "香蕉黄", hex: "#facc15" }, "6": { name: "橘子", hex: "#fb923c" }, "4": { name: "火鹤粉", hex: "#f472b6" },
+  "2": { name: "鼠尾草", hex: "#4ade80" }, "7": { name: "孔雀蓝", hex: "#38bdf8" }, "1": { name: "薰衣草", hex: "#b38cff" },
+  "10": { name: "罗勒绿", hex: "#2dd4bf" }, "9": { name: "蓝莓", hex: "#6d8bff" }, "11": { name: "番茄红", hex: "#f87171" },
+  "3": { name: "葡萄紫", hex: "#c084fc" }, "8": { name: "石墨灰", hex: "#94a3b8" },
+  // 第 2 版：多 9 种（共 20 种）。Google 只有 11 种，同步到 Google 时用最接近的颜色（google）
+  "12": { name: "柠檬", hex: "#e6ff4d", google: "5" }, "13": { name: "珊瑚", hex: "#ff7a6b", google: "6" }, "14": { name: "玫瑰", hex: "#ff4fa3", google: "4" },
+  "15": { name: "薄荷", hex: "#5cffb1", google: "2" }, "16": { name: "湖水", hex: "#22e5ff", google: "7" }, "17": { name: "海军蓝", hex: "#4f7bff", google: "9" },
+  "18": { name: "紫罗兰", hex: "#9d6bff", google: "3" }, "19": { name: "金色", hex: "#ffc94d", google: "5" }, "20": { name: "可可", hex: "#d4a373", google: "6" },
 };
+/** App 的颜色 → Google 日历的 colorId（1–11） */
+export const googleColor = (label: any) => (label && LABELS[String(label)] ? (LABELS[String(label)] as any).google || String(label) : null);
 
 function outEvent(e: any) {
   if (!e) return e;
@@ -56,6 +62,7 @@ const outRow = (r: any) => (r ? { ...r, created_at: iso(r.created_at) } : r);
 
 // ---------- 行程 ----------
 const EVENT_COLS = `e.*, m.name AS member_name, m.color AS member_color, m.emoji AS member_emoji,
+  cu.name AS creator_name, cu.emoji AS creator_emoji, cu.color AS creator_color,
   (SELECT COUNT(*) FROM event_checklist c WHERE c.event_id = e.id)::int AS check_total,
   (SELECT COUNT(*) FROM event_checklist c WHERE c.event_id = e.id AND c.done)::int AS check_done,
   (SELECT COUNT(*) FROM photos p WHERE p.event_id = e.id)::int AS photo_count,
@@ -63,10 +70,10 @@ const EVENT_COLS = `e.*, m.name AS member_name, m.color AS member_color, m.emoji
 
 export async function listEvents({ from, to, q: keyword, calendarId }: { from?: string; to?: string; q?: string; calendarId?: number | null } = {}) {
   const rows = await q(
-    `SELECT ${EVENT_COLS} FROM events e LEFT JOIN members m ON m.id = e.member_id
+    `SELECT ${EVENT_COLS} FROM events e LEFT JOIN members m ON m.id = e.member_id LEFT JOIN users cu ON cu.id = e.created_by_id
      WHERE ($1::timestamptz IS NULL OR COALESCE(e."end", e.start) >= $1) AND ($2::timestamptz IS NULL OR e.start < $2)
        AND ($3::text IS NULL OR e.title ILIKE '%' || $3 || '%' OR e.notes ILIKE '%' || $3 || '%')
-       AND ($4::int IS NULL OR e.calendar_id = $4)
+       AND ($4::int IS NULL OR e.calendar_id = $4) AND e.deleted_at IS NULL
      ORDER BY e.start`,
     [from ? toIso(from) : null, to ? toIso(to) : null, keyword || null, calendarId ?? null],
   );
@@ -74,7 +81,7 @@ export async function listEvents({ from, to, q: keyword, calendarId }: { from?: 
 }
 
 export async function getEvent(id: number) {
-  const rows = await q(`SELECT ${EVENT_COLS} FROM events e LEFT JOIN members m ON m.id = e.member_id WHERE e.id = $1`, [id]);
+  const rows = await q(`SELECT ${EVENT_COLS} FROM events e LEFT JOIN members m ON m.id = e.member_id LEFT JOIN users cu ON cu.id = e.created_by_id WHERE e.id = $1`, [id]);
   return outEvent(rows[0]) ?? null;
 }
 
@@ -165,8 +172,30 @@ export async function updateEvent(id: number, e: any, author?: string | null) {
   return getEvent(id);
 }
 
-export async function deleteEvent(id: number) {
-  return (await sql`DELETE FROM events WHERE id = ${id} RETURNING id`).length > 0;
+/** 删除 = 放进回收站（5 天内可以复原）；Google 上的对应也拿掉（复原时会重新建立） */
+export async function deleteEvent(id: number, by: number | null = null) {
+  const r = await sql`UPDATE events SET deleted_at = NOW(), deleted_by = ${by} WHERE id = ${id} AND deleted_at IS NULL RETURNING id`;
+  if (r.length) await sql`DELETE FROM event_google WHERE event_id = ${id}`;
+  return r.length > 0;
+}
+export const TRASH_DAYS = 5;
+export async function listTrash(calendarId: number) {
+  return (await sql`SELECT e.id, e.title, e.start, e.all_day, e.label, e.deleted_at, COALESCE(u.name, ${UNKNOWN_USER}) AS deleted_by_name, u.emoji AS deleted_by_emoji
+    FROM events e LEFT JOIN users u ON u.id = e.deleted_by
+    WHERE e.calendar_id = ${calendarId} AND e.deleted_at IS NOT NULL ORDER BY e.deleted_at DESC LIMIT 200`)
+    .map((r: any) => ({ ...r, start: iso(r.start), deleted_at: iso(r.deleted_at), all_day: r.all_day ? 1 : 0 }));
+}
+export async function restoreEvent(id: number) {
+  return (await sql`UPDATE events SET deleted_at = NULL, deleted_by = NULL WHERE id = ${id} AND deleted_at IS NOT NULL RETURNING id`).length > 0;
+}
+/** 回收站超过 5 天的：真的删掉，回传要删的照片档案 */
+export async function purgeTrash() {
+  const old = await sql`SELECT id FROM events WHERE deleted_at < NOW() - make_interval(days => ${TRASH_DAYS})`;
+  if (!old.length) return [];
+  const ids = old.map((r: any) => r.id);
+  const keys = (await sql`SELECT blob_key FROM photos WHERE event_id = ANY(${ids}::int[])`).map((r: any) => r.blob_key);
+  await sql`DELETE FROM events WHERE id = ANY(${ids}::int[])`;
+  return keys;
 }
 
 // ---------- 给客户的 WhatsApp ----------
@@ -174,7 +203,7 @@ export async function deleteEvent(id: number) {
 export async function pendingCustomerMessages() {
   // 自己选的发送时间：到了（而且不超过 1 天前）就发；没选：行程在 3 天内（前一天下午 4 点发）
   return sql`SELECT id, start, customer_phone, customer_note, customer_send_at FROM events
-    WHERE customer_auto AND customer_sent_at IS NULL AND customer_error IS NULL
+    WHERE deleted_at IS NULL AND customer_auto AND customer_sent_at IS NULL AND customer_error IS NULL
       AND COALESCE(customer_phone, '') <> '' AND COALESCE(customer_note, '') <> ''
       AND ((customer_send_at IS NOT NULL AND customer_send_at <= NOW() AND customer_send_at > NOW() - INTERVAL '1 day')
         OR (customer_send_at IS NULL AND start > NOW() AND start < NOW() + INTERVAL '3 days'))`;
@@ -196,7 +225,7 @@ export async function upcomingForSchedule(days: number, withPast = false) {
   const to = new Date(Date.now() + days * 86400_000);
   const rows = await sql`SELECT id, calendar_id, title, start, all_day, customer_phone, customer_name, customer_note, customer_auto, customer_sent_at,
       customer_error, customer_send_at, customer_source, customer_lookup, customer_lookup_detail
-    FROM events WHERE start >= ${from.toISOString()} AND start < ${to.toISOString()} ORDER BY start`;
+    FROM events WHERE deleted_at IS NULL AND start >= ${from.toISOString()} AND start < ${to.toISOString()} ORDER BY start`;
   return rows.map((e: any) => ({ ...e, start: iso(e.start), customer_sent_at: iso(e.customer_sent_at), customer_send_at: iso(e.customer_send_at) }));
 }
 /** 从通讯录找到客户 → 填上电话、名字、提醒内容（电话换了 → 之后会重新发） */
@@ -350,8 +379,8 @@ export async function unseenGoogleEvents(userId: number, calendarId: string, pas
 export async function listGoogleCals(userId: number) {
   return sql`SELECT * FROM google_calendars WHERE user_id = ${userId} ORDER BY calendar_id`;
 }
-export async function upsertGoogleCal(userId: number, calendarId: string, name: string | null, color: string | null = null) {
-  await sql`INSERT INTO google_calendars (user_id, calendar_id, name, color) VALUES (${userId}, ${calendarId}, ${name}, ${color})
+export async function upsertGoogleCal(userId: number, calendarId: string, name: string | null, color: string | null = null, enabled = true) {
+  await sql`INSERT INTO google_calendars (user_id, calendar_id, name, color, enabled) VALUES (${userId}, ${calendarId}, ${name}, ${color}, ${enabled})
     ON CONFLICT (user_id, calendar_id) DO UPDATE SET name = EXCLUDED.name, color = EXCLUDED.color`;
 }
 /** 行程来自哪个 Google 日历 → 记下那个日历的颜色 */
@@ -491,9 +520,14 @@ export async function deleteMember(id: number) {
 }
 
 // ---------- 照片 ----------
-export async function addPhoto(p: { event_id?: number | null; blob_key: string; mime: string; caption?: string | null; author?: string | null }) {
-  const [r] = await sql`INSERT INTO photos (event_id, blob_key, mime, caption, author)
-    VALUES (${p.event_id ?? null}, ${p.blob_key}, ${p.mime}, ${clean(p.caption, 500)}, ${clean(p.author, 60)}) RETURNING *`;
+/** 照片空间用了多少（bytes） */
+export async function photoBytes() {
+  const [r] = await sql`SELECT COALESCE(SUM(size), 0)::bigint AS n, COUNT(*)::int AS c FROM photos`;
+  return { bytes: Number(r.n), count: r.c };
+}
+export async function addPhoto(p: { event_id?: number | null; blob_key: string; mime: string; caption?: string | null; author?: string | null; size?: number | null }) {
+  const [r] = await sql`INSERT INTO photos (event_id, blob_key, mime, caption, author, size)
+    VALUES (${p.event_id ?? null}, ${p.blob_key}, ${p.mime}, ${clean(p.caption, 500)}, ${clean(p.author, 60)}, ${p.size ?? null}) RETURNING *`;
   return outRow(r);
 }
 export async function listPhotos(eventId: number) {
@@ -589,6 +623,9 @@ export async function listMyCalendars(userId: number) {
     FROM calendar_members cm JOIN calendars c ON c.id = cm.calendar_id
     WHERE cm.user_id = ${userId} ORDER BY (cm.role = 'owner') DESC, c.id`;
 }
+export async function listAllCalendars() {
+  return sql`SELECT id, name, labels, label_names FROM calendars ORDER BY id`;
+}
 export async function createCalendar(name: string, ownerId: number) {
   const [c] = await sql`INSERT INTO calendars (name, owner_id) VALUES (${clean(name, 60) || "My calendar"}, ${ownerId}) RETURNING id`;
   await sql`INSERT INTO calendar_members (calendar_id, user_id, role) VALUES (${c.id}, ${ownerId}, 'owner') ON CONFLICT DO NOTHING`;
@@ -622,7 +659,7 @@ export async function dashEvents(calendarId: number, fromDate: string, tz: strin
   return q(`SELECT to_char(e.start AT TIME ZONE $3, 'YYYY-MM-DD') AS date, e.title, e.template_id, e.brand, e.soft, e.sales_type,
       COALESCE(u.name, e.created_by) AS person
     FROM events e LEFT JOIN users u ON u.id = e.created_by_id
-    WHERE e.calendar_id = $1 AND e.start >= ($2::date::timestamp AT TIME ZONE $3)
+    WHERE e.calendar_id = $1 AND e.deleted_at IS NULL AND e.start >= ($2::date::timestamp AT TIME ZONE $3)
     ORDER BY e.start`, [calendarId, fromDate, tz]);
 }
 export async function dashManual(calendarId: number) {
@@ -640,7 +677,7 @@ export async function deleteDashRate(calendarId: number, brand: string, cat: str
 }
 
 export async function listCalendarPeople(id: number) {
-  return sql`SELECT u.id, u.name, u.email, cm.role FROM calendar_members cm JOIN users u ON u.id = cm.user_id
+  return sql`SELECT u.id, u.name, u.email, u.emoji, u.color, u.birth_month, u.birth_day, cm.role FROM calendar_members cm JOIN users u ON u.id = cm.user_id
     WHERE cm.calendar_id = ${id} ORDER BY (cm.role = 'owner') DESC, u.name`;
 }
 export async function setCalendarRole(id: number, userId: number, role: string) {
@@ -650,11 +687,12 @@ export async function removeCalendarMember(id: number, userId: number) {
   return (await sql`DELETE FROM calendar_members WHERE calendar_id = ${id} AND user_id = ${userId} AND role <> 'owner' RETURNING user_id`).length > 0;
 }
 export async function createInvite(calendarId: number, role: string, by: number, token: string) {
-  await sql`INSERT INTO calendar_invites (token, calendar_id, role, created_by) VALUES (${token}, ${calendarId}, ${role}, ${by})`;
+  // 3 天有效
+  await sql`INSERT INTO calendar_invites (token, calendar_id, role, created_by, expires_at) VALUES (${token}, ${calendarId}, ${role}, ${by}, NOW() + interval '3 days')`;
 }
 export async function getInvite(token: string) {
   return (await sql`SELECT i.*, c.name AS calendar_name FROM calendar_invites i JOIN calendars c ON c.id = i.calendar_id
-    WHERE i.token = ${token} AND NOT i.revoked`)[0] ?? null;
+    WHERE i.token = ${token} AND NOT i.revoked AND i.expires_at > NOW()`)[0] ?? null;
 }
 export async function revokeInvites(calendarId: number) {
   await sql`UPDATE calendar_invites SET revoked = TRUE WHERE calendar_id = ${calendarId}`;
@@ -684,4 +722,126 @@ export async function bumpResetAttempts(email: string) {
 }
 export async function deleteReset(email: string) {
   await sql`DELETE FROM password_resets WHERE email = ${email}`;
+}
+
+// ---------- 第 2 版：个人资料、生日、申请管理员、通知、最新动态 ----------
+export const UNKNOWN_USER = "未知用户";
+export async function setProfile(id: number, p: { name?: string; emoji?: string | null; color?: string | null; birth_month?: number | null; birth_day?: number | null; timezone?: string | null; onboarded?: boolean }) {
+  const [old] = await sql`SELECT name, emoji, color, birth_month, birth_day, timezone, onboarded FROM users WHERE id = ${id}`;
+  if (!old) return null;
+  const v = (k: string) => (k in p && (p as any)[k] !== undefined ? (p as any)[k] : old[k]);
+  await sql`UPDATE users SET name = ${v("name")}, emoji = ${v("emoji")}, color = ${v("color")}, birth_month = ${v("birth_month")}, birth_day = ${v("birth_day")},
+    timezone = ${v("timezone")}, onboarded = ${v("onboarded")} WHERE id = ${id}`;
+  return getUser(id);
+}
+export async function activeUsers() {
+  return sql`SELECT * FROM users WHERE removed_at IS NULL ORDER BY id`;
+}
+
+/** 离职：名字变成「未知用户」，他建立的资料都保留；Gmail 空出来（以后可以重新注册）；不能再登录 */
+export async function removeUser(id: number) {
+  const [u] = await sql`SELECT id, name FROM users WHERE id = ${id} AND removed_at IS NULL`;
+  if (!u) return false;
+  const cals = (await sql`SELECT calendar_id FROM calendar_members WHERE user_id = ${id}`).map((r: any) => r.calendar_id);
+  await sql`UPDATE events SET created_by = ${UNKNOWN_USER} WHERE created_by_id = ${id} OR (created_by = ${u.name} AND calendar_id = ANY(${cals}::int[]))`;
+  await sql`UPDATE comments SET author = ${UNKNOWN_USER} WHERE author = ${u.name} AND (event_id IN (SELECT id FROM events WHERE calendar_id = ANY(${cals}::int[]))
+    OR photo_id IN (SELECT p.id FROM photos p JOIN events e ON e.id = p.event_id WHERE e.calendar_id = ANY(${cals}::int[])))`;
+  await sql`UPDATE photos SET author = ${UNKNOWN_USER} WHERE author = ${u.name} AND event_id IN (SELECT id FROM events WHERE calendar_id = ANY(${cals}::int[]))`;
+  await sql`UPDATE event_log SET author = ${UNKNOWN_USER} WHERE author = ${u.name} AND event_id IN (SELECT id FROM events WHERE calendar_id = ANY(${cals}::int[]))`;
+  await sql`UPDATE members SET name = ${UNKNOWN_USER} WHERE name = ${u.name} AND calendar_id = ANY(${cals}::int[])`;
+  await sql`UPDATE users SET removed_at = NOW(), name = ${UNKNOWN_USER}, email = ${`removed-${id}@removed.invalid`}, password_hash = '!', emoji = NULL, color = NULL,
+    birth_month = NULL, birth_day = NULL WHERE id = ${id}`;
+  await sql`DELETE FROM calendar_members WHERE user_id = ${id}`;
+  await sql`DELETE FROM admin_requests WHERE user_id = ${id} AND status = 'pending'`;
+  return true;
+}
+
+// ---- 生日：每年一笔全天行程（今年和明年；每天的排程会补上下一年） ----
+/** 这个人以后的生日行程（改生日、改名字时先删掉再重建）→ 回传要从 Google 删掉的对应 */
+export async function deleteFutureBirthdays(userId: number) {
+  const ids = (await sql`SELECT id FROM events WHERE birthday_user_id = ${userId} AND start >= NOW() - interval '1 day'`).map((r: any) => r.id);
+  const mappings = ids.length ? await sql`SELECT * FROM event_google WHERE event_id = ANY(${ids}::int[])` : [];
+  if (ids.length) await sql`DELETE FROM events WHERE id = ANY(${ids}::int[])`;
+  return mappings;
+}
+/** 补上还没有的生日行程；回传新建立的行程 id（要同步到 Google） */
+export async function ensureBirthdays(tz: string, labelFor: (calendarId: number) => { id: string; color: string } | null, userId?: number) {
+  const people = await q(`SELECT u.id, u.name, u.birth_month, u.birth_day, cm.calendar_id FROM users u JOIN calendar_members cm ON cm.user_id = u.id
+    WHERE u.removed_at IS NULL AND u.birth_month IS NOT NULL AND u.birth_day IS NOT NULL AND ($1::int IS NULL OR u.id = $1)`, [userId ?? null]);
+  const year = Number(new Date().toLocaleDateString("en-CA", { timeZone: tz }).slice(0, 4));
+  const made: number[] = [];
+  for (const p of people) {
+    const lab = labelFor(p.calendar_id);
+    for (const y of [year, year + 1]) {
+      // 2 月 29 日：不是闰年就放 2 月 28 日
+      const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+      const day = p.birth_month === 2 && p.birth_day === 29 && !leap ? 28 : p.birth_day;
+      const r = await q(`INSERT INTO events (title, start, all_day, remind, created_by, created_by_id, calendar_id, birthday_user_id, template_id, label, label_id)
+        SELECT $1, make_timestamptz($2, $3, $4, 0, 0, 0, $5), TRUE, TRUE, $6, $7, $8, $7, 'normal', $9, $10
+        WHERE make_timestamptz($2, $3, $4, 0, 0, 0, $5) >= NOW() - interval '1 day'
+          AND NOT EXISTS (SELECT 1 FROM events WHERE calendar_id = $8 AND birthday_user_id = $7 AND extract(year FROM start AT TIME ZONE $5) = $2)
+        ON CONFLICT DO NOTHING RETURNING id`,
+        [`🎂 ${p.name}`, y, p.birth_month, day, tz, p.name, p.id, p.calendar_id, lab?.color ?? null, lab?.id ?? null]);
+      if (r[0]) { made.push(r[0].id); await logEvent(r[0].id, p.name, "created"); }
+    }
+  }
+  return made;
+}
+
+// ---- 申请管理员 ----
+export async function createAdminRequest(userId: number) {
+  const r = await sql`INSERT INTO admin_requests (user_id) VALUES (${userId}) ON CONFLICT DO NOTHING RETURNING id`;
+  return r[0]?.id ?? null;
+}
+export async function myAdminRequest(userId: number) {
+  return (await sql`SELECT id, status, created_at FROM admin_requests WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`)[0] ?? null;
+}
+export async function listAdminRequests() {
+  return (await sql`SELECT r.id, r.created_at, u.id AS user_id, u.name, u.email, u.emoji, u.color FROM admin_requests r JOIN users u ON u.id = r.user_id
+    WHERE r.status = 'pending' AND u.removed_at IS NULL ORDER BY r.id`).map(outRow);
+}
+export async function decideAdminRequest(id: number, approve: boolean, by: number) {
+  return (await sql`UPDATE admin_requests SET status = ${approve ? "approved" : "rejected"}, decided_by = ${by}, decided_at = NOW()
+    WHERE id = ${id} AND status = 'pending' RETURNING user_id`)[0] ?? null;
+}
+
+// ---- 通知（给管理员；同一件事 6 小时内只通知一次） ----
+export async function notify(userIds: number[], kind: string, body: string, ref: string | null = null, hours = 6) {
+  for (const uid of userIds) {
+    await sql`INSERT INTO notifications (user_id, kind, body, ref) SELECT ${uid}, ${kind}, ${body}, ${ref}
+      WHERE ${ref}::text IS NULL OR NOT EXISTS (SELECT 1 FROM notifications WHERE user_id = ${uid} AND kind = ${kind} AND ref = ${ref} AND created_at > NOW() - make_interval(hours => ${hours}))`;
+  }
+}
+export async function listNotifications(userId: number) {
+  return (await sql`SELECT id, kind, body, ref, read_at, created_at FROM notifications WHERE user_id = ${userId} ORDER BY id DESC LIMIT 50`)
+    .map((r: any) => ({ ...outRow(r), read_at: iso(r.read_at) }));
+}
+/** 申请已处理 → 其他管理员的同一个通知也算已读 */
+export async function readNotificationsByRef(ref: string) {
+  await sql`UPDATE notifications SET read_at = NOW() WHERE ref = ${ref} AND read_at IS NULL`;
+}
+export async function readNotifications(userId: number, upTo: number) {
+  await sql`UPDATE notifications SET read_at = NOW() WHERE user_id = ${userId} AND id <= ${upTo} AND read_at IS NULL`;
+}
+
+// ---- 最新动态 ----
+export async function logActivity(calendarId: number | null, userId: number | null, action: string, title: string | null = null, eventId: number | null = null) {
+  await sql`INSERT INTO activity (calendar_id, user_id, action, title, event_id) VALUES (${calendarId}, ${userId}, ${action}, ${clean(title, 300)}, ${eventId})`;
+}
+/** 最新动态：别人做的、我还没看的有几笔（加入之前的不算） */
+export async function activityUnread(userId: number, calendarIds: number[]) {
+  const [r] = await q(`SELECT COUNT(*)::int AS n FROM activity a JOIN users me ON me.id = $1
+    WHERE (a.calendar_id = ANY($2::int[]) OR a.calendar_id IS NULL) AND a.id > me.activity_seen
+      AND a.user_id IS DISTINCT FROM $1 AND a.created_at > me.created_at`, [userId, calendarIds]);
+  return r?.n ?? 0;
+}
+export async function setActivitySeen(userId: number, upTo: number) {
+  await sql`UPDATE users SET activity_seen = GREATEST(activity_seen, ${upTo}) WHERE id = ${userId}`;
+}
+export async function listActivity(calendarIds: number[], before: number | null, limit = 50) {
+  return (await q(`SELECT a.id, a.action, a.title, a.event_id, a.created_at, a.user_id,
+      COALESCE(u.name, $3) AS name, u.emoji, u.color
+    FROM activity a LEFT JOIN users u ON u.id = a.user_id
+    WHERE (a.calendar_id = ANY($1::int[]) OR a.calendar_id IS NULL) AND ($2::int IS NULL OR a.id < $2)
+    ORDER BY a.id DESC LIMIT ${Math.min(100, Math.max(1, limit))}`, [calendarIds, before, UNKNOWN_USER])).map(outRow);
 }
