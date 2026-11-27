@@ -290,7 +290,7 @@ function renderAuth(mode, msg = "") {
       <button class="linkish" data-mode="login">${t("back")}</button>`,
   }[mode];
   $("#root").innerHTML = `<div class="gate"><form class="gate-card" id="auth" novalidate>
-    <div class="gate-logo"><div class="logo-mark">L</div><h1>THE LEGEND</h1></div>
+    <div class="gate-logo"><img class="brand-full" src="icons/logo-full.jpg" alt="Be the only one" width="200" height="200"></div>
     <div class="seg" role="group" style="align-self:center">${Object.entries(LANGS).map(([k, v]) => `<button type="button" data-lang="${k}" aria-pressed="${k === lang}">${v}</button>`).join("")}</div>
     ${card}</form></div>`;
   const f = $("#auth");
@@ -439,7 +439,7 @@ function renderApp() {
   const btn = (x) => `<button class="nav-btn" data-nav="${x.id}" ${x.id === state.page ? 'aria-current="page"' : ""}>${ICON[x.icon]}<span class="t">${t("nav_" + x.id)}</span>${x.id === "calendar" ? '<span class="count" id="untag-count" hidden></span>' : ""}${x.id === "activity" ? `<span class="count" id="act-count" ${state.actUnread ? "" : "hidden"}>${state.actUnread > 99 ? "99+" : state.actUnread}</span>` : ""}</button>`;
   $("#root").innerHTML = `<div class="app">
     <aside class="side">
-      <div class="logo"><div class="logo-mark">L</div><div><div class="logo-name">THE LEGEND</div><div class="logo-cal">${esc(cal?.name || "")}</div></div></div>
+      <div class="logo"><img class="logo-mark" src="icons/logo-mark.png" alt="" width="44" height="44"><div><div class="logo-name">THE LEGEND</div><div class="logo-cal">${esc(cal?.name || "")}</div></div></div>
       <nav class="nav-group" aria-label="${t("analysis")}"><div class="nav-label">${t("analysis")}</div>${items.filter((x) => x.group === "analysis").map(btn).join("")}</nav>
       <nav class="nav-group" aria-label="${t("settings")}"><div class="nav-label">${t("settings")}</div>${items.filter((x) => x.group === "settings").map(btn).join("")}</nav>
       <div class="side-foot"><button class="gear" id="gear" aria-label="${t("settings")}" title="${t("settings")}">${ICON.gear}</button>

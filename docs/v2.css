@@ -19,7 +19,8 @@ button,select,input,textarea{font:inherit;color:inherit}
 .app{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:100vh}
 .side{background:var(--side);border-right:1px solid var(--line);padding:24px 16px;padding-left:max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh;overflow-y:auto}
 .logo{display:flex;align-items:center;gap:12px}
-.logo-mark{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#34e5a8);box-shadow:0 0 18px var(--glow);display:grid;place-items:center;font-weight:700;font-size:18px;flex:none}
+.logo-mark{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#000;box-shadow:0 0 0 1px rgba(255,190,140,.35),0 0 18px rgba(255,170,110,.35);flex:none}
+.brand-full{width:min(200px,60vw);height:auto;border-radius:20px;box-shadow:0 0 40px rgba(255,170,110,.18)}
 .logo-name{font-size:19px;font-weight:700;letter-spacing:.14em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
 .logo-cal{color:var(--muted);font-size:12px;margin-top:2px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav-group{display:flex;flex-direction:column;gap:4px}
@@ -244,7 +245,7 @@ dialog.sheet .dlg{height:100%;max-height:none;border-radius:18px 0 0 18px}
 .gate-card{width:min(440px,100%);background:var(--panel-solid);border:1px solid var(--line);border-radius:22px;padding:32px 28px;display:flex;flex-direction:column;gap:18px;box-shadow:0 30px 70px rgba(0,0,0,.6),0 0 40px rgba(56,189,248,.14)}
 .gate-card.wide{width:min(560px,100%)}
 .gate-logo{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
-.gate-logo .logo-mark{width:64px;height:64px;font-size:26px}
+ 
 .gate-logo h1{margin:0;font-size:22px;letter-spacing:.14em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
 .linkish{all:unset;cursor:pointer;color:var(--cyan);font-weight:600;font-size:14px;text-align:center}
 .linkish:hover{text-decoration:underline}
