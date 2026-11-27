@@ -399,7 +399,7 @@ export async function pullFromGoogle(userId: number, siteUrl: string, opts: { mi
   }
 }
 
-// 这个 Gmail 能修改的日历：自己的 + 别人共享过来、有修改权限的（例如 tlwcalender 共享给 tlwsalesmsg）
+// 这个 Gmail 能修改的日历：自己的 + 别人共享过来、有修改权限的（例如公司共用的日历 共享给 tlwsalesmsg）
 // 不包括节日、生日、联系人这类特殊日历
 async function ownedCalendars(l: Link) {
   const out: { id: string; name: string; primary: boolean; color?: string | null; shared?: boolean }[] = [];

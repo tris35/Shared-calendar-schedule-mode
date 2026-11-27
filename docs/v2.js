@@ -880,7 +880,8 @@ async function openSettings() {
       <div class="sec" id="s-prof"><h3>${t("profile")}</h3>
         <div class="row" style="align-items:center"><span id="s-av">${avatar(p.emoji, p.color, "lg")}</span>
           <div class="field" style="flex:1"><label for="s-name">${t("name")}</label><input class="input" id="s-name" maxlength="40" value="${esc(me.name)}"></div></div>
-        <details><summary class="linkish" style="display:inline">Emoji</summary><div class="emojis" style="margin-top:10px">${EMOJIS.map((e) => `<button type="button" class="emo" data-emo="${e}" aria-pressed="${e === p.emoji}">${e}</button>`).join("")}</div></details>
+        <div class="field"><span class="lbl">Emoji</span><div class="emojis">${EMOJIS.map((e) => `<button type="button" class="emo" data-emo="${e}" aria-pressed="${e === p.emoji}">${e}</button>`).join("")}</div></div>
+        <span class="lbl" style="font-size:13px;font-weight:600;color:var(--muted)">${t("colour")}</span>
         <div class="swatches" style="grid-template-columns:repeat(12,minmax(0,1fr))">${PROFILE_COLORS.map((c) => `<button type="button" class="sw" style="--c:${c}" data-col="${c}" aria-pressed="${c === p.color}" aria-label="${c}"></button>`).join("")}</div>
         <div class="field"><span class="lbl">${t("birthday")}</span><div class="bd-row">${bdSelects(me.birth_month || "", me.birth_day || "", "s")}</div></div>
         <p class="notice">${t("ob_bd_note")}</p>
@@ -912,6 +913,12 @@ async function openSettings() {
       $$("[data-emo]", d).forEach((b) => b.setAttribute("aria-pressed", b.dataset.emo === p.emoji));
       $$("[data-col]", d).forEach((b) => b.setAttribute("aria-pressed", b.dataset.col === p.color));
       $("#s-av", d).innerHTML = avatar(p.emoji, p.color, "lg");
+      // emoji 和颜色：一按就保存
+      api("/api/auth/me", { method: "PATCH", body: { emoji: p.emoji, color: p.color } }).then((u) => {
+        state.me = { ...state.me, ...u }; chime("ok"); toast(t("saved"));
+        $(".me-chip").innerHTML = `${avatar(state.me.emoji, state.me.color, "sm")}<span>${esc(state.me.name)}</span>`;
+        if (state.page === "people" || state.page === "activity") renderPage();
+      }).catch(fail);
     });
     $("#s-bm", d).onchange = () => { const v = $("#s-bd", d).value; $("#s-bm", d).parentElement.innerHTML = bdSelects($("#s-bm", d).value, v, "s"); rewireBd(d); };
     const rewireBd = (dd) => { $("#s-bm", dd).onchange = () => { const v = $("#s-bd", dd).value; $("#s-bm", dd).parentElement.innerHTML = bdSelects($("#s-bm", dd).value, v, "s"); rewireBd(dd); }; };

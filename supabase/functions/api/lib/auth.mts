@@ -144,15 +144,15 @@ export async function changePassword(user: any, body: any) {
 }
 
 // 管理员：Supabase 函数密钥 ADMIN_EMAILS（固定的）＋ 在 App「设置」里加的
-// 第一批管理员（固定，不能被移除）
-const FIRST_ADMINS = ["szeweielsa@gmail.com", "szeyinkeow@gmail.com"];
-export const fixedAdmins = () => [...new Set([...FIRST_ADMINS, ...(env("ADMIN_EMAILS") || "").toLowerCase().split(/[,\s]+/).filter(Boolean)])];
+// 第一批管理员（固定，不能被移除）：Supabase 函数密钥 FIRST_ADMIN_EMAILS（逗号分开），不写在程式码里
+const FIRST_ADMINS = () => (env("FIRST_ADMIN_EMAILS") || "").toLowerCase().split(/[,\s]+/).filter(Boolean);
+export const fixedAdmins = () => [...new Set([...FIRST_ADMINS(), ...(env("ADMIN_EMAILS") || "").toLowerCase().split(/[,\s]+/).filter(Boolean)])];
 export const isAdmin = (u: any) => {
   const email = String(u?.email || "").toLowerCase();
   return !!email && !u?.removed_at && (fixedAdmins().includes(email) || extraAdmins.includes(email));
 };
 /** Top Admin：可以批准管理员申请，收到申请和 Google 同步出错的弹出通知 */
-export const topAdminEmails = () => topAdmins ?? FIRST_ADMINS;
+export const topAdminEmails = () => topAdmins ?? FIRST_ADMINS();
 export const isTopAdmin = (u: any) => isAdmin(u) && topAdminEmails().includes(String(u?.email || "").toLowerCase());
 export const canWhatsApp = (u: any) => isAdmin(u) || !!u?.wa_allowed;
 export const publicUser = (u: any) => ({ id: u.id, email: u.email, name: u.name, lang: u.lang || "en", admin: isAdmin(u), top: isTopAdmin(u),

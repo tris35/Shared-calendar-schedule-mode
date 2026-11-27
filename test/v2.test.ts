@@ -3,6 +3,7 @@
 import pg from "pg";
 Deno.env.set("API_BASE", "http://localhost:8081");
 Deno.env.set("ADMIN_EMAILS", "");
+Deno.env.set("FIRST_ADMIN_EMAILS", "first@test.com, second@test.com");
 const { handle } = await import("../supabase/functions/api/index.ts");
 
 const db = new pg.Client({ connectionString: Deno.env.get("TEST_DB_URL") });
@@ -23,7 +24,7 @@ async function call(token: string | null, method: string, path: string, body?: u
 const signup = async (email: string, name: string) => (await call(null, "POST", "auth/signup", { email, name, password: "abc123!" })).data;
 
 // 1. 注册后还没有日历 → 先走第一次登录的步骤
-const boss = await signup("szeweielsa@gmail.com", "Elsa");
+const boss = await signup("first@test.com", "Elsa");
 check("first admin is admin", boss.user.admin === true && boss.user.onboarded === false, boss.user);
 const B = boss.token;
 check("no calendar yet → events blocked", (await call(B, "GET", "events")).status === 409);

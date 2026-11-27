@@ -14,7 +14,7 @@ const server = Deno.serve({ port: PORT, onListen() {} }, (req) => {
   if (u.pathname.endsWith("/calendarList")) return Response.json({ items: [
     { id: "aaa-photo@group.calendar.google.com", summary: "拍摄", backgroundColor: "#f6bf26" },
     { id: "a@x.com", summary: "A", primary: true, backgroundColor: "#9fc6e7" },
-    // 别人共享过来、有修改权限的日历（例如 tlwcalender 共享给 tlwsalesmsg）
+    // 别人共享过来、有修改权限的日历（例如公司日历共享给同步用的帐号）
     ...(sharedOn ? [{ id: "team@x.com", summary: "Team", accessRole: "writer", backgroundColor: "#a4bdfc" }] : [])] });
   if (decodeURIComponent(u.pathname).includes("/calendars/team@x.com/events")) { calls.push({ cal: "team@x.com", q: u.searchParams }); return Response.json({ items: [
     { id: "t1", summary: "WM0222 选片", start: { dateTime: "2026-11-26T10:00:00+08:00" }, end: { dateTime: "2026-11-26T11:00:00+08:00" }, etag: "t1" }] }); }
