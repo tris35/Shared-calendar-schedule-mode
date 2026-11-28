@@ -44,7 +44,7 @@ button,select,input,textarea{font:inherit;color:inherit}
 .top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;justify-content:space-between;padding:18px 28px;padding-right:max(28px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(5,11,31,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);z-index:5}
 .top h1{margin:0;font-size:clamp(22px,2.6vw,32px);font-weight:700;letter-spacing:.02em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent;text-transform:uppercase}
 .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-.page{padding:28px;padding-right:max(28px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:22px;max-width:1240px;width:100%}
+.page{padding:28px;padding-right:max(28px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:22px;max-width:none;width:100%}
 .page.wide{max-width:none}
 .frame-page{padding:0;max-width:none;flex:1;display:flex}
 .frame-page iframe{border:0;width:100%;flex:1;min-height:calc(100vh - 1px);background:transparent}
