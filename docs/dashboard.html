@@ -3,6 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>
+// 外观：深色（默认）/ 浅色 / 自动（跟手机）。每个人自己的装置记住
+(function () {
+  var mq = window.matchMedia ? matchMedia("(prefers-color-scheme: light)") : null;
+  function apply() {
+    var p = "dark"; try { p = localStorage.getItem("theme") || "dark"; } catch (e) {}
+    var t = p === "auto" ? (mq && mq.matches ? "light" : "dark") : p;
+    document.documentElement.dataset.theme = t;
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = t === "light" ? "#f3f6fb" : "#050b1f";
+  }
+  apply(); window.applyTheme = apply;
+  if (mq && mq.addEventListener) mq.addEventListener("change", apply);
+  window.addEventListener("storage", function (e) { if (e.key === "theme") apply(); });
+})();
+</script>
 <title>Dashboard</title>
 <script src="config.js"></script>
 <script>if (new URLSearchParams(location.search).has('embed')) document.documentElement.classList.add('embed');</script>
@@ -472,6 +487,19 @@ h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);fo
   .evm-row{padding:10px 6px;gap:10px}
   .evm-main b{font-size:13.5px}
 }
+/* 浅色模式（白天）：三个品牌各自的浅色 */
+:root[data-theme="light"]{color-scheme:light}
+[data-theme="light"] .app[data-t="all"],[data-theme="light"] .app[data-t="Legends"]{--bg:#f3f6fb;--panel:#ffffff;--panel-2:rgba(37,99,235,.07);--line:rgba(15,23,42,.10);--side:#fff;--fg:#0f172a;--muted:#55657f}
+[data-theme="light"] .app[data-t="WM"]{--bg:#faf7f1;--panel:#ffffff;--panel-2:rgba(168,133,74,.10);--line:rgba(120,90,40,.16);--side:#fff;--fg:#2b2216;--muted:#7a6a52}
+[data-theme="light"] body,[data-theme="light"] .app{background:var(--bg)}
+[data-theme="light"] .card,[data-theme="light"] .kpi{box-shadow:0 8px 24px rgba(15,23,42,.08);backdrop-filter:none}
+[data-theme="light"] .app .title{background:linear-gradient(90deg,#0f172a 35%,#2563eb);-webkit-background-clip:text;background-clip:text;color:transparent}
+[data-theme="light"] .app .top h1{background:linear-gradient(90deg,#0f172a 35%,#2563eb);-webkit-background-clip:text;background-clip:text;color:transparent}
+[data-theme="light"] .kpi-val{color:var(--fg)}
+[data-theme="light"] .kpi.total .kpi-val,[data-theme="light"] .kpi.total .kpi-label,[data-theme="light"] .kpi.total .kpi-sub{color:#fff}
+[data-theme="light"] .sel,[data-theme="light"] .seg{background:#fff;color:var(--fg)}
+[data-theme="light"] .app .top,[data-theme="light"] .top{background:var(--bg);border-color:var(--line)}
+[data-theme="light"] .tour-tip{background:#fff;color:#0f172a}
 </style>
 
 </head>
