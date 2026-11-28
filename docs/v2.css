@@ -661,3 +661,16 @@ h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);fo
 .tl-ev span{opacity:.85}
 @media (max-width:860px){.chip{background:var(--c,#3b82f6);color:var(--ink,#fff)}}
 .sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--bg,#050b1f),0 0 0 4px #fff}
+
+/* 「确定要…吗？」弹窗 */
+dialog.confirm-dlg{max-width:min(380px,calc(100vw - 32px));width:100%;height:auto;max-height:none;margin:auto}
+.cf{padding:22px 22px 18px;text-align:center;align-items:center;gap:10px}
+.cf h2{margin:4px 0 0;font-size:18px;line-height:1.3}
+.cf p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.cf-ico{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#0ea5e9)}
+.cf-ico.bad{background:linear-gradient(135deg,#ef4444,#f97316)}
+.cf-ico svg{width:26px;height:26px;stroke:#fff;fill:none;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+.cf-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin-top:8px}
+.btn.danger-solid{background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 0 14px rgba(239,68,68,.45)}
+dialog.confirm-dlg{position:fixed;inset:0;margin:auto;max-height:fit-content}
+.cf p{text-transform:none}

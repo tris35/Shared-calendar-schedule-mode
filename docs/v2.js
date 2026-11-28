@@ -32,7 +32,16 @@ const T = {
   person_ic: ["负责人", "Person In Charge"], need_person: ["请选择负责人", "Please Choose The Person In Charge"], choose_person: ["选择负责人", "Choose Person"],
   loading: ["读取中…", "Loading…"],
   tick_type: ["类型", "Type"], need_ticks: ["请填好红色 * 的栏位", "Please fill in the fields marked *"],
-  time: ["时间", "Time"], photos_comments: ["照片和留言", "Photos & Comments"], add_post: ["加入", "Add"], add_title: ["加标题", "Add Title"], pick_tpl_first: ["先在上面选模板（选片 / 了解 / 普通）", "Choose a template above first"],
+  time: ["时间", "Time"],
+  cf_event: ["确定要删除这个活动吗？", "Delete this event?"], cf_event_t: ["「{n}」会放进回收站，5 天内可以复原；Google 日历里的这一笔也会删除。", "\"{n}\" goes to the Recycle Bin (restorable for 5 days) and is also deleted from Google Calendar."],
+  cf_comment: ["确定要删除这则留言吗？", "Delete this comment?"], cf_photo: ["确定要删除这张照片吗？", "Delete this photo?"], cf_cant_undo: ["删除后不能复原。", "This can't be undone."],
+  cf_person: ["确定要把 {n} 移出日历吗？", "Remove {n} from the calendar?"], cf_person_t: ["他就不能再看或编辑这个日历。", "They will no longer see or edit this calendar."],
+  cf_label: ["确定要删除标签「{n}」吗？", "Delete the label \"{n}\"?"], cf_label_t: ["用这个标签的活动会变成没有标签（活动不会被删除）。", "Events with this label lose the label (the events are not deleted)."],
+  cf_logout: ["确定要登出吗？", "Log out?"], cf_logout_t: ["下次要再输入 Gmail 和密码登录。", "You will need your Gmail and password to log in again."],
+  cf_invite: ["确定要停用邀请连结吗？", "Turn off the invite links?"], cf_invite_t: ["已经发出去的连结就不能再用来加入。", "Links already shared can no longer be used to join."], cf_invite_ok: ["停用", "Turn off"],
+  cf_admin: ["确定要移除 {n} 的管理员权限吗？", "Remove {n} as admin?"], cf_admin_t: ["他会变成一般成员。", "They become a normal member."],
+  cf_google: ["确定要中断 Google 日历连接吗？", "Disconnect Google Calendar?"], cf_google_t: ["App 和 Google 日历不会再同步（Google 上的活动不会被删除）。", "The app and Google Calendar stop syncing (nothing in Google is deleted)."], cf_google_ok: ["中断", "Disconnect"],
+  cf_reject: ["确定要拒绝这个申请吗？", "Reject this request?"], cf_reject_t: ["对方不会成为管理员。", "They will not become an admin."], photos_comments: ["照片和留言", "Photos & Comments"], add_post: ["加入", "Add"], add_title: ["加标题", "Add Title"], pick_tpl_first: ["先在上面选模板（选片 / 了解 / 普通）", "Choose a template above first"],
   search: ["搜索", "Search"], search_ph: ["搜索活动标题或备注…", "Search Event Title Or Notes…"], no_results: ["没有找到活动", "No Events Found"],
   nav_calendar: ["Calendar", "Calendar"], nav_photo: ["Photo Selection", "Photo Selection"], nav_sales: ["Sales Analysis", "Sales Analysis"],
   nav_rates: ["Rates 设置", "Rates"], nav_people: ["Label & People", "Label & People"], nav_activity: ["最新动态", "Activity"], analysis: ["Analysis", "Analysis"],
@@ -252,7 +261,23 @@ const state = {
 const isAdmin = () => !!state.me?.admin;
 const isTop = () => !!state.me?.top;
 const reqIdOf = (n) => (n.kind === "admin_request" && /^admin_request:(\d+)$/.test(n.ref || "") ? Number(n.ref.split(":")[1]) : null);
+// 「确定要…吗？」弹窗：删除、移除、登出、拒绝等动作之前都会先问
+function confirmBox({ title, text = "", ok, danger = true }) {
+  return new Promise((resolve) => {
+    let d = document.getElementById("confirm-dlg");
+    if (!d) { d = document.createElement("dialog"); d.id = "confirm-dlg"; d.className = "confirm-dlg"; document.body.append(d); }
+    d.innerHTML = `<form method="dialog" class="dlg cf"><div class="cf-ico${danger ? " bad" : ""}" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 6.5v7.5"/><circle cx="12" cy="18" r="1.4" fill="#fff" stroke="none"/></svg></div>
+      <h2>${esc(title)}</h2>${text ? `<p>${esc(text)}</p>` : ""}
+      <div class="cf-btns"><button class="btn ghost" value="no">${t("cancel")}</button><button class="btn${danger ? " danger-solid" : ""}" value="yes">${esc(ok)}</button></div></form>`;
+    d.onclose = () => resolve(d.returnValue === "yes");
+    d.onclick = (e) => { if (e.target === d) d.close("no"); };
+    d.returnValue = ""; d.showModal(); chime("bad");
+    d.querySelector('[value="no"]').focus();
+  });
+}
+window.confirmBox = confirmBox; // Dashboard（iframe）也用同一个
 async function decide(id, approve) {
+  if (!approve && !(await confirmBox({ title: t("cf_reject"), text: t("cf_reject_t"), ok: t("reject") }))) return false;
   try { await api(`/api/admin/requests/${id}`, { method: "POST", body: { approve } }); toast(t(approve ? "approved" : "rejected")); chime("ok"); pollNotes(); return true; }
   catch (e) { fail(e); return false; }
 }
@@ -517,7 +542,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=231"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=233"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -976,9 +1001,8 @@ function openLabelDlg(done, edit = null) {
       if (x.dataset.c) l.color = x.dataset.c; else l.template_id = x.dataset.t;
       draw();
     });
-    let armed = false;
-    $("#l-del", d)?.addEventListener("click", async (e) => {
-      if (!armed) { armed = true; e.target.classList.add("armed"); e.target.textContent = t("confirm_delete"); return; }
+    $("#l-del", d)?.addEventListener("click", async () => {
+      if (!(await confirmBox({ title: t("cf_label", { n: edit.name }), text: t("cf_label_t"), ok: t("delete") }))) return;
       try { const r = await api("/api/label-list", { method: "PUT", body: { labels: state.config.labelList.filter((x) => x.id !== edit.id) } }); state.config.labelList = r.labelList; d.close(); done?.(null); }
       catch (er) { fail(er); }
     });
@@ -1041,9 +1065,8 @@ function drawDetail() {
     ${canEdit() ? `<div class="dlg-foot"><button class="btn danger" id="d-del">${t("delete")}</button><span class="spacer"></span><button class="btn ghost" id="d-edit">${t("edit")}</button></div>` : ""}
   </div>`, (d) => {
     $("#d-edit", d)?.addEventListener("click", () => openForm(detail));
-    let armed = false;
-    $("#d-del", d)?.addEventListener("click", async (ev) => {
-      if (!armed) { armed = true; ev.target.classList.add("armed"); ev.target.textContent = t("confirm_delete"); chime("bad"); return; }
+    $("#d-del", d)?.addEventListener("click", async () => {
+      if (!(await confirmBox({ title: t("cf_event"), text: t("cf_event_t", { n: e.title }), ok: t("delete") }))) return;
       try { await api(`/api/events/${e.id}`, { method: "DELETE" }); d.close(); toast(t("deleted")); refreshCalendar(); } catch (er) { fail(er); }
     });
     $("#fix-tpl", d)?.addEventListener("click", (ev) => {
@@ -1066,6 +1089,8 @@ function drawDetail() {
     });
     d.querySelector(".feed").onclick = async (ev) => {
       const c = ev.target.closest("[data-del-comment]"), p = ev.target.closest("[data-del-photo]");
+      if (!c && !p) return;
+      if (!(await confirmBox({ title: t(c ? "cf_comment" : "cf_photo"), text: t("cf_cant_undo"), ok: t("delete") }))) return;
       try {
         if (c) await api(`/api/comments/${c.dataset.delComment}`, { method: "DELETE" });
         else if (p) await api(`/api/photos/${p.dataset.delPhoto}`, { method: "DELETE" });
@@ -1118,7 +1143,8 @@ async function renderPeople() {
     ${isAdmin() && p.id !== state.me.id ? `<button class="btn danger sm" data-rm="${p.id}">${t("remove")}</button>` : ""}</div>`).join("");
   $("#people").onclick = async (e) => {
     const b = e.target.closest("[data-rm]"); if (!b) return;
-    if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = t("confirm_remove"); chime("bad"); return; }
+    const who = b.closest(".person")?.querySelector("b")?.textContent || "";
+    if (!(await confirmBox({ title: t("cf_person", { n: who }), text: t("cf_person_t"), ok: t("remove") }))) return;
     try { await api(`/api/people/${b.dataset.rm}`, { method: "DELETE" }); toast(t("deleted")); renderPeople(); } catch (er) { fail(er); }
   };
 }
@@ -1226,7 +1252,7 @@ async function openSettings() {
       try { state.me = { ...state.me, ...(await api("/api/auth/me", { method: "PATCH", body: { timezone: e.target.value } })) }; toast(t("saved")); refreshCalendar(); } catch (er) { fail(er); }
     };
     $("#s-cal", d)?.addEventListener("change", async (e) => { store.set("cal", e.target.value); d.close(); await loadConfig(); state.cursor = null; renderApp(); });
-    $("#s-logout", d).onclick = () => { store.set("token", null); store.set("cal", null); d.close(); Object.assign(ob, { step: 0, emoji: null }); boot(); };
+    $("#s-logout", d).onclick = async () => { if (!(await confirmBox({ title: t("cf_logout"), text: t("cf_logout_t"), ok: t("logout"), danger: false }))) return; store.set("token", null); store.set("cal", null); d.close(); Object.assign(ob, { step: 0, emoji: null }); boot(); };
     if (isAdmin()) wireAdmin(d); else drawApply(d);
   });
 }
@@ -1263,10 +1289,9 @@ function wireAdmin(d) {
       $("[data-copy]", row).onclick = async () => { try { await navigator.clipboard.writeText(url); toast(t("copied")); } catch { $("input", row).select(); } };
     } catch (e) { fail(e); }
   }));
-  let armed = false;
   $("#inv-revoke", d).onclick = async (e) => {
-    if (!armed) { armed = true; e.target.classList.add("armed"); chime("bad"); return; }
-    try { await api(`/api/calendars/${store.get("cal")}/invite`, { method: "DELETE" }); $("#inv-out", d).innerHTML = ""; toast(t("saved")); e.target.classList.remove("armed"); armed = false; } catch (er) { fail(er); }
+    if (!(await confirmBox({ title: t("cf_invite"), text: t("cf_invite_t"), ok: t("cf_invite_ok") }))) return;
+    try { await api(`/api/calendars/${store.get("cal")}/invite`, { method: "DELETE" }); $("#inv-out", d).innerHTML = ""; toast(t("saved")); } catch (er) { fail(er); }
   };
 }
 async function drawStorage(d) {
@@ -1309,7 +1334,8 @@ async function drawAdmins(d) {
         return;
       }
       const b = e.target.closest("[data-unadmin]"); if (!b) return;
-      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = t("confirm_remove"); return; }
+      const who = b.closest(".row,div")?.querySelector("b")?.textContent || "";
+      if (!(await confirmBox({ title: t("cf_admin", { n: who }), text: t("cf_admin_t"), ok: t("remove") }))) return;
       try { await api(`/api/admin/list/${b.dataset.unadmin}`, { method: "DELETE" }); drawAdmins(d); } catch (er) { fail(er); }
     };
   } catch (e) { box.textContent = e.message; }
@@ -1337,9 +1363,8 @@ async function drawGoogle(d) {
     };
   } catch (e) { $("#g-cals", box).textContent = e.message; }
   $("#g-sync", box).onclick = () => syncNow(box);
-  let armed = false;
-  $("#g-off", box).onclick = async (e) => {
-    if (!armed) { armed = true; e.target.classList.add("armed"); chime("bad"); return; }
+  $("#g-off", box).onclick = async () => {
+    if (!(await confirmBox({ title: t("cf_google"), text: t("cf_google_t"), ok: t("cf_google_ok") }))) return;
     try { await api("/api/google/disconnect", { method: "POST", body: {} }); drawGoogle(d); } catch (er) { fail(er); }
   };
 }

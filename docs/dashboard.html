@@ -1396,8 +1396,14 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     if ((el = t('[data-hist]'))) { sfx.tick(); const k = el.dataset.hist; ui.hist.has(k) ? ui.hist.delete(k) : ui.hist.add(k); ui.armed = null; renderRates(); return; }
     if ((el = t('[data-del]'))) {
       const k = el.dataset.del;
-      if (ui.armed !== k) { sfx.blip(); ui.armed = k; renderRates(); return; }
-      ui.armed = null; const [b, cat, from] = k.split('|'); deleteRate(b, cat, from); return;
+      const [b, cat, from] = k.split('|');
+      // 先问「确定要删除吗？」（用网站同一个弹窗）
+      const ask = window.parent?.confirmBox;
+      const lang = new URLSearchParams(location.search).get('lang') || 'zh';
+      const title = lang === 'en' ? `Delete this rate (${b}, from ${fmtDate(from)})?` : `确定要删除这个 Rate（${b}，${fmtDate(from)} 起）吗？`;
+      const text = lang === 'en' ? 'Events on those dates will use the previous rate.' : '那些日期的活动会改用之前的 Rate。';
+      Promise.resolve(ask ? ask({ title, text, ok: lang === 'en' ? 'Delete' : '删除' }) : window.confirm(title)).then((yes) => { if (yes) deleteRate(b, cat, from); });
+      return;
     }
     if ((el = t('[data-save]'))) {
       const card = el.closest('.rate-card'), [b, cat] = card.dataset.key.split('|');
