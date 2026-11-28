@@ -825,9 +825,9 @@ export async function cancelSignup(id: number) {
   return (await sql`DELETE FROM users WHERE id = ${id} AND NOT onboarded AND removed_at IS NULL
     AND NOT EXISTS (SELECT 1 FROM calendar_members WHERE user_id = ${id}) RETURNING id`).length > 0;
 }
-/** 注册后超过 1 天还没完成设定的帐号 → 删掉（Gmail 空出来，可以重新注册） */
+/** 注册后超过 1 小时还没完成设定的帐号（例如手机没电、网页没正常关掉） → 删掉（Gmail 空出来，可以重新注册） */
 export async function dropUnfinishedSignups() {
-  return (await sql`DELETE FROM users u WHERE NOT u.onboarded AND u.removed_at IS NULL AND u.created_at < NOW() - INTERVAL '1 day'
+  return (await sql`DELETE FROM users u WHERE NOT u.onboarded AND u.removed_at IS NULL AND u.created_at < NOW() - INTERVAL '1 hour'
     AND NOT EXISTS (SELECT 1 FROM calendar_members WHERE user_id = u.id) RETURNING id`).length;
 }
 // ---- 头像照片 ----

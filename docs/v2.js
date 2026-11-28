@@ -476,6 +476,13 @@ const untaggedEv = (e) => !e.template_id && !e.birthday_user_id && ymdIn(e.start
 
 // ---------------- 启动 ----------------
 async function boot() {
+  // 上次注册到一半就关掉 / 重新整理 → 那个帐号不算注册，删掉后回登录页
+  const pend = store.get("ob-pending");
+  if (pend) {
+    store.set("ob-pending", null);
+    if (token() === pend) { store.set("token", null); store.set("cal", null); }
+    await fetch(`${API_BASE}/api/auth/cancel`, { method: "POST", body: JSON.stringify({ token: pend }) }).catch(() => {});
+  }
   const qs = new URLSearchParams(location.search);
   if (qs.get("join")) store.set("join", qs.get("join"));
   if (qs.get("google_error")) setTimeout(() => toast(qs.get("google_error"), true), 600);
@@ -580,8 +587,15 @@ async function authSubmit(mode) {
 
 // ================= 第一次登录的步骤 =================
 const ob = { step: 0, emoji: null, color: null, photo: null, name: "", bm: "", bd: "", calMode: "create", calName: "", link: "" };
+let obLive = false; // 正在注册设定中（还没按「完成」）
+// 没完成注册就关掉 / 离开网页 → 这个帐号马上删掉（不算注册）
+window.addEventListener("pagehide", () => {
+  if (!obLive || !token()) return;
+  try { navigator.sendBeacon(`${API_BASE}/api/auth/cancel`, JSON.stringify({ token: token() })); } catch {}
+  store.set("token", null); store.set("cal", null);
+});
 function renderOnboarding() {
-  stopLoops(); helloNext = false;
+  stopLoops(); helloNext = false; obLive = true; store.set("ob-pending", token());
   if (ob.step === 0 && !ob.emoji) {
     Object.assign(ob, { emoji: state.me.emoji || EMOJIS[Math.floor(Math.random() * 20)], color: state.me.color || PROFILE_COLORS[0], name: state.me.name || "", photo: state.me.avatar || null });
     const j = store.get("join"); if (j) { ob.calMode = "join"; ob.link = j; }
@@ -604,7 +618,7 @@ function renderOnboarding() {
         : `<div class="field"><label for="ob-link">${t("invite_link")}</label><input class="input" id="ob-link" value="${esc(ob.link)}"></div>`}`}`,
   ][ob.step]();
   $("#root").innerHTML = `<div class="gate"><div class="gate-card wide" id="ob">
-    <button type="button" class="linkish ob-out" data-ob="login">‹ ${t("back_login")}</button><div class="steps">${steps}</div>${body}<p class="err" id="ob-err"></p>
+    ${ob.step === 0 ? `<button type="button" class="linkish ob-out" data-ob="login">‹ ${t("back_login")}</button>` : ""}<div class="steps">${steps}</div>${body}<p class="err" id="ob-err"></p>
     <div class="row" style="justify-content:space-between">
       ${ob.step ? `<button type="button" class="btn ghost" data-ob="back">${t("back")}</button>` : "<span></span>"}
       <div class="row">${ob.step === 2 ? `<button type="button" class="btn ghost" data-ob="skip">${t("skip")}</button>` : ""}
@@ -639,9 +653,9 @@ async function avEditClick(e, onPick, onRemove) {
   if (pick?.dataset.avpick === "rm") return onRemove();
   const d = await pickAvatarPhoto(); if (d) onPick(d);
 }
-// 注册到一半按「返回登录」：问一下 → 删掉这个还没完成的帐号（Gmail 和密码都不算注册）→ 回登录页
+// 注册到一半按「返回登录」：直接删掉这个还没完成的帐号（Gmail 和密码都不算注册）→ 回登录页
 async function cancelSignup() {
-  if (!(await confirmBox({ title: t("cf_cancel_signup"), text: t("cf_cancel_signup_t"), ok: t("back_login") }))) return;
+  obLive = false; store.set("ob-pending", null);
   try { await api("/api/auth/me", { method: "DELETE" }); } catch (e) { return fail(e); }
   clearDataCache(); store.set("token", null); store.set("cal", null); Object.assign(ob, { step: 0, emoji: null, photo: null });
   boot();
@@ -677,6 +691,7 @@ async function obNext() {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, lang, onboarded: true } })) };
     if (ob.photo?.startsWith("data:")) state.me = { ...state.me, ...(await api("/api/auth/me/avatar", { method: "PUT", body: { data: ob.photo } })) };
     else if (!ob.photo && state.me.avatar) state.me = { ...state.me, ...(await api("/api/auth/me/avatar", { method: "DELETE" })) };
+    obLive = false; store.set("ob-pending", null);
     welcome();
   } catch (e) { err(e.message); btn.disabled = false; }
 }
@@ -750,7 +765,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=246"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=247"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);

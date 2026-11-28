@@ -80,6 +80,12 @@ export async function handleApi(req: Request): Promise<Response> {
       }
       if (seg[1] === "forgot") return Response.json(await forgotPassword(await body(), lang));
       if (seg[1] === "reset") return Response.json(await resetPassword(await body()));
+      // 注册到一半关掉网页：浏览器关闭时用 sendBeacon 送来（不能带标头，所以登录凭证放在内容里）
+      if (seg[1] === "cancel") {
+        const tok = String((await body()).token || "");
+        const u: any = await currentUser(new Request(req.url, { headers: { authorization: `Bearer ${tok}` } }), url).catch(() => null);
+        return Response.json({ ok: !!u && !u.onboarded && (await db.cancelSignup(u.id)) });
+      }
     }
     // Google 推送通知：Google 日历有变更 → 马上读回 App
     if (seg[0] === "google" && seg[1] === "push" && method === "POST") {
