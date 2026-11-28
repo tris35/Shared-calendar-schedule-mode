@@ -509,7 +509,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=221"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=222"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -532,13 +532,13 @@ async function renderCalendar() {
   state.cursor ||= ymdIn(Date.now()).slice(0, 7);
   state.sel ||= ymdIn(Date.now());
   const [y, m] = state.cursor.split("-").map(Number);
-  const monthName = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(loc(), { year: "numeric", month: "long", timeZone: "UTC" });
+  const monthName = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(loc(), { year: "numeric", month: PHONE() ? "short" : "long", timeZone: "UTC" }); // 手机：Nov 2026
   $("#main").innerHTML = topBar(t("nav_calendar"), `<button class="btn ghost search-btn" id="search-btn" aria-label="${t("search")}">${ICON.search}<span class="t">${t("search")}</span></button>` + (canEdit() ? `<button class="icon-btn" id="trash-btn" aria-label="${t("trash")}" title="${t("trash")}">${ICON.trash}</button><button class="btn" id="new-ev" aria-label="${t("new_event")}">${ICON.plus}<span class="t">${t("new_event")}</span></button>` : "")) + `
     <section class="page wide">
       <button class="warn-bar" id="untag-bar" hidden></button>
       <div class="cal-head">
         <button class="icon-btn" id="prev" aria-label="‹">${ICON.left}</button>
-        <div class="cal-month">${esc(monthName)}</div>
+        <div class="cal-month" id="cal-month" title="${t("today")}">${esc(monthName)}</div>
         <button class="icon-btn" id="next" aria-label="›">${ICON.right}</button>
         <button class="btn ghost sm" id="today">${t("today")}</button>
       </div>
@@ -552,6 +552,12 @@ async function renderCalendar() {
   $("#trash-btn")?.addEventListener("click", openTrash);
   $("#search-btn").addEventListener("click", openSearch);
   $("#untag-bar").onclick = openUntagged;
+  // 手机：上面那排图示（搜索、回收站、新增、通知）搬进月份那一排，少一排；点月份 = 回到今天
+  if (PHONE()) {
+    const head = $(".cal-head"), ctr = $(".top .controls");
+    if (head && ctr) { ctr.classList.add("cal-tools"); head.append(ctr); $(".top")?.remove(); }
+    $("#cal-month").onclick = () => $("#today").click();
+  }
   drawGrid();
   await loadMonth();
   loadUntagged();

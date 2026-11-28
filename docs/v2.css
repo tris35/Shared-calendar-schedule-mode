@@ -540,3 +540,19 @@ h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);fo
   .cal-grid,.card{border-radius:24px}
   .top{border-bottom:none}
 }
+
+/* 手机 / App 日历：一排就好 —— ‹ Nov 2026 › 加上右边的图示；点月份回到今天；提醒变成细细一条；整个月放得下 */
+@media (max-width:860px){
+  .cal-head{flex-wrap:nowrap;gap:4px;padding-top:calc(env(safe-area-inset-top,0px) + 4px)}
+  .cal-head > .icon-btn{width:32px;height:32px}
+  .cal-month{font-size:17px;cursor:pointer;padding:0 2px}
+  #today{display:none}
+  .cal-tools{margin-left:auto;display:flex;gap:5px;flex:none}
+  .cal-tools .btn,.cal-tools .icon-btn{width:34px;height:34px;padding:0;justify-content:center}
+  .cal-tools svg{width:17px;height:17px}
+  .warn-bar{padding:7px 12px;font-size:12.5px;border-radius:10px;flex-wrap:nowrap}
+  .warn-bar span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .page.wide{padding-top:8px;gap:10px}
+  .cal-cell{min-height:58px}
+}
+@media (max-width:860px){.cal-tools .t{display:none}.cal-tools .search-btn{gap:0}}
