@@ -626,3 +626,12 @@ h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);fo
   .ef-row .input{max-width:62%}
   .ef-sec{padding:14px 0}
 }
+
+/* 活动表单：自己的图示风格 —— 圆角渐层小方块（跟 Dashboard 卡片的图示一样），每段一个颜色，旁边有小标题 */
+.ef-sec{grid-template-columns:34px minmax(0,1fr)}
+.ef-ico{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;padding:0;color:#fff;box-shadow:0 6px 16px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.25)}
+.ef-ico svg{width:18px;height:18px;stroke:#fff;stroke-width:2}
+.ef-time .ef-ico{background:linear-gradient(135deg,#2563eb,#22d3ee)}
+.ef-label .ef-ico{background:linear-gradient(135deg,#8b5cf6,#ec4899)}
+.ef-note .ef-ico{background:linear-gradient(135deg,#0d9488,#34d399)}
+.ef-cap{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);line-height:34px;margin-bottom:-6px}

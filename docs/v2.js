@@ -32,7 +32,7 @@ const T = {
   person_ic: ["负责人", "Person In Charge"], need_person: ["请选择负责人", "Please Choose The Person In Charge"], choose_person: ["选择负责人", "Choose Person"],
   loading: ["读取中…", "Loading…"],
   tick_type: ["类型", "Type"], need_ticks: ["请填好红色 * 的栏位", "Please fill in the fields marked *"],
-  add_title: ["加标题", "Add Title"], pick_tpl_first: ["先在上面选模板（选片 / 了解 / 普通）", "Choose a template above first"],
+  time: ["时间", "Time"], add_title: ["加标题", "Add Title"], pick_tpl_first: ["先在上面选模板（选片 / 了解 / 普通）", "Choose a template above first"],
   search: ["搜索", "Search"], search_ph: ["搜索活动标题或备注…", "Search Event Title Or Notes…"], no_results: ["没有找到活动", "No Events Found"],
   nav_calendar: ["Calendar", "Calendar"], nav_photo: ["Photo Selection", "Photo Selection"], nav_sales: ["Sales Analysis", "Sales Analysis"],
   nav_rates: ["Rates 设置", "Rates"], nav_people: ["Label & People", "Label & People"], nav_activity: ["最新动态", "Activity"], analysis: ["Analysis", "Analysis"],
@@ -513,7 +513,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=227"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=228"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -851,16 +851,18 @@ function drawForm() {
         <input class="ef-title" id="f-title" maxlength="300" value="${esc(f.title)}" placeholder="${t("add_title")}" aria-label="${t("title")}">
         <div class="ef-tpls" role="group" aria-label="${t("template")}">${(state.config.templates || []).map((x) => `<button type="button" class="ef-tpl" data-tpl="${x.id}" aria-pressed="${f.template_id === x.id}">${esc(tplName(x))}</button>`).join("")}</div>
       </section>
-      <section class="ef-sec"><span class="ef-ico" aria-hidden="true">${ICON.clock}</span><div class="ef-main">
+      <section class="ef-sec ef-time"><span class="ef-ico" aria-hidden="true">${ICON.clock}</span><div class="ef-main">
+        <span class="ef-cap">${t("time")}</span>
         <label class="ef-switch"><span>${t("all_day")}</span><input type="checkbox" id="f-allday" ${f.all_day ? "checked" : ""}><i aria-hidden="true"></i></label>
         <div class="ef-row"><label for="f-date">${t("date")}</label><input class="input" type="date" id="f-date" value="${f.date}"></div>
         ${f.all_day ? "" : `<div class="ef-row"><label for="f-st">${t("start")}</label><input class="input" type="time" id="f-st" value="${f.st}"></div>
         <div class="ef-row"><label for="f-et">${t("end")}</label><input class="input" type="time" id="f-et" value="${f.et}"></div>`}
       </div></section>
-      <section class="ef-sec"><span class="ef-ico" aria-hidden="true">${ICON.rates}</span><div class="ef-main" id="tpl-box">
+      <section class="ef-sec ef-label"><span class="ef-ico" aria-hidden="true">${ICON.rates}</span><div class="ef-main" id="tpl-box">
         <span class="ef-cap">${t("label")}</span>${efLabels(f, true)}
       </div></section>
-      <section class="ef-sec"><span class="ef-ico" aria-hidden="true">${ICON.note}</span><div class="ef-main">
+      <section class="ef-sec ef-note"><span class="ef-ico" aria-hidden="true">${ICON.note}</span><div class="ef-main">
+        <span class="ef-cap">${t("notes")}</span>
         <textarea class="input ef-notes" id="f-notes" maxlength="5000" placeholder="${t("notes")}" aria-label="${t("notes")}">${esc(f.notes)}</textarea>
       </div></section>
       <p class="err" id="f-err"></p>
