@@ -41,6 +41,7 @@ async function birthdays() {
 /** 回收站超过 5 天的活动：真的删掉（连照片档案） */
 async function purgeTrash() {
   try { for (const k of await db.purgeTrash()) await deletePhotoData(k); } catch (e) { console.error("[回收站]", e); }
+  try { await db.dropUnfinishedSignups(); } catch (e) { console.error("[没完成的注册]", e); }
 }
 
 async function cronAllowed(req: Request) {

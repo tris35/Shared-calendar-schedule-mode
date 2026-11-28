@@ -21,7 +21,7 @@ const T = {
   login: ["登录", "Log in"], signup: ["注册", "Sign up"], email: ["Gmail", "Gmail"], password: ["密码", "Password"],
   forgot: ["忘记密码？", "Forgot password?"], have_acct: ["已有帐号？登录", "Have an account? Log in"], no_acct: ["还没有帐号？注册", "No account? Sign up"],
   pw_rule: ["密码至少 6 个字，并包含 1 个特殊符号", "At least 6 characters with 1 symbol"], bad_email: ["请输入正确的 Gmail 地址", "Enter a valid Gmail address"],
-  send_code: ["寄验证码", "Send code"], code: ["验证码", "Code"], new_pw: ["新密码", "New password"], reset: ["重设密码", "Reset password"], back: ["返回", "Back"], back_login: ["返回登录", "Back to Log In"],
+  send_code: ["寄验证码", "Send code"], code: ["验证码", "Code"], new_pw: ["新密码", "New password"], reset: ["重设密码", "Reset password"], back: ["返回", "Back"], back_login: ["返回登录", "Back to Log In"], cf_cancel_signup: ["取消注册？", "Cancel sign-up?"], cf_cancel_signup_t: ["这个 Gmail 和密码不会被注册，以后可以重新注册。", "This Gmail and password won't be registered. You can sign up again later."],
   code_sent: ["验证码已寄出", "Code sent"],
   ob_look: ["选择你的头像", "Choose your avatar"], ob_look_t: ["点头像上的 ✏️ 上传照片，或选 Emoji 和颜色", "Tap ✏️ on the picture to upload a photo, or pick an emoji and colour"],
   upload_photo: ["上传照片", "Upload Photo"], edit_photo: ["编辑头像", "Edit avatar"], profile_pic: ["头像照片", "Profile photo"], bg_colour: ["背景颜色", "Background colour"], change_photo: ["换照片", "Change Photo"], remove_photo: ["移除照片", "Remove Photo"],
@@ -604,9 +604,9 @@ function renderOnboarding() {
         : `<div class="field"><label for="ob-link">${t("invite_link")}</label><input class="input" id="ob-link" value="${esc(ob.link)}"></div>`}`}`,
   ][ob.step]();
   $("#root").innerHTML = `<div class="gate"><div class="gate-card wide" id="ob">
-    <div class="steps">${steps}</div>${body}<p class="err" id="ob-err"></p>
+    <button type="button" class="linkish ob-out" data-ob="login">‹ ${t("back_login")}</button><div class="steps">${steps}</div>${body}<p class="err" id="ob-err"></p>
     <div class="row" style="justify-content:space-between">
-      ${ob.step ? `<button type="button" class="btn ghost" data-ob="back">${t("back")}</button>` : `<button type="button" class="btn ghost" data-ob="login">${t("back_login")}</button>`}
+      ${ob.step ? `<button type="button" class="btn ghost" data-ob="back">${t("back")}</button>` : "<span></span>"}
       <div class="row">${ob.step === 2 ? `<button type="button" class="btn ghost" data-ob="skip">${t("skip")}</button>` : ""}
       <button type="button" class="btn" data-ob="next">${ob.step === 3 ? t("done") : t("next")}</button></div>
     </div></div></div>`;
@@ -620,7 +620,7 @@ function renderOnboarding() {
     if (x.dataset.cm) ob.calMode = x.dataset.cm;
     if (x.dataset.ob === "back") ob.step--;
     // 第一步不想继续 → 回登录页（帐号已经建好，下次登录会从这里继续）
-    if (x.dataset.ob === "login") { clearDataCache(); store.set("token", null); store.set("cal", null); Object.assign(ob, { step: 0, emoji: null, photo: null }); return boot(); }
+    if (x.dataset.ob === "login") return void cancelSignup();
     if (x.dataset.ob === "skip") { ob.bm = ob.bd = ""; ob.step++; }
     if (x.dataset.ob === "next") return obNext();
     renderOnboarding();
@@ -638,6 +638,13 @@ async function avEditClick(e, onPick, onRemove) {
   if (menu) menu.hidden = true;
   if (pick?.dataset.avpick === "rm") return onRemove();
   const d = await pickAvatarPhoto(); if (d) onPick(d);
+}
+// 注册到一半按「返回登录」：问一下 → 删掉这个还没完成的帐号（Gmail 和密码都不算注册）→ 回登录页
+async function cancelSignup() {
+  if (!(await confirmBox({ title: t("cf_cancel_signup"), text: t("cf_cancel_signup_t"), ok: t("back_login") }))) return;
+  try { await api("/api/auth/me", { method: "DELETE" }); } catch (e) { return fail(e); }
+  clearDataCache(); store.set("token", null); store.set("cal", null); Object.assign(ob, { step: 0, emoji: null, photo: null });
+  boot();
 }
 function bdSelects(m, d, id = "ob") {
   const days = m ? new Date(Date.UTC(2024, Number(m), 0)).getUTCDate() : 31;
@@ -743,7 +750,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=245"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=246"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);

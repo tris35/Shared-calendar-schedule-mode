@@ -184,6 +184,11 @@ export async function handleApi(req: Request): Promise<Response> {
         return Response.json({ ...publicUser(me), avatar: await avatarUrl(me), google: link ? { gmail: link.gmail, appCalendarId: link.app_calendar_id ?? null, calendarName: link.calendar_name || desc(normLang(me.lang), "calendar") } : null });
       }
       // 头像照片：上传（App 已经裁成正方形、缩小）/ 移除
+      // 注册到一半按「返回登录」→ 这个帐号不算注册（只限还没完成设定的帐号）
+      if (seg[1] === "me" && !seg[2] && method === "DELETE") {
+        if (me.onboarded) throw new Error("帐号已经完成设定，不能这样删除");
+        return Response.json({ ok: await db.cancelSignup(me.id) });
+      }
       if (seg[1] === "me" && seg[2] === "avatar" && method === "PUT") {
         const m = /^data:(image\/(?:webp|jpeg|png));base64,([A-Za-z0-9+/=]+)$/.exec(String((await body()).data || ""));
         if (!m) throw new Error("照片格式不支持");

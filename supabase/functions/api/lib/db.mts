@@ -820,6 +820,16 @@ export async function setProfile(id: number, p: { name?: string; emoji?: string 
     timezone = ${v("timezone")}, onboarded = ${v("onboarded")} WHERE id = ${id}`;
   return getUser(id);
 }
+// ---- 注册到一半就退出：帐号不算数（还没完成第一次设定、没有加入任何日历） ----
+export async function cancelSignup(id: number) {
+  return (await sql`DELETE FROM users WHERE id = ${id} AND NOT onboarded AND removed_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM calendar_members WHERE user_id = ${id}) RETURNING id`).length > 0;
+}
+/** 注册后超过 1 天还没完成设定的帐号 → 删掉（Gmail 空出来，可以重新注册） */
+export async function dropUnfinishedSignups() {
+  return (await sql`DELETE FROM users u WHERE NOT u.onboarded AND u.removed_at IS NULL AND u.created_at < NOW() - INTERVAL '1 day'
+    AND NOT EXISTS (SELECT 1 FROM calendar_members WHERE user_id = u.id) RETURNING id`).length;
+}
 // ---- 头像照片 ----
 export async function setAvatar(userId: number, data: Uint8Array, mime: string) {
   await sql`INSERT INTO user_avatars (user_id, data, mime, updated_at) VALUES (${userId}, ${data}, ${mime}, NOW())
