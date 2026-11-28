@@ -676,7 +676,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
       if (cat === 'photo') {
         for (const b of brandsNow()) { const v = Number(f.brand?.[b]) || 0; byBrand[b].amt = r2(byBrand[b].amt + v); fixedAmt = r2(fixedAmt + v); }
         for (const x of f.people || []) {
-          if (state.brand !== 'all' && x.brand !== state.brand) continue;
+          if (x.brand ? x.brand !== state.brand : state.brand !== 'all') continue;
           const p = (people[x.person] ??= { person: x.person, a: 0, b: 0, amount: 0 });
           p.fixed = true; if (p.amount != null) p.amount = r2(p.amount + (Number(x.amount) || 0));
         }
@@ -1040,7 +1040,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     const bs = brandsNow(), total = r2(bs.reduce((t, b) => t + (Number(f.brand?.[b]) || 0), 0));
     const [rv, rs] = fixedRateKpi(f.rate);
     $('p-rate').innerHTML = esc(rv); $('p-rate-sub').textContent = rs;
-    const rows = (f.people || []).filter((x) => state.brand === 'all' || x.brand === state.brand).map((x) => ({ person: x.person, amount: Number(x.amount) || 0, n: x.n ?? null }));
+    const rows = (f.people || []).filter((x) => (x.brand ? x.brand === state.brand : state.brand === 'all')).map((x) => ({ person: x.person, amount: Number(x.amount) || 0, n: x.n ?? null }));
     const n = rows.some((r) => r.n != null) ? rows.reduce((t, r) => t + (r.n || 0), 0) : null;
     $('p-non').textContent = n == null ? '—' : int(n);
     $('p-non-sub').textContent = n == null ? '固定数据 · 没有场次明细' : `${int(n)} Events · 固定数据`;
@@ -1051,9 +1051,9 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     $('p-donut-sub').textContent = `${periodLabel()} · 固定数据`;
     amountBars($('p-chart'), rows, '这个月只有品牌总数（固定数据），没有每个人的明细。');
     $('p-rows').innerHTML = rows.length
-      ? rows.map((r) => `<tr><td>${esc(r.person)}</td><td>${r.n == null ? dash : int(r.n)}</td><td class="soft">${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${dash}</td><td class="bill amt"><span class="op">=</span>${esc(money(r.amount))}</td></tr>`).join('')
+      ? rows.map((r) => `<tr><td>${esc(r.person)}</td><td>${r.n == null ? '' : int(r.n)}</td><td class="soft">${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${dash}</td><td class="bill amt"><span class="op">=</span>${esc(money(r.amount))}</td></tr>`).join('')
       : '<tr><td colspan="6" style="text-align:left;color:var(--muted)">这个月只有品牌总数（固定数据），没有每个人的明细。</td></tr>';
-    $('p-foot').innerHTML = `<tr><td>合计</td><td>${n == null ? dash : int(n)}</td><td class="soft">${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${dash}</td><td class="bill amt"><span class="op">=</span>${esc(money(total))}</td></tr>`;
+    $('p-foot').innerHTML = `<tr><td>合计</td><td>${n == null ? '' : int(n)}</td><td class="soft">${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${dash}</td><td class="bill amt"><span class="op">=</span>${esc(money(total))}</td></tr>`;
   }
   function renderSalesFixed(m) {
     const f = fx(m).sales || { people: [], rate: {} };
