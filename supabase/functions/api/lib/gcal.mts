@@ -498,9 +498,11 @@ async function pullOnce(userId: number, siteUrl: string, deadline: number) {
   try {
     const cals = (await refreshCalendars(l)).filter((c: any) => c.enabled)
       .sort((a: any, b: any) => Number(b.calendar_id === l.calendar_id) - Number(a.calendar_id === l.calendar_id)); // 主日历先读
-    // 几个日历同时读（比一个一个读快）；有一个没读完 → 下次继续
-    const results = await Promise.all(cals.map((cal: any) => (Date.now() > deadline ? Promise.resolve(false) : pullCalendar(ctx, cal))));
-    if (results.some((ok) => !ok)) done = false;
+    // 一个一个日历读（同时读的话，两个日历里一样的活动可能被同时建立两次）
+    for (const cal of cals) {
+      if (Date.now() > deadline) { done = false; break; }
+      if (!(await pullCalendar(ctx, cal))) { done = false; break; } // 还没读完 → 下次继续
+    }
     if (done) await db.setLinkSync(userId, { sync_token: "multi" }); // 旧栏位：标记已读过
     await db.applyCalendarColors(userId); // 刚读进来的行程也用日历颜色
     // 推给其他人的 Google 日历（这个人的 Google 本来就有这一笔，不用再写，否则会重复）
@@ -535,6 +537,7 @@ async function pullCalendar(ctx: any, cal: any) {
   const timeMin = new Date(Math.max(SYNC_FROM, passStart - WINDOW_PAST_DAYS * 86400_000)).toISOString();
   const timeMax = new Date(passStart + WINDOW_AHEAD_DAYS * 86400_000).toISOString();
   const known = new Map<string, any>((await db.listCalMappings(userId, calId)).map((m: any) => [m.google_event_id, m]));
+  const twins = new Map<string, any>((await db.listTwins(userId, calId)).map((t: any) => [t.google_event_id, t])); // 另一个日历已经有一样的 → 不重复显示
   for (;;) {
     const q = new URLSearchParams({ maxResults: "2500", singleEvents: "true", timeMin, timeMax }); // 一次最多 2500 笔：少几趟来回，比较快
     if (pageToken) q.set("pageToken", pageToken);
@@ -568,6 +571,13 @@ async function pullCalendar(ctx: any, cal: any) {
         if (Object.keys(diff).length) { await db.updateEvent(map.event_id, diff, who); ctx.touched.add(map.event_id); ctx.updated++; }
         continue;
       }
+      // 双胞胎：另一个 Google 日历已经有一样的活动 → App 不重复显示（Google 不动）；这一笔在 Google 被改得不一样了 → 才显示
+      const tw = twins.get(ev.id);
+      if (tw) {
+        if (tw.etag && tw.etag === ev.etag) continue;
+        if (await db.sameAsEvent(tw.event_id, fromGoogle(ev, tz, false))) { await db.addTwin(userId, calId, ev.id, tw.event_id, ev.etag); continue; }
+        await db.removeTwin(userId, calId, ev.id); twins.delete(ev.id);
+      }
       // 本来就是 App 写进 Google 的行程，只是对应不见了 → 接回去（不重复建立）
       const own = ev.extendedProperties?.private?.familyCalendarId;
       const ownEv: any = own ? await db.getEvent(Number(own)) : null;
@@ -581,6 +591,9 @@ async function pullCalendar(ctx: any, cal: any) {
       if (dup) { known.set(ev.id, { event_id: dup.event_id, etag: dup.etag }); continue; }
       // 没有对应：是在 Google 新增的 → 放进他选的 App 日历
       const fg = fromGoogle(ev, tz, true);
+      // 另一个 Google 日历已经有一模一样的（同标题、同时间）→ 记成双胞胎，不重复建立
+      const twin: any = await db.findTwinEvent(userId, calId, l.app_calendar_id, fg);
+      if (twin) { await db.addTwin(userId, calId, ev.id, twin.id, ev.etag); twins.set(ev.id, { event_id: twin.id, etag: ev.etag }); continue; }
       // Google 上的颜色 → 自动套用网站里同一个颜色的标签
       const lab = labelForGoogleColor(await labelsOf(l.app_calendar_id), fg.label);
       const e = await db.createEvent({ ...fg, ...(lab ? { label: lab.color } : {}), remind: true, calendar_id: l.app_calendar_id }, who);

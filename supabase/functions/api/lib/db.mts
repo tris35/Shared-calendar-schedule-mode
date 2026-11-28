@@ -445,6 +445,32 @@ export async function takePullLease(userId: number) {
 export async function extendPullLease(userId: number) {
   await sql`UPDATE google_links SET pull_lease = NOW() + INTERVAL '60 seconds' WHERE user_id = ${userId} AND pull_lease IS NOT NULL`;
 }
+// ---------- 两个 Google 日历里的同一个活动（双胞胎）：App 只显示一笔，Google 不动 ----------
+export async function listTwins(userId: number, calendarId: string) {
+  return sql`SELECT google_event_id, event_id, etag FROM google_twins WHERE user_id = ${userId} AND calendar_id = ${calendarId}`;
+}
+export async function addTwin(userId: number, calendarId: string, googleEventId: string, eventId: number, etag: string | null) {
+  await sql`INSERT INTO google_twins (user_id, calendar_id, google_event_id, event_id, etag) VALUES (${userId}, ${calendarId}, ${googleEventId}, ${eventId}, ${etag})
+    ON CONFLICT (user_id, calendar_id, google_event_id) DO UPDATE SET event_id = EXCLUDED.event_id, etag = EXCLUDED.etag`;
+}
+export async function removeTwin(userId: number, calendarId: string, googleEventId: string) {
+  await sql`DELETE FROM google_twins WHERE user_id = ${userId} AND calendar_id = ${calendarId} AND google_event_id = ${googleEventId}`;
+}
+/** App 里已经有一样的活动（同标题、同开始和结束），而且来自这个人另一个 Google 日历 → 回传那一笔 */
+export async function findTwinEvent(userId: number, calendarId: string, appCalendarId: number, g: { title: string; start: string; end: string | null; all_day: boolean }) {
+  const [r] = await sql`SELECT e.id FROM events e JOIN event_google eg ON eg.event_id = e.id AND eg.user_id = ${userId}
+    WHERE e.deleted_at IS NULL AND e.calendar_id = ${appCalendarId} AND btrim(e.title) = btrim(${g.title}) AND e.start = ${g.start}::timestamptz
+      AND e."end" IS NOT DISTINCT FROM ${g.end}::timestamptz AND e.all_day = ${g.all_day}
+      AND COALESCE(eg.calendar_id, (SELECT calendar_id FROM google_links WHERE user_id = ${userId})) <> ${calendarId}
+    ORDER BY e.id LIMIT 1`;
+  return r || null;
+}
+/** 双胞胎还一样吗（标题、时间） */
+export async function sameAsEvent(eventId: number, g: { title: string; start: string; end: string | null; all_day: boolean }) {
+  const [r] = await sql`SELECT 1 FROM events WHERE id = ${eventId} AND deleted_at IS NULL AND btrim(title) = btrim(${g.title}) AND start = ${g.start}::timestamptz
+    AND "end" IS NOT DISTINCT FROM ${g.end}::timestamptz AND all_day = ${g.all_day}`;
+  return !!r;
+}
 /** 这个 Google 活动是不是已经有对应的行程（另一次同步刚建立的） */
 export async function findGoogleMapping(userId: number, calendarId: string, googleEventId: string) {
   const [r] = await sql`SELECT eg.event_id, eg.etag FROM event_google eg JOIN events e ON e.id = eg.event_id
