@@ -31,6 +31,7 @@ const T = {
   short_calendar: ["日历", "Calendar"], short_photo: ["选片", "Photo"], short_sales: ["销售", "Sales"], short_rates: ["Rates", "Rates"], short_people: ["人员", "People"], short_activity: ["动态", "Activity"],
   person_ic: ["负责人", "Person In Charge"], need_person: ["请选择负责人", "Please Choose The Person In Charge"], choose_person: ["选择负责人", "Choose Person"],
   loading: ["读取中…", "Loading…"],
+  tick_type: ["类型", "Type"], need_ticks: ["请填好红色 * 的栏位", "Please fill in the fields marked *"],
   search: ["搜索", "Search"], search_ph: ["搜索活动标题或备注…", "Search Event Title Or Notes…"], no_results: ["没有找到活动", "No Events Found"],
   nav_calendar: ["Calendar", "Calendar"], nav_photo: ["Photo Selection", "Photo Selection"], nav_sales: ["Sales Analysis", "Sales Analysis"],
   nav_rates: ["Rates 设置", "Rates"], nav_people: ["Label & People", "Label & People"], nav_activity: ["最新动态", "Activity"], analysis: ["Analysis", "Analysis"],
@@ -509,7 +510,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=224"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=225"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -788,7 +789,7 @@ async function ensurePeople(force = false) {
   try { calPeople = await api("/api/people"); } catch { calPeople = calPeople || []; }
   return calPeople;
 }
-document.addEventListener("change", (e) => { if (e.target.matches?.("[data-person]") && form) form.person_id = e.target.value; });
+document.addEventListener("change", (e) => { if (e.target.matches?.("[data-person]") && form) { form.person_id = e.target.value; form.miss?.delete("person_id"); e.target.closest(".tick-f")?.classList.remove("miss"); } });
 async function openForm(ev, day, hour = null) {
   await ensurePeople();
   form = ev ? {
@@ -804,10 +805,12 @@ function tickHtml(f) {
   if (!tpl || tpl.kind === "normal") return "";
   const seg = (key, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-tick="${key}" data-v="${v}" aria-pressed="${f[key] === v}">${esc(l)}</button>`).join("")}</div>`;
   const ppl = calPeople || [];
-  const personSel = `<div class="field"><label for="f-person">${t("person_ic")} *</label><select class="input" id="f-person" data-person>
-    <option value="">${t("choose_person")}</option>${ppl.map((u) => `<option value="${u.id}"${String(f.person_id || "") === String(u.id) ? " selected" : ""}>${esc((u.emoji ? u.emoji + " " : "") + u.name)}</option>`).join("")}</select></div>`;
-  return `<div class="ticks">${seg("brand", [["Legends", "Legends"], ["WM", "WM"]])}
-    ${tpl.kind === "photo" ? seg("soft", [["non_all_soft", "Non-All Soft"], ["all_soft", "All Soft"]]) : seg("sales_type", [["visit", t("visit")], ["vc", t("vc")]])}</div>${personSel}`;
+  const req = (k, label, inner) => `<div class="tick-f${f.miss?.has(k) ? " miss" : ""}" data-req="${k}"><span class="tick-l">${label} <i>*</i></span>${inner}</div>`;
+  const personSel = `<select class="input" id="f-person" data-person aria-label="${t("person_ic")}">
+    <option value="">${t("choose_person")}</option>${ppl.map((u) => `<option value="${u.id}"${String(f.person_id || "") === String(u.id) ? " selected" : ""}>${esc((u.emoji ? u.emoji + " " : "") + u.name)}</option>`).join("")}</select>`;
+  return `<div class="ticks">${req("brand", t("brand"), seg("brand", [["Legends", "Legends"], ["WM", "WM"]]))}
+    ${tpl.kind === "photo" ? req("soft", t("tick_type"), seg("soft", [["non_all_soft", "Non-All Soft"], ["all_soft", "All Soft"]])) : req("sales_type", t("tick_type"), seg("sales_type", [["visit", t("visit")], ["vc", t("vc")]]))}
+    ${req("person_id", t("person_ic"), personSel)}</div>`;
 }
 // 模板写清楚是做什么的：选片 (Photo Selection)、了解 (Sales)、普通（下面列出它的标签）
 const tplName = (x) => `${x.name}${x.kind === "photo" ? " (Photo Selection)" : x.kind === "sales" ? " (Sales)" : ""}`;
@@ -819,8 +822,9 @@ function tplPicker(f, withAdd = false) {
       <button type="button" class="tpl-btn" data-tpl="${x.id}" aria-pressed="${f.template_id === x.id}">${esc(tplName(x))}</button>
       <div class="labels">${labs.map((l) => `<button type="button" class="lab" data-lab="${esc(l.id)}" data-lab-tpl="${x.id}" style="--c:${esc(labelHex(l.color))}" aria-pressed="${f.label_id === l.id}"><i></i>${esc(l.name)}</button>`).join("")}
         ${withAdd && x.kind === "normal" ? `<button type="button" class="lab add" id="add-lab" aria-label="${t("new_label")}" title="${t("new_label")}">+</button>` : ""}</div>
+      ${f.template_id === x.id ? tickHtml(f) : ""}
     </div>`;
-  }).join("")}</div>${tickHtml(f)}`;
+  }).join("")}</div>`;
 }
 // 按标签 = 同时选好那个模板；再按一次只取消标签
 function pickLabel(f, el) {
@@ -849,7 +853,7 @@ function drawForm() {
       readForm();
       if (x.id === "add-lab") return openLabelDlg((l) => { if (l) { form.label_id = l.id; form.template_id = l.template_id || (state.config.templates || []).find((x) => x.kind === "normal")?.id || form.template_id; } drawForm(); });
       if (x.dataset.tpl) f.template_id = x.dataset.tpl;
-      if (x.dataset.tick) f[x.dataset.tick] = x.dataset.v;
+      if (x.dataset.tick) { f[x.dataset.tick] = x.dataset.v; f.miss?.delete(x.dataset.tick); }
       if (x.dataset.lab) pickLabel(f, x);
       drawForm();
     });
@@ -871,7 +875,14 @@ async function saveForm() {
   if (!f.title.trim()) return err(t("need_title"));
   if (!f.template_id) return err(t("need_tpl"));
   const kind = tplOf(f.template_id)?.kind;
-  if ((kind === "photo" || kind === "sales") && !f.person_id) return err(t("need_person"));
+  if (kind === "photo" || kind === "sales") {
+    const need = ["brand", kind === "photo" ? "soft" : "sales_type", "person_id"].filter((k) => !f[k]);
+    if (need.length) {
+      f.miss = new Set(need); drawForm();
+      $("#ev-form .tick-f.miss")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      $("#f-err").textContent = t("need_ticks"); chime("bad"); return;
+    }
+  }
   const body = {
     title: f.title.trim(), all_day: f.all_day, notes: f.notes,
     start: wallToIso(f.date, f.all_day ? "00:00" : f.st),
