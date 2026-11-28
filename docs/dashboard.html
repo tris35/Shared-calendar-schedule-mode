@@ -374,7 +374,7 @@ body{background:#050b18}
 @media (prefers-reduced-motion:no-preference){::view-transition-old(root),::view-transition-new(root){animation-duration:.45s;animation-timing-function:ease}}
 /* 放在网站里（embed）：不要自己的侧边栏、导览和说明文字 */
 .embed .app{grid-template-columns:minmax(0,1fr)}
-.embed .side,.embed .tour-btn,.embed .page > p.note:not(.warn),.embed .page .sub{display:none!important}
+.embed .side,.embed .page > p.note:not(.warn),.embed .page .sub{display:none!important}
 .embed body{background:transparent}
 /* 分析里的活动清单（只有管理员） */
 .ev-card{display:flex;align-items:center;gap:14px;flex-wrap:wrap;width:100%;text-align:left;font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px 24px;cursor:pointer;transition:border-color .2s,box-shadow .2s}
@@ -693,7 +693,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
       const d = await server('/api/dashboard');
       isAdmin = !!d.admin;
       document.querySelectorAll('#nav-rates, .nav-label-2').forEach((x) => { x.hidden = !isAdmin; });
-      if (!isAdmin) { for (let i = TOUR.length - 1; i >= 0; i--) if (TOUR[i].page === 'rates') TOUR.splice(i, 1); if (state.page === 'rates') state.page = 'photo'; }
+      if (!isAdmin) { for (let i = TOUR.length - 1; i >= 0; i--) if (TOUR[i].page === 'rates' || TOUR[i].admin) TOUR.splice(i, 1); if (state.page === 'rates') state.page = 'photo'; }
       api.setData({ events: d.events || [], rates: d.rates || {}, fixed: d.fixed || {}, sample: false });
     } catch (e) { showLoadError('Dashboard 读取失败：' + e.message); }
     try { if (window.parent !== window) window.parent.postMessage('dash-ready', '*'); } catch {}
@@ -1284,19 +1284,30 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   });
 
   /* ---------- guided tour ---------- */
-  const TOUR = [
-    { title: '欢迎使用 DASHBOARD', text: '这是 The Legend Wedding 和 WM 的 Total Amount 仪表盘。花 30 秒，带你看一遍每个地方怎么用。' },
-    { page: 'photo', sel: '.nav-group', title: '三个页面', text: 'Photo Selection 看选片的 Total Amount；Sales Analysis 看上门了解和 VC了解；Rates 设置用来设定 Rate。' },
-    { page: 'photo', sel: '#month', title: '选月份', text: '选一个月份，就看那个月的数字；选“2026”，就看全年合计。' },
-    { page: 'photo', sel: '.seg', title: '切换品牌', text: '合并 = The Legend Wedding + WM。切换品牌时，整页的颜色也会跟着换。' },
-    { page: 'photo', sel: '#photo .kpis', title: '三个重点数字', text: 'Rate In Use、Non-All Soft 场次、Total Amount。Total Amount 下面写着算式，例如 17 × RM 1,400。' },
-    { page: 'photo', sel: '#p-donut-card', title: 'Total Events', text: 'Non-All Soft 和 All Soft 各有几场。All Soft 不计算在 Total Amount 里。' },
-    { page: 'photo', sel: '#p-rows', up: '.card', title: '每个人的 Total Amount', text: '每一行：Count × Rate = Total Amount，只算 Non-All Soft。有底色的三栏就是这条算式。' },
-    { page: 'sales', sel: '#sales .tot-card', up: '.grid2', title: '销售合计', text: 'TOTAL 上门了解 和 TOTAL VC了解，下面写着 Count × Rate。' },
-    { page: 'sales', sel: '#s-visit-card', title: '每个人的次数', text: '柱状图看谁做得最多，下面的小表写清楚 次数 × Rate = Total。' },
-    { page: 'rates', sel: '#rates-grid .rate-group', title: '改 Rate', text: '按“改 Rate”，填新的 Rate 和“从哪天开始”，再按保存。那天之前的活动还是用旧的 Rate。' },
-        { page: 'photo', title: '完成！', text: '想再看一次，随时按右上角的 ? 按钮。' },
+  // 导览（中 / 英）：在网站里每个分页只看那一页的步骤；admin = 只有管理员看得到的部分
+  const EN = (new URLSearchParams(location.search).get('lang') || '') === 'en';
+  const L = (zh, en) => (EN ? en : zh);
+  const ALL_TOUR = [
+    { title: L('欢迎！', 'Welcome!'), text: L('花 30 秒，带你看一遍这一页怎么用。可以随时按「跳过」。', 'A 30-second tour of this page. You can skip at any time.') },
+    { page: 'photo', sel: '#month', title: L('选月份', 'Pick a month'), text: L('选一个月份就看那个月的数字；选「2026」看全年合计。打开时会自动是这个月。', 'Pick a month to see its numbers, or "2026" for the whole year. It opens on the current month.') },
+    { page: 'photo', sel: '.seg', title: L('切换品牌', 'Switch brand'), text: L('合并 = The Legend Wedding + WM。也可以只看 Legends 或 WM。', 'All = The Legend Wedding + WM. You can also look at Legends or WM only.') },
+    { page: 'photo', sel: '#photo .kpis', title: L('重点数字', 'Key numbers'), text: L('最大的卡片是 Total Amount，旁边是 Rate 和 Non-All Soft 场次。', 'The big card is the Total Amount; next to it are the rate and the number of Non-All Soft events.') },
+    { page: 'photo', sel: '[data-evcard="photo"]', admin: true, title: L('分析里的活动', 'Events in this analysis'), text: L('点这里看算进来的每一个活动，可以搜索、打开、排除或加回。', 'Tap here to see every event that counts. You can search, open, exclude or include them.') },
+    { page: 'photo', sel: '#p-chart', up: '.card', title: L('每个人', 'Per person'), text: L('谁做了几场、各自的 Total Amount。负责人就是活动上选的 Person In Charge。', 'How many events each person did and their Total Amount, by the Person In Charge chosen on each event.') },
+    { page: 'photo', sel: '#p-rows', up: '.card', title: L('算式', 'The sum'), text: L('每一行：场次 × Rate = Total Amount，只算 Non-All Soft。', 'Each row: count × rate = Total Amount, Non-All Soft only.') },
+    { page: 'sales', sel: '#month', title: L('选月份和品牌', 'Pick a month and brand'), text: L('跟 Photo Selection 一样，上面选月份和品牌。', 'Same as Photo Selection: pick the month and brand at the top.') },
+    { page: 'sales', sel: '#sales .kpis', title: L('重点数字', 'Key numbers'), text: L('Grand Total 是这个月的销售合计，旁边是 Rate 和次数。', 'Grand Total is the sales total for the period, with the rate and the count beside it.') },
+    { page: 'sales', sel: '[data-evcard="sales"]', admin: true, title: L('分析里的活动', 'Events in this analysis'), text: L('点这里看算进来的上门了解和 VC了解，可以排除或加回。', 'Tap here to see the Visit and VC events that count, and exclude or include them.') },
+    { page: 'sales', sel: '#sales .tot-card', up: '.grid2', title: L('上门了解和 VC了解', 'Visit and VC'), text: L('两种了解各自的合计，下面写着 次数 × Rate。', 'The total for each kind, with count × rate underneath.') },
+    { page: 'sales', sel: '#s-visit-card', title: L('每个人的次数', 'Count per person'), text: L('柱状图看谁做得最多，下面的小表写清楚 次数 × Rate = Total。', 'The bars show who did the most; the table shows count × rate = total.') },
+    { page: 'rates', sel: '#rates-grid .rate-group', title: L('改 Rate', 'Change a rate'), text: L('按「改 Rate」，填新的 Rate 和从哪天开始，再按保存。那天之前的活动还是用旧的 Rate。', 'Tap "Change rate", enter the new rate and the start date, then save. Events before that date keep the old rate.') },
+    { page: 'rates', sel: '#rates-grid .rate-group', title: L('查看记录', 'History'), text: L('「查看记录」列出每一次改过的 Rate，也可以删除排错的那一笔。', '"History" lists every rate change; you can delete one that was entered by mistake.') },
+    { title: L('完成！', 'Done!'), text: L('想再看一次，随时按右上角的 ? 按钮。', 'To see this again, tap the ? button at the top any time.') },
   ];
+  // 网站里：只留这一页的步骤；单独打开 Dashboard：全部
+  const EMBED = document.documentElement.classList.contains('embed');
+  const START_PAGE = new URLSearchParams(location.search).get('page') || 'photo';
+  const TOUR = ALL_TOUR.filter((s) => !s.page || !EMBED || s.page === START_PAGE);
   const tour = { i: -1, spot: null, tip: null, block: null, raf: 0 };
   function tourTarget(st) {
     if (!st.sel) return null;
@@ -1353,8 +1364,8 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   function tourEnd() {
     if (tour.i < 0) return;
     tour.i = -1; [tour.block, tour.spot, tour.tip].forEach((n) => n && n.remove());
-    try { localStorage.setItem('tlw-tour-done', '1'); } catch {}
-    if (state.page !== 'photo') go('photo');
+    try { localStorage.setItem(TOUR_KEY, '1'); } catch {}
+    if (!EMBED && state.page !== 'photo') go('photo');
     $('tour-btn').focus({ preventScroll: true });
   }
   function tourStep(d) { const n = tour.i + d; if (n < 0) return; if (n >= TOUR.length) { sfx.kaching(); tourEnd(); return; } tour.i = n; tourShow(); }
@@ -1372,8 +1383,9 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   });
   const tourRe = () => { cancelAnimationFrame(tour.raf); tour.raf = requestAnimationFrame(tourPlace); };
   window.addEventListener('resize', tourRe); window.addEventListener('scroll', tourRe, { passive: true });
-  let tourSeen = false; try { tourSeen = localStorage.getItem('tlw-tour-done') === '1'; } catch {}
-  if (!tourSeen && !document.documentElement.classList.contains('embed')) setTimeout(tourStart, 1400);
+  const TOUR_KEY = 'tlw-tour-done' + (EMBED ? '-' + START_PAGE : '');
+  let tourSeen = false; try { tourSeen = localStorage.getItem(TOUR_KEY) === '1'; } catch {}
+  if (!tourSeen) setTimeout(tourStart, 1600); // 第一次打开这一页：自动开始导览
   const toTop = $('to-top');
   const showTop = () => toTop.classList.toggle('show', window.scrollY > 360);
   window.addEventListener('scroll', showTop, { passive: true }); showTop();
