@@ -118,14 +118,14 @@ r = await call(S, "POST", "label-list", { name: "试婚纱", color: "15", templa
 check("staff adds label with colour 15 + template", r.data.label?.color === "15" && r.data.label?.template_id === "photo", r);
 const lab = r.data.label;
 const cfg = (await call(S, "GET", "config")).data;
-check("20 colours", Object.keys(cfg.labels).length === 20, Object.keys(cfg.labels).length);
+check("24 Google colours", Object.keys(cfg.labels).length === 24, Object.keys(cfg.labels).length);
 
 // 5. 新增行程：负责人 = 建立的人；最新动态
-r = await call(S, "POST", "events", { title: "WM0222 试婚纱", start: new Date(Date.now() + 86400_000).toISOString(), all_day: true, template_id: "photo", brand: "WM", soft: "all_soft", label_id: lab.id });
+r = await call(S, "POST", "events", { title: "WM0222 试婚纱", start: new Date(Date.now() + 86400_000).toISOString(), all_day: true, template_id: "photo", brand: "WM", soft: "all_soft", label_id: lab.id, person_id: 2 });
 const ev = r.data;
 check("event created, label colour stored, creator = Amy", ev.label === "15" && ev.creator_name === "Amy" && ev.created_by_id === 2, ev);
 const { googleColor } = await import("../supabase/functions/api/lib/db.mts");
-check("colour 15 → Google colour 2", googleColor("15") === "2" && googleColor("5") === "5");
+check("colour 15 (Mango) → Google colour 6", googleColor("15") === "6" && googleColor("5") === "5");
 r = await call(B, "DELETE", `events/${ev.id}`);
 check("anyone (editor) can delete", r.data.ok, r);
 // 回收站：删除后留 5 天，可以复原；超过 5 天才真的删
@@ -185,6 +185,26 @@ const people = (await call(B, "GET", "people")).data;
 check("People list without her", people.length === 1 && people[0].name === "Elsa Sze", people);
 const feed2 = (await call(B, "GET", "activity")).data;
 check("activity by her shows 未知用户", feed2.some((a: any) => a.action === "event_created" && a.name === "未知用户"), feed2.slice(0, 4));
+
+// 备份：管理员下载 Excel 清单 / 完整备份；不含密码和 Google 授权；员工不能下载；没设定 Gmail → 通知 Top Admin
+const dl = async (tok: string, q = "") => {
+  const res = await handle(new Request(`http://localhost/api/admin/backup${q}`, { headers: { authorization: `Bearer ${tok}`, "x-lang": "zh" } }));
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  return { status: res.status, type: res.headers.get("content-type") || "", disp: res.headers.get("content-disposition") || "", bom: bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf, text: new TextDecoder().decode(bytes) };
+};
+const bj = await dl(B);
+const parsed = JSON.parse(bj.text);
+check("full backup downloads with all tables", bj.status === 200 && /backup-\d{4}-\d{2}-\d{2}\.json/.test(bj.disp) && parsed.tables.events.length > 0 && parsed.tables.users.length > 0, { status: bj.status, disp: bj.disp });
+check("no passwords or Google keys in the backup", !/password_hash|refresh_token|"secret"|cronKey/.test(bj.text));
+const bc = await dl(B, "?format=csv");
+check("events list (Excel) downloads", bc.status === 200 && bc.type.includes("text/csv") && bc.text.includes("Amy 的行程") && bc.bom && bc.text.startsWith("日期"), { bom: bc.bom, head: bc.text.slice(0, 40) });
+const amy2 = (await signup("amy2@test.com", "Amy3")).token;
+check("staff cannot download backups", (await dl(amy2)).status !== 200);
+Deno.env.delete("GMAIL_USER"); Deno.env.delete("GMAIL_APP_PASSWORD");
+const { sendBackup } = await import("../supabase/functions/api/lib/backup.mts");
+const sb: any = await sendBackup();
+const bn = (await call(B, "GET", "notifications")).data.items.find((x: any) => x.kind === "backup");
+check("no Gmail set up → Top Admin is told, nothing breaks", sb.ok === false && !!bn && /GMAIL_USER/.test(bn.body), { sb, bn });
 
 await flush();
 await db.end();
