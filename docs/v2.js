@@ -29,6 +29,7 @@ const T = {
   invite_link: ["邀请连结", "Invite link"], next: ["下一步", "Next"], skip: ["跳过", "Skip"], done: ["完成", "Done"], welcome: ["欢迎，{name}", "Welcome, {name}"],
   month: ["月", "Month"], day: ["日", "Day"],
   person_ic: ["负责人", "Person In Charge"], need_person: ["请选择负责人", "Please Choose The Person In Charge"], choose_person: ["选择负责人", "Choose Person"],
+  loading: ["读取中…", "Loading…"],
   search: ["搜索", "Search"], search_ph: ["搜索活动标题或备注…", "Search Event Title Or Notes…"], no_results: ["没有找到活动", "No Events Found"],
   nav_calendar: ["Calendar", "Calendar"], nav_photo: ["Photo Selection", "Photo Selection"], nav_sales: ["Sales Analysis", "Sales Analysis"],
   nav_rates: ["Rates 设置", "Rates"], nav_people: ["Label & People", "Label & People"], nav_activity: ["最新动态", "Activity"], analysis: ["Analysis", "Analysis"],
@@ -98,7 +99,34 @@ function ago(iso) {
 
 // ---------------- 后台 ----------------
 const token = () => store.get("token") || "";
+// ---------------- 读取中提示：顶部小胶囊 + 三颗弹跳的小球（咚咚咚） ----------------
+const busy = { n: 0, sync: 0, timer: null, el: null };
+function busyDraw() {
+  if (!busy.el) {
+    busy.el = document.createElement("div");
+    busy.el.className = "busy-pill"; busy.el.setAttribute("role", "status"); busy.el.setAttribute("aria-live", "polite");
+    busy.el.innerHTML = '<span class="dong" aria-hidden="true"><i></i><i></i><i></i></span><b></b>';
+    document.body.append(busy.el);
+  }
+  busy.el.querySelector("b").textContent = busy.sync ? t("syncing") : t("loading");
+  busy.el.classList.add("on");
+}
+function busyStart(sync) {
+  busy.n++; if (sync) busy.sync++;
+  if (busy.el?.classList.contains("on")) return busyDraw();
+  clearTimeout(busy.timer); busy.timer = setTimeout(() => { if (busy.n) busyDraw(); }, 300); // 很快的就不显示
+}
+function busyEnd(sync) {
+  busy.n = Math.max(0, busy.n - 1); if (sync) busy.sync = Math.max(0, busy.sync - 1);
+  if (busy.n) { if (busy.el?.classList.contains("on")) busyDraw(); return; }
+  clearTimeout(busy.timer); busy.el?.classList.remove("on");
+}
 async function api(path, opts = {}) {
+  const isSync = /^\/api\/google\/(pull|push|sync)/.test(path), quiet = /^\/api\/(activity\/unread|notifications)/.test(path);
+  if (!quiet) busyStart(isSync);
+  try { return await apiRaw(path, opts); } finally { if (!quiet) busyEnd(isSync); }
+}
+async function apiRaw(path, opts = {}) {
   const headers = { "x-lang": lang, ...(token() ? { Authorization: `Bearer ${token()}` } : {}), ...(store.get("cal") ? { "x-cal": store.get("cal") } : {}) };
   let body = opts.body;
   if (body && !(body instanceof FormData)) { headers["Content-Type"] = "application/json"; body = JSON.stringify(body); }
@@ -474,7 +502,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=209"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=210"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);

@@ -498,10 +498,9 @@ async function pullOnce(userId: number, siteUrl: string, deadline: number) {
   try {
     const cals = (await refreshCalendars(l)).filter((c: any) => c.enabled)
       .sort((a: any, b: any) => Number(b.calendar_id === l.calendar_id) - Number(a.calendar_id === l.calendar_id)); // 主日历先读
-    for (const cal of cals) {
-      if (Date.now() > deadline) { done = false; break; }
-      if (!(await pullCalendar(ctx, cal))) { done = false; break; } // 还没读完 → 下次继续
-    }
+    // 几个日历同时读（比一个一个读快）；有一个没读完 → 下次继续
+    const results = await Promise.all(cals.map((cal: any) => (Date.now() > deadline ? Promise.resolve(false) : pullCalendar(ctx, cal))));
+    if (results.some((ok) => !ok)) done = false;
     if (done) await db.setLinkSync(userId, { sync_token: "multi" }); // 旧栏位：标记已读过
     await db.applyCalendarColors(userId); // 刚读进来的行程也用日历颜色
     // 推给其他人的 Google 日历（这个人的 Google 本来就有这一笔，不用再写，否则会重复）
@@ -537,8 +536,9 @@ async function pullCalendar(ctx: any, cal: any) {
   const timeMax = new Date(passStart + WINDOW_AHEAD_DAYS * 86400_000).toISOString();
   const known = new Map<string, any>((await db.listCalMappings(userId, calId)).map((m: any) => [m.google_event_id, m]));
   for (;;) {
-    const q = new URLSearchParams({ maxResults: "250", singleEvents: "true", timeMin, timeMax });
+    const q = new URLSearchParams({ maxResults: "2500", singleEvents: "true", timeMin, timeMax }); // 一次最多 2500 笔：少几趟来回，比较快
     if (pageToken) q.set("pageToken", pageToken);
+    await db.extendPullLease(userId); // 还在读 → 锁延长，别的同步不会同时开始
     const res = await gfetch(l, `/calendars/${encodeURIComponent(calId)}/events?${q}`);
     if (res.status === 404) return true; // 日历刚被删掉，下次清单会拿掉
     if ((res.status === 400 || res.status === 410) && pageToken) { pageToken = null; continue; } // 页码失效 → 这一轮重来
@@ -576,6 +576,9 @@ async function pullCalendar(ctx: any, cal: any) {
         known.set(ev.id, { event_id: Number(own), etag: ev.etag });
         continue;
       }
+      // 再确认一次：另一次同步刚好已经建立了这一笔 → 接上，不要重复建立
+      const dup: any = await db.findGoogleMapping(userId, calId, ev.id);
+      if (dup) { known.set(ev.id, { event_id: dup.event_id, etag: dup.etag }); continue; }
       // 没有对应：是在 Google 新增的 → 放进他选的 App 日历
       const fg = fromGoogle(ev, tz, true);
       // Google 上的颜色 → 自动套用网站里同一个颜色的标签

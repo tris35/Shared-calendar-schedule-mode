@@ -441,6 +441,17 @@ export async function takePullLease(userId: number) {
     WHERE user_id = ${userId} AND (pull_lease IS NULL OR pull_lease < NOW()) RETURNING user_id`;
   return r.length > 0;
 }
+/** 还在读 Google：把锁再延长 60 秒，避免另一次同步同时开始（同时读会建立重复的行程） */
+export async function extendPullLease(userId: number) {
+  await sql`UPDATE google_links SET pull_lease = NOW() + INTERVAL '60 seconds' WHERE user_id = ${userId} AND pull_lease IS NOT NULL`;
+}
+/** 这个 Google 活动是不是已经有对应的行程（另一次同步刚建立的） */
+export async function findGoogleMapping(userId: number, calendarId: string, googleEventId: string) {
+  const [r] = await sql`SELECT eg.event_id, eg.etag FROM event_google eg JOIN events e ON e.id = eg.event_id
+    WHERE eg.user_id = ${userId} AND eg.google_event_id = ${googleEventId} AND e.deleted_at IS NULL
+      AND COALESCE(eg.calendar_id, (SELECT calendar_id FROM google_links WHERE user_id = ${userId})) = ${calendarId} LIMIT 1`;
+  return r || null;
+}
 export async function clearPullAgain(userId: number) {
   await sql`UPDATE google_links SET pull_again = FALSE WHERE user_id = ${userId}`;
 }

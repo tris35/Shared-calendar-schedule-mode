@@ -384,3 +384,14 @@ h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);fo
 @media (min-width:861px) and (hover:hover) and (prefers-reduced-motion:reduce){
   .side,.logo-name,.logo-cal,.nav-label,.nav-btn .t,.me-chip{transition:none}
 }
+
+/* 读取中：顶部小胶囊，三颗小球轮流弹跳（压扁再弹起，咚咚咚） */
+.busy-pill{position:fixed;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;z-index:200;display:flex;align-items:center;gap:10px;padding:8px 16px 8px 14px;border-radius:999px;background:rgba(7,15,38,.92);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 18px var(--glow);color:var(--fg);font-size:14px;transform:translate(-50%,-140%);opacity:0;pointer-events:none;transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .25s}
+.busy-pill.on{transform:translate(-50%,0);opacity:1}
+.busy-pill b{font-weight:600}
+.dong{display:inline-flex;align-items:flex-end;gap:5px;height:18px}
+.dong i{width:8px;height:8px;border-radius:50%;background:var(--cyan);transform-origin:50% 100%;animation:dong .9s cubic-bezier(.3,0,.3,1) infinite}
+.dong i:nth-child(2){background:#f5c451;animation-delay:.15s}
+.dong i:nth-child(3){background:#6d8bff;animation-delay:.3s}
+@keyframes dong{0%,100%{transform:translateY(0) scale(1.35,.7)}12%{transform:translateY(0) scale(1)}45%{transform:translateY(-10px) scale(.9,1.12)}75%{transform:translateY(0) scale(1.1,.9)}}
+@media (prefers-reduced-motion:reduce){.dong i{animation:none}.busy-pill{transition:opacity .2s}}
