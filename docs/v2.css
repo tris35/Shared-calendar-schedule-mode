@@ -430,3 +430,57 @@ h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);fo
   .cal-grid{border-radius:22px}
   .card{border-radius:22px}
 }
+
+/* 一天的时间表：左边时间栏的宽度 */
+.day-dlg{--gut:64px}
+/* 手机 / App：点一天 → 全屏的一天（像 Google 日历）；同时间的活动并排，标题完整换行；新增活动是右下角的圆角按钮 */
+@media (max-width:860px){
+  dialog#dlg-day{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0;border-radius:0}
+  .day-dlg{--gut:50px;height:100dvh;display:flex;flex-direction:column;border-radius:0;padding-top:env(safe-area-inset-top,0px)}
+  .day-head{padding:10px 14px 8px}
+  .day-scroll{flex:1;max-height:none;padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+  .tl-hour span{left:4px;font-size:11px}
+  .tl-now{left:46px}
+  .tl-ev{padding:4px 5px;border-radius:7px}
+  .tl-ev b{white-space:normal;overflow:hidden;overflow-wrap:anywhere;font-size:12px;line-height:1.22;font-weight:700}
+  .tl-ev span{font-size:10.5px}
+  .day-new{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:5;margin:0;width:60px;height:60px;padding:0;border:none;border-radius:20px;background:linear-gradient(135deg,#2563eb,#0ea5e9);color:#fff;box-shadow:0 10px 26px rgba(37,99,235,.55)}
+  .day-new .t{display:none}
+  .day-new svg{width:26px;height:26px}
+}
+
+/* 底部导航：图示下面有小字（像 Google Home）；电脑不显示 */
+.nav-btn .s,.gear .s{display:none}
+@media (max-width:860px){
+  .nav-btn,.side-foot .gear{flex-direction:column;gap:3px;padding:8px 0 6px}
+  .nav-btn .s,.gear .s{display:block;font-size:10px;font-weight:600;line-height:1;white-space:nowrap}
+  .nav-btn svg,.side-foot .gear svg{width:21px;height:21px}
+  .side-foot .gear{all:unset;box-sizing:border-box;cursor:pointer;flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;padding:8px 0 6px;border-radius:18px;color:var(--muted)}
+  .main{padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+}
+
+/* 手机 / App：参考 Google Home —— 标题小一点置中、区块标题是小字标签、人员两栏方块、设定和弹窗全屏 */
+@media (max-width:860px){
+  .top:not(:has(#search-btn)){justify-content:center;position:relative;padding:14px 56px}
+  .top:not(:has(#search-btn)) h1{font-size:21px;letter-spacing:.01em;text-align:center}
+  .top:not(:has(#search-btn)) .controls{position:absolute;right:12px;top:50%;transform:translateY(-50%)}
+  .page{padding:14px 14px 20px;gap:16px}
+  .card{padding:16px;gap:12px;background:rgba(14,26,62,.72)}
+  .card h2,.card-head h2{font-family:var(--font);font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .people{grid-template-columns:1fr 1fr;gap:10px}
+  .person{flex-direction:column;align-items:flex-start;gap:8px;padding:14px;border-radius:18px}
+  dialog#dlg,dialog#dlg2{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0}
+  dialog#dlg > .dlg,dialog#dlg2 > .dlg{min-height:100dvh;border-radius:0;padding-top:env(safe-area-inset-top,0px)}
+}
+
+/* 电脑版也用 App 风格（浮起的圆角侧栏 + 发光胶囊 + 更圆的卡片） */
+@media (min-width:861px) and (hover:hover){
+  .app{grid-template-columns:96px minmax(0,1fr)}
+  .side{margin:14px 0 14px 14px;height:calc(100vh - 28px);top:14px;border:1px solid var(--line);border-radius:26px;background:rgba(9,18,46,.94);box-shadow:0 18px 44px rgba(0,0,0,.5)}
+  .side:hover,.side:has(:focus-visible){background:#0a1430}
+  .nav-btn{border-radius:16px;color:var(--muted)}
+  .nav-btn[aria-current="page"]{color:#fff;background:linear-gradient(135deg,#2563eb,#0ea5e9);box-shadow:0 6px 18px rgba(37,99,235,.5)}
+  .cal-grid{border-radius:24px}
+  .card{border-radius:24px}
+  .top{border-bottom:none}
+}

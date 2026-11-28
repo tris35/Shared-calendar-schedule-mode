@@ -28,6 +28,7 @@ const T = {
   ob_cal: ["建立或加入日历", "Create or join a calendar"], create: ["建立", "Create"], join: ["加入", "Join"], cal_name: ["日历名称", "Calendar name"],
   invite_link: ["邀请连结", "Invite link"], next: ["下一步", "Next"], skip: ["跳过", "Skip"], done: ["完成", "Done"], welcome: ["欢迎，{name}", "Welcome, {name}"],
   month: ["月", "Month"], day: ["日", "Day"],
+  short_calendar: ["日历", "Calendar"], short_photo: ["选片", "Photo"], short_sales: ["销售", "Sales"], short_rates: ["Rates", "Rates"], short_people: ["人员", "People"], short_activity: ["动态", "Activity"],
   person_ic: ["负责人", "Person In Charge"], need_person: ["请选择负责人", "Please Choose The Person In Charge"], choose_person: ["选择负责人", "Choose Person"],
   loading: ["读取中…", "Loading…"],
   search: ["搜索", "Search"], search_ph: ["搜索活动标题或备注…", "Search Event Title Or Notes…"], no_results: ["没有找到活动", "No Events Found"],
@@ -467,13 +468,13 @@ function renderApp() {
   const want = location.hash.slice(1);
   if (items.some((x) => x.id === want)) state.page = want;
   const cal = state.cals.find((c) => String(c.id) === store.get("cal"));
-  const btn = (x) => `<button class="nav-btn" data-nav="${x.id}" ${x.id === state.page ? 'aria-current="page"' : ""}>${ICON[x.icon]}<span class="t">${t("nav_" + x.id)}</span>${x.id === "calendar" ? '<span class="count" id="untag-count" hidden></span>' : ""}${x.id === "activity" ? `<span class="count" id="act-count" ${state.actUnread ? "" : "hidden"}>${state.actUnread > 99 ? "99+" : state.actUnread}</span>` : ""}</button>`;
+  const btn = (x) => `<button class="nav-btn" data-nav="${x.id}" ${x.id === state.page ? 'aria-current="page"' : ""}>${ICON[x.icon]}<span class="t">${t("nav_" + x.id)}</span><span class="s">${t("short_" + x.id)}</span>${x.id === "calendar" ? '<span class="count" id="untag-count" hidden></span>' : ""}${x.id === "activity" ? `<span class="count" id="act-count" ${state.actUnread ? "" : "hidden"}>${state.actUnread > 99 ? "99+" : state.actUnread}</span>` : ""}</button>`;
   $("#root").innerHTML = `<div class="app">
     <aside class="side">
       <div class="logo"><img class="logo-mark" src="icons/logo-mark.png" alt="" width="44" height="44"><div><div class="logo-name">THE LEGEND WEDDING</div>${cal?.name && cal.name.trim().toLowerCase() !== "the legend wedding" ? `<div class="logo-cal">${esc(cal.name)}</div>` : ""}</div></div>
       <nav class="nav-group" aria-label="${t("analysis")}"><div class="nav-label">${t("analysis")}</div>${items.filter((x) => x.group === "analysis").map(btn).join("")}</nav>
       <nav class="nav-group" aria-label="${t("settings")}"><div class="nav-label">${t("settings")}</div>${items.filter((x) => x.group === "settings").map(btn).join("")}</nav>
-      <div class="side-foot"><button class="gear" id="gear" aria-label="${t("settings")}" title="${t("settings")}">${ICON.gear}</button>
+      <div class="side-foot"><button class="gear" id="gear" aria-label="${t("settings")}" title="${t("settings")}">${ICON.gear}<span class="s">${t("settings")}</span></button>
         <div class="me-chip">${avatar(state.me.emoji, state.me.color, "sm")}<span>${esc(state.me.name)}</span></div></div>
     </aside>
     <div class="main" id="main"></div></div>`;
@@ -502,7 +503,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=216"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=219"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -605,7 +606,8 @@ function drawGrid() {
   drawDay(map);
 }
 // ---------------- 一天的时间轴（按日期打开） ----------------
-const HOUR_PX = 56;
+const PHONE = () => window.matchMedia("(max-width:860px)").matches;
+let HOUR_PX = 56; // 手机：每小时高一点，字比较放得下
 function dayParts(e, ymd) {
   const s = Date.parse(e.start), end = e.end ? Date.parse(e.end) : s + 3600000;
   const s0 = Date.parse(wallToIso(ymd)), e0 = Date.parse(wallToIso(addDays(ymd, 1)));
@@ -626,20 +628,21 @@ function layoutDay(list, ymd) {
   return items;
 }
 function openDay(ymd) {
+  HOUR_PX = PHONE() ? 64 : 56;
   const list = (byDay().get(ymd) || []);
   const allDay = list.filter((e) => e.all_day), timed = list.filter((e) => !e.all_day);
   const d0 = new Date(ymd + "T12:00:00Z");
   const wk = d0.toLocaleDateString(loc(), { weekday: "short", timeZone: "UTC" }).toUpperCase();
   const my = d0.toLocaleDateString(loc(), { month: "long", year: "numeric", timeZone: "UTC" });
   const hourLbl = (h) => new Date(Date.UTC(2024, 0, 1, h)).toLocaleTimeString(lang === "zh" ? "zh-CN" : "en-US", { hour: "numeric", hour12: true, timeZone: "UTC" });
-  const blocks = layoutDay(timed, ymd).map((it, i) => `<button class="tl-ev rise" data-ev="${it.e.id}" style="--i:${i};--c:${esc(evColor(it.e))};top:${it.top}px;height:${it.h}px;left:calc(64px + (100% - 72px) * ${it.lane} / ${it.cols});width:calc((100% - 72px) / ${it.cols} - 4px)">
+  const blocks = layoutDay(timed, ymd).map((it, i) => `<button class="tl-ev rise" data-ev="${it.e.id}" style="--i:${i};--c:${esc(evColor(it.e))};top:${it.top}px;height:${it.h}px;left:calc(var(--gut) + (100% - var(--gut) - 8px) * ${it.lane} / ${it.cols});width:calc((100% - var(--gut) - 8px) / ${it.cols} - 3px)">
       <b>${esc(it.e.title)}</b><span>${esc(fmtTime(it.e.start))}${it.e.end ? " – " + esc(fmtTime(it.e.end)) : ""}</span></button>`).join("");
   const isToday = ymd === ymdIn(Date.now());
   const nowTop = isToday ? ((Date.now() - Date.parse(wallToIso(ymd))) / 60000) * (HOUR_PX / 60) : -1;
   const d = showDlg("#dlg-day", `<div class="dlg day-dlg">
     <div class="day-head"><div class="day-date"><span>${esc(wk)}</span><b class="${isToday ? "today" : ""}">${Number(ymd.slice(8))}</b></div><div class="day-month">${esc(my)}</div>
       <button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
-    ${canEdit() ? `<button class="day-new" id="day-new">${ICON.plus}${t("new_event")}</button>` : ""}
+    ${canEdit() ? `<button class="day-new" id="day-new" aria-label="${t("new_event")}">${ICON.plus}<span class="t">${t("new_event")}</span></button>` : ""}
     ${allDay.length ? `<div class="day-allday"><span class="lbl">${t("all_day_short")}</span>${allDay.map((e) => `<button class="chip" data-ev="${e.id}" style="--c:${esc(evColor(e))}"><b class="raw">${esc(e.title)}</b></button>`).join("")}</div>` : ""}
     <div class="day-scroll" id="day-scroll"><div class="tl" style="height:${24 * HOUR_PX}px">
       ${Array.from({ length: 24 }, (_, h) => `<div class="tl-hour" data-hour="${h}" style="top:${h * HOUR_PX}px;height:${HOUR_PX}px"><span>${h ? esc(hourLbl(h)) : ""}</span></div>`).join("")}
