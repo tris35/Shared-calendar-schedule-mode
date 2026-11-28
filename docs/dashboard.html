@@ -1053,7 +1053,8 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     $('p-norate').hidden = true;
     $('p-donut').innerHTML = '<p class="empty">固定数据：没有 All Soft / Non-All Soft 明细。</p>';
     $('p-donut-sub').textContent = `${periodLabel()} · 固定数据`;
-    $('p-chart-title').textContent = f.groups != null ? `Events By Person (${int(f.groups)} 组)` : 'Events By Person';
+    // 组数跟每个人的明细一样，属于 Legends
+    $('p-chart-title').textContent = f.groups != null && state.brand === 'Legends' ? `Events By Person (${int(f.groups)} 组)` : 'Events By Person';
     amountBars($('p-chart'), rows, '这个月只有品牌总数（固定数据），没有每个人的明细。');
     $('p-rows').innerHTML = rows.length
       ? rows.map((r) => `<tr><td>${esc(r.person)}</td><td>${r.n == null ? '' : int(r.n)}</td><td class="soft">${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${dash}</td><td class="bill amt"><span class="op">=</span>${esc(money(r.amount))}</td></tr>`).join('')
