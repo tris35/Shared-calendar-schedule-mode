@@ -571,7 +571,7 @@ async function pullCalendar(ctx: any, cal: any) {
         if (Object.keys(diff).length) { await db.updateEvent(map.event_id, diff, who); ctx.touched.add(map.event_id); ctx.updated++; }
         continue;
       }
-      // 双胞胎：另一个 Google 日历已经有一样的活动 → App 不重复显示（Google 不动）；这一笔在 Google 被改得不一样了 → 才显示
+      // 双胞胎（2026-11-28 手动合并过一次的）：App 不重复显示（Google 不动）；这一笔在 Google 被改得不一样了 → 才显示。以后新的不会自动合并
       const tw = twins.get(ev.id);
       if (tw) {
         if (tw.etag && tw.etag === ev.etag) continue;
@@ -591,9 +591,6 @@ async function pullCalendar(ctx: any, cal: any) {
       if (dup) { known.set(ev.id, { event_id: dup.event_id, etag: dup.etag }); continue; }
       // 没有对应：是在 Google 新增的 → 放进他选的 App 日历
       const fg = fromGoogle(ev, tz, true);
-      // 另一个 Google 日历已经有一模一样的（同标题、同时间）→ 记成双胞胎，不重复建立
-      const twin: any = await db.findTwinEvent(userId, calId, l.app_calendar_id, fg);
-      if (twin) { await db.addTwin(userId, calId, ev.id, twin.id, ev.etag); twins.set(ev.id, { event_id: twin.id, etag: ev.etag }); continue; }
       // Google 上的颜色 → 自动套用网站里同一个颜色的标签
       const lab = labelForGoogleColor(await labelsOf(l.app_calendar_id), fg.label);
       const e = await db.createEvent({ ...fg, ...(lab ? { label: lab.color } : {}), remind: true, calendar_id: l.app_calendar_id }, who);
