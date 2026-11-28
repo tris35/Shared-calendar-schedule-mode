@@ -509,7 +509,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=222"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=224"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -606,9 +606,10 @@ function drawGrid() {
   grid.innerHTML = dows.map((d) => `<div class="cal-dow">${esc(d)}</div>`).join("") + days.map((d) => {
     const list = state.loadingMonth ? [] : map.get(d) || [];
     const fake = state.loadingMonth ? Array.from({ length: (d.charCodeAt(9) + d.charCodeAt(8)) % 3 }, (_, k) => sk("sk-chip", `animation-delay:${(k * 0.1 + (Number(d.slice(8)) % 7) * 0.05).toFixed(2)}s`)).join("") : "";
-    const chips = fake + list.slice(0, 4).map((e) => `<span class="chip ${untaggedEv(e) ? "untag" : ""}" style="--c:${esc(evColor(e))}"><b class="raw">${esc(e.title)}</b></span>`).join("");
+    const max = PHONE() ? 2 : 4; // 手机：每格只放 2 个小字
+    const chips = fake + list.slice(0, max).map((e) => `<span class="chip ${untaggedEv(e) ? "untag" : ""}" style="--c:${esc(evColor(e))}"><b class="raw">${esc(e.title)}</b></span>`).join("");
     return `<button class="cal-cell ${d.slice(0, 7) !== state.cursor ? "out" : ""} ${d === today ? "today" : ""} ${d === state.sel ? "sel" : ""}" data-day="${d}" aria-label="${esc(fmtDay(d))}">
-      <span class="cal-num">${Number(d.slice(8))}</span>${chips}${list.length > 4 ? `<span class="chip-more">+${list.length - 4}</span>` : ""}</button>`;
+      <span class="cal-num">${Number(d.slice(8))}</span>${chips}${list.length > max ? `<span class="chip-more">+${list.length - max}</span>` : ""}</button>`;
   }).join("");
   grid.onclick = (e) => {
     const c = e.target.closest("[data-day]"); if (!c) return;
@@ -639,7 +640,14 @@ function layoutDay(list, ymd) {
   if (group.length) flush();
   return items;
 }
-function openDay(ymd) {
+// 一天的时间表：换到前一天 / 下一天（换月份时先读那个月的活动）
+async function stepDay(ymd, n) {
+  const nd = addDays(ymd, n);
+  state.sel = nd;
+  if (nd.slice(0, 7) !== state.cursor) { state.cursor = nd.slice(0, 7); await renderCalendar(); } else drawGrid();
+  openDay(nd, n);
+}
+function openDay(ymd, dir = 0) {
   HOUR_PX = PHONE() ? 64 : 56;
   const list = (byDay().get(ymd) || []);
   const allDay = list.filter((e) => e.all_day), timed = list.filter((e) => !e.all_day);
@@ -653,6 +661,7 @@ function openDay(ymd) {
   const nowTop = isToday ? ((Date.now() - Date.parse(wallToIso(ymd))) / 60000) * (HOUR_PX / 60) : -1;
   const d = showDlg("#dlg-day", `<div class="dlg day-dlg">
     <div class="day-head"><div class="day-date"><span>${esc(wk)}</span><b class="${isToday ? "today" : ""}">${Number(ymd.slice(8))}</b></div><div class="day-month">${esc(my)}</div>
+      <button class="icon-btn day-nav" data-step="-1" aria-label="‹">${ICON.left}</button><button class="icon-btn day-nav" data-step="1" aria-label="›">${ICON.right}</button>
       <button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
     ${canEdit() ? `<button class="day-new" id="day-new" aria-label="${t("new_event")}">${ICON.plus}<span class="t">${t("new_event")}</span></button>` : ""}
     ${allDay.length ? `<div class="day-allday"><span class="lbl">${t("all_day_short")}</span>${allDay.map((e) => `<button class="chip" data-ev="${e.id}" style="--c:${esc(evColor(e))}"><b class="raw">${esc(e.title)}</b></button>`).join("")}</div>` : ""}
@@ -661,7 +670,17 @@ function openDay(ymd) {
       ${nowTop >= 0 ? `<div class="tl-now" style="top:${nowTop}px"></div>` : ""}
       ${blocks}
     </div></div></div>`, (dd) => {
-      dd.querySelector(".day-dlg").onclick = (e) => {
+      const box = dd.querySelector(".day-dlg");
+      if (dir) box.classList.add(dir > 0 ? "slide-next" : "slide-prev");
+      // 左右滑动 → 下一天 / 前一天
+      let sx = 0, sy = 0;
+      box.addEventListener("touchstart", (e) => { const p = e.touches[0]; sx = p.clientX; sy = p.clientY; }, { passive: true });
+      box.addEventListener("touchend", (e) => {
+        const p = e.changedTouches[0], dx = p.clientX - sx, dy = p.clientY - sy;
+        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) stepDay(ymd, dx < 0 ? 1 : -1);
+      }, { passive: true });
+      box.onclick = (e) => {
+        const st = e.target.closest("[data-step]"); if (st) return stepDay(ymd, Number(st.dataset.step));
         const ev = e.target.closest("[data-ev]"); if (ev) return openDetail(Number(ev.dataset.ev));
         if (e.target.closest("#day-new")) return openForm(null, ymd);
         const hr = e.target.closest("[data-hour]"); if (hr && canEdit()) openForm(null, ymd, Number(hr.dataset.hour));
