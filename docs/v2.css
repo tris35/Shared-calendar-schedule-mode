@@ -418,3 +418,15 @@ h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);fo
   .cal-month{font-size:21px;min-width:0;white-space:nowrap}
   #today{margin-left:auto}
 }
+
+/* 手机 / App 第 2 版：底部浮起来的圆角导航，选中的分页是发光的胶囊；卡片更圆、更有空间 */
+@media (max-width:860px){
+  .side{left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));padding:7px;border:1px solid var(--line);border-radius:24px;background:rgba(9,18,46,.94);box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.03) inset}
+  .nav-btn{padding:12px 0;border-radius:18px;color:var(--muted);transition:background .25s,color .25s,box-shadow .25s}
+  .nav-btn[aria-current="page"]{color:#fff;background:linear-gradient(135deg,#2563eb,#0ea5e9);box-shadow:0 6px 18px rgba(37,99,235,.55)}
+  .side-foot .gear{width:42px;height:42px;border-radius:16px}
+  .main{padding-bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+  .frame-page iframe{min-height:calc(100vh - 92px - env(safe-area-inset-bottom,0px))}
+  .cal-grid{border-radius:22px}
+  .card{border-radius:22px}
+}
