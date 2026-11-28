@@ -23,8 +23,8 @@ const T = {
   pw_rule: ["密码至少 6 个字，并包含 1 个特殊符号", "At least 6 characters with 1 symbol"], bad_email: ["请输入正确的 Gmail 地址", "Enter a valid Gmail address"],
   send_code: ["寄验证码", "Send code"], code: ["验证码", "Code"], new_pw: ["新密码", "New password"], reset: ["重设密码", "Reset password"], back: ["返回", "Back"],
   code_sent: ["验证码已寄出", "Code sent"],
-  ob_look: ["选择你的头像", "Choose your avatar"], ob_look_t: ["上传一张照片，或选 Emoji 和颜色", "Upload a photo, or pick an emoji and colour"],
-  upload_photo: ["上传照片", "Upload Photo"], change_photo: ["换照片", "Change Photo"], remove_photo: ["移除照片", "Remove Photo"],
+  ob_look: ["选择你的头像", "Choose your avatar"], ob_look_t: ["点头像上的 ✏️ 上传照片，或选 Emoji 和颜色", "Tap ✏️ on the picture to upload a photo, or pick an emoji and colour"],
+  upload_photo: ["上传照片", "Upload Photo"], edit_photo: ["换头像", "Edit avatar"], change_photo: ["换照片", "Change Photo"], remove_photo: ["移除照片", "Remove Photo"],
   photo_bad: ["这张照片打不开，请换一张", "This photo can't be opened. Please try another."], cf_rm_photo: ["移除头像照片？", "Remove your avatar photo?"], cf_rm_photo_t: ["会改回用你的 Emoji。", "Your emoji will be shown instead."], ob_name: ["你的名字", "Your name"], ob_bd: ["你的生日", "Your birthday"],
   ob_bd_note: ["填写后，每年你的生日会自动加入日历，并同步到 Google 日历，日历里的人都看得到。可以不填。", "If you fill this in, your birthday is added to the calendar every year and synced to Google Calendar, where everyone in the calendar can see it. Optional."],
   ob_cal: ["建立或加入日历", "Create or join a calendar"], create: ["建立", "Create"], join: ["加入", "Join"], cal_name: ["日历名称", "Calendar name"],
@@ -590,8 +590,7 @@ function renderOnboarding() {
   const steps = [0, 1, 2, 3].map((i) => `<i class="${i <= ob.step ? "on" : ""}"></i>`).join("");
   const body = [
     () => `<h2 style="margin:0;text-align:center">${t("ob_look")}</h2><p class="notice" style="text-align:center;margin:0">${t("ob_look_t")}</p>
-      <div class="preview">${avatar(ob.emoji, ob.color, "lg", ob.photo)}</div>
-      <div class="row" style="justify-content:center"><button type="button" class="btn sm" data-obphoto="up">${ob.photo ? t("change_photo") : t("upload_photo")}</button>${ob.photo ? `<button type="button" class="btn ghost sm" data-obphoto="rm">${t("remove_photo")}</button>` : ""}</div>
+      <div class="preview">${avEdit(ob.emoji, ob.color, ob.photo)}</div>
       <div class="emojis">${EMOJIS.map((e) => `<button type="button" class="emo" data-emo="${e}" aria-pressed="${e === ob.emoji}">${e}</button>`).join("")}</div>
       <div class="swatches" style="grid-template-columns:repeat(6,1fr)">${PROFILE_COLORS.map((c) => `<button type="button" class="sw" style="--c:${c}" data-col="${c}" aria-pressed="${c === ob.color}" aria-label="${c}"></button>`).join("")}</div>`,
     () => `<h2 style="margin:0;text-align:center">${t("ob_name")}</h2><div class="preview">${avatar(ob.emoji, ob.color, "lg", ob.photo)}</div>
@@ -613,10 +612,9 @@ function renderOnboarding() {
     </div></div></div>`;
   const root = $("#ob");
   root.addEventListener("click", (e) => {
-    const x = e.target.closest("[data-emo],[data-col],[data-cm],[data-ob],[data-obphoto]"); if (!x) return;
+    if (e.target.closest(".av-edit")) return void avEditClick(e, (d) => { readOb(); ob.photo = d; chime("ok"); renderOnboarding(); }, () => { readOb(); ob.photo = null; renderOnboarding(); });
+    const x = e.target.closest("[data-emo],[data-col],[data-cm],[data-ob]"); if (!x) return;
     readOb();
-    if (x.dataset.obphoto === "up") return void pickAvatarPhoto().then((d) => { if (d) { ob.photo = d; chime("ok"); renderOnboarding(); } });
-    if (x.dataset.obphoto === "rm") ob.photo = null;
     if (x.dataset.emo) { ob.emoji = x.dataset.emo; chime("ok"); }
     if (x.dataset.col) ob.color = x.dataset.col;
     if (x.dataset.cm) ob.calMode = x.dataset.cm;
@@ -628,7 +626,16 @@ function renderOnboarding() {
   root.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); readOb(); obNext(); } });
   setTimeout(() => $("#ob input")?.focus(), 50);
 }
-const photoBtns = (has) => `<button type="button" class="btn sm" data-sphoto="up">${has ? t("change_photo") : t("upload_photo")}</button>${has ? `<button type="button" class="btn ghost sm" data-sphoto="rm">${t("remove_photo")}</button>` : ""}`;
+// 头像 + 铅笔：点一下 → 没有照片就直接选照片；有照片 → 小选单（换照片 / 移除照片）
+const PEN = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>`;
+const avEdit = (emoji, color, img) => `<span class="av-edit"><button type="button" class="av-btn" data-avedit aria-label="${t("edit_photo")}">${avatar(emoji, color, "lg", img)}<span class="pen">${PEN}</span></button>${img ? `<span class="av-menu" hidden><button type="button" data-avpick="up">${t("change_photo")}</button><button type="button" data-avpick="rm">${t("remove_photo")}</button></span>` : ""}</span>`;
+async function avEditClick(e, onPick, onRemove) {
+  const host = e.target.closest(".av-edit"), menu = host.querySelector(".av-menu"), pick = e.target.closest("[data-avpick]");
+  if (!pick && menu) { menu.hidden = !menu.hidden; return; }
+  if (menu) menu.hidden = true;
+  if (pick?.dataset.avpick === "rm") return onRemove();
+  const d = await pickAvatarPhoto(); if (d) onPick(d);
+}
 function bdSelects(m, d, id = "ob") {
   const days = m ? new Date(Date.UTC(2024, Number(m), 0)).getUTCDate() : 31;
   return `<select class="input" id="${id}-bm" aria-label="${t("month")}"><option value="">${t("month")}</option>${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}" ${String(i + 1) === String(m) ? "selected" : ""}>${new Date(Date.UTC(2024, i, 1)).toLocaleDateString(loc(), { month: "long", timeZone: "UTC" })}</option>`).join("")}</select>
@@ -733,7 +740,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=241"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=242"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -1380,9 +1387,8 @@ async function openSettings() {
     <div class="dlg-head"><h2>${t("settings")}</h2><button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
     <div class="dlg-body">
       <div class="sec" id="s-prof"><h3>${t("profile")}</h3>
-        <div class="row" style="align-items:center"><span id="s-av">${avatar(p.emoji, p.color, "lg", me.avatar)}</span>
+        <div class="row" style="align-items:center"><span id="s-av">${avEdit(p.emoji, p.color, me.avatar)}</span>
           <div class="field" style="flex:1"><label for="s-name">${t("name")}</label><input class="input" id="s-name" maxlength="40" value="${esc(me.name)}"></div></div>
-        <div class="row" id="s-photo">${photoBtns(me.avatar)}</div>
         <div class="field"><span class="lbl">Emoji</span><div class="emojis">${EMOJIS.map((e) => `<button type="button" class="emo" data-emo="${e}" aria-pressed="${e === p.emoji}">${e}</button>`).join("")}</div></div>
         <span class="lbl" style="font-size:13px;font-weight:600;color:var(--muted)">${t("colour")}</span>
         <div class="swatches" style="grid-template-columns:repeat(12,minmax(0,1fr))">${PROFILE_COLORS.map((c) => `<button type="button" class="sw" style="--c:${c}" data-col="${c}" aria-pressed="${c === p.color}" aria-label="${c}"></button>`).join("")}</div>
@@ -1421,7 +1427,7 @@ async function openSettings() {
       if (x.dataset.emo) p.emoji = x.dataset.emo; else p.color = x.dataset.col;
       $$("[data-emo]", d).forEach((b) => b.setAttribute("aria-pressed", b.dataset.emo === p.emoji));
       $$("[data-col]", d).forEach((b) => b.setAttribute("aria-pressed", b.dataset.col === p.color));
-      $("#s-av", d).innerHTML = avatar(p.emoji, p.color, "lg", state.me.avatar);
+      $("#s-av", d).innerHTML = avEdit(p.emoji, p.color, state.me.avatar);
       // emoji 和颜色：一按就保存
       api("/api/auth/me", { method: "PATCH", body: { emoji: p.emoji, color: p.color } }).then((u) => {
         state.me = { ...state.me, ...u }; chime("ok"); toast(t("saved"));
@@ -1430,23 +1436,18 @@ async function openSettings() {
       }).catch(fail);
     });
     // 头像照片：上传 / 换 / 移除（马上保存）
-    $("#s-photo", d).addEventListener("click", async (e) => {
-      const b = e.target.closest("[data-sphoto]"); if (!b) return;
+    const saveAv = async (go) => {
       try {
-        if (b.dataset.sphoto === "up") {
-          const data = await pickAvatarPhoto(); if (!data) return;
-          state.me = { ...state.me, ...(await api("/api/auth/me/avatar", { method: "PUT", body: { data } })) };
-        } else {
-          if (!(await confirmBox({ title: t("cf_rm_photo"), text: t("cf_rm_photo_t"), ok: t("remove_photo") }))) return;
-          state.me = { ...state.me, ...(await api("/api/auth/me/avatar", { method: "DELETE" })) };
-        }
+        state.me = { ...state.me, ...(await go()) };
         chime("ok"); toast(t("saved"));
-        $("#s-av", d).innerHTML = avatar(p.emoji, p.color, "lg", state.me.avatar);
-        $("#s-photo", d).innerHTML = photoBtns(state.me.avatar);
+        $("#s-av", d).innerHTML = avEdit(p.emoji, p.color, state.me.avatar);
         $(".me-chip").innerHTML = `${avatar(state.me.emoji, state.me.color, "sm", state.me.avatar)}<span>${esc(state.me.name)}</span>`;
         if (state.page === "people") renderPage();
       } catch (er) { fail(er); }
-    });
+    };
+    $("#s-av", d).addEventListener("click", (e) => avEditClick(e,
+      (data) => saveAv(() => api("/api/auth/me/avatar", { method: "PUT", body: { data } })),
+      async () => { if (await confirmBox({ title: t("cf_rm_photo"), text: t("cf_rm_photo_t"), ok: t("remove_photo") })) saveAv(() => api("/api/auth/me/avatar", { method: "DELETE" })); }));
     $("#s-bm", d).onchange = () => { const v = $("#s-bd", d).value; $("#s-bm", d).parentElement.innerHTML = bdSelects($("#s-bm", d).value, v, "s"); rewireBd(d); };
     const rewireBd = (dd) => { $("#s-bm", dd).onchange = () => { const v = $("#s-bd", dd).value; $("#s-bm", dd).parentElement.innerHTML = bdSelects($("#s-bm", dd).value, v, "s"); rewireBd(dd); }; };
     $("#s-save", d).onclick = async () => {
