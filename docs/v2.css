@@ -362,8 +362,9 @@ dialog.sheet .dlg{height:100%;max-height:none;border-radius:18px 0 0 18px}
 .btn.search-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 
 /* 所有页面：英文每个字的第一个字母大写（中文不受影响）；用户自己输入的内容（标题、备注、留言、Email、输入框）保持原样 */
-body{text-transform:capitalize}
-input,textarea,select,.raw,.ev-title,.notes,.post-body{text-transform:none}
+/* 英文：标题、按钮、分页、栏位名称、标签 → 每个字第一个字母大写；句子 → 一般句子写法（只有第一个字大写） */
+h1,h2,h3,button,.btn,.nav-btn,.tag,label,.lbl,.ef-cap,.tick-l,th,.kpi-label,.cal-dow,.day-month,.top h1{text-transform:capitalize}
+input,textarea,select,.raw,.ev-title,.notes,.post-body,.tl-ev b,.chip,.ev-row .ev-sub,.ef-q-body,[data-ev] b{text-transform:none}
 
 /* 字体：标题 Playfair Display（婚礼风格的衬线字，c / e 清楚），内文与数字 Inter（中文 Noto Sans SC）；分析页的大标题特别粗 */
 h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);font-weight:700}
@@ -673,4 +674,3 @@ dialog.confirm-dlg{max-width:min(380px,calc(100vw - 32px));width:100%;height:aut
 .cf-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin-top:8px}
 .btn.danger-solid{background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 0 14px rgba(239,68,68,.45)}
 dialog.confirm-dlg{position:fixed;inset:0;margin:auto;max-height:fit-content}
-.cf p{text-transform:none}

@@ -408,7 +408,9 @@ body{background:#050b18}
 .evm-btn{flex:none}
 @media (max-width:560px){.evm-row{flex-wrap:wrap}.evm-date{min-width:0}.evm-btn{margin-left:auto}}
 /* 英文每个字的第一个字母大写；活动标题、输入框保持原样 */
-body{text-transform:capitalize}
+/* 英文：标题、按钮、栏位名称 → 每个字第一个字母大写；句子 → 一般句子写法 */
+h1,h2,h3:not(.title),button,.btn,.nav-btn,.evc-t,.type-head,.rc-brand{text-transform:capitalize}
+.title,.eyebrow,.kpi-label,th,.tot-head{text-transform:uppercase}
 input,textarea,select,.raw,.evm-main b{text-transform:none}
 
 /* 字体：标题 Playfair Display（婚礼风格的衬线字，c / e 清楚），内文与数字 Inter（中文 Noto Sans SC） */
