@@ -463,7 +463,7 @@ input,textarea,select,.raw,.evm-main b{text-transform:none}
       <p class="note warn" id="p-norate" hidden>所选期间有日期还没设定 Photo Selection Rate，那些活动没有计入 Total Amount。请到 Rates 设置。</p>
       <div class="grid2">
         <div class="card" id="p-donut-card"><div><h2>Total Events</h2><p class="sub" id="p-donut-sub">—</p></div><div class="chart" id="p-donut"></div></div>
-        <div class="card"><div><h2>Events By Person</h2><p class="sub">Bars = Number Of Events  ·  RM = Total Amount (Non-All Soft Only)</p></div>
+        <div class="card"><div><h2 id="p-chart-title">Events By Person</h2><p class="sub">Bars = Number Of Events  ·  RM = Total Amount (Non-All Soft Only)</p></div>
           <div class="legend"><span><i style="background:var(--gold)"></i>Non-All Soft</span><span><i style="background:var(--lilac)"></i>All Soft</span></div>
           <div class="chart" id="p-chart"></div></div>
       </div>
@@ -1053,6 +1053,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     $('p-norate').hidden = true;
     $('p-donut').innerHTML = '<p class="empty">固定数据：没有 All Soft / Non-All Soft 明细。</p>';
     $('p-donut-sub').textContent = `${periodLabel()} · 固定数据`;
+    $('p-chart-title').textContent = f.groups != null ? `Events By Person (${int(f.groups)} 组)` : 'Events By Person';
     amountBars($('p-chart'), rows, '这个月只有品牌总数（固定数据），没有每个人的明细。');
     $('p-rows').innerHTML = rows.length
       ? rows.map((r) => `<tr><td>${esc(r.person)}</td><td>${r.n == null ? '' : int(r.n)}</td><td class="soft">${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${dash}</td><td class="bill amt"><span class="op">=</span>${esc(money(r.amount))}</td></tr>`).join('')
@@ -1093,6 +1094,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   const fixedNote = (c) => (c.fixedAmt != null ? `  ·  含固定数据 RM ${money(c.fixedAmt)}` : '');
   function renderPhoto() {
     if (!isYear() && fx(state.month)) return renderPhotoFixed(state.month);
+    $('p-chart-title').textContent = 'Events By Person';
     const c = periodCalc('photo', periodMonths());
     const [rv, rs] = rateKpi('photo', c);
     $('p-rate').innerHTML = esc(rv); $('p-rate-sub').textContent = rs;
