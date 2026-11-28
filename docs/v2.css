@@ -367,3 +367,20 @@ input,textarea,select,.raw,.ev-title,.notes,.post-body{text-transform:none}
 
 /* 字体：标题 Cormorant Garamond（婚礼风格的衬线字），内文与数字 Inter（中文 Noto Sans SC） */
 h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);font-weight:700}
+
+/* 电脑（有滑鼠）：左边栏平时是细细的图标栏，滑鼠移过去就展开（浮在页面上，不推动内容）；内容占满整个页面 */
+@media (min-width:861px) and (hover:hover){
+  .app{grid-template-columns:72px minmax(0,1fr)}
+  .side{width:72px;z-index:30;padding:24px 14px;overflow-x:hidden;transition:width .28s cubic-bezier(.2,.8,.2,1) .12s,box-shadow .28s .12s}
+  .side:hover,.side:focus-within{width:260px;background:#070f26;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:12px 0 40px rgba(0,0,0,.55);transition-delay:0s}
+  .logo-cal,.nav-label,.nav-btn .t,.me-chip{white-space:nowrap}
+  .logo-name{min-width:170px}
+  .logo-name,.logo-cal,.nav-label,.nav-btn .t,.me-chip{opacity:0;transition:opacity .18s .1s}
+  .side:hover .logo-name,.side:hover .logo-cal,.side:hover .nav-label,.side:hover .nav-btn .t,.side:hover .me-chip,
+  .side:focus-within .logo-name,.side:focus-within .logo-cal,.side:focus-within .nav-label,.side:focus-within .nav-btn .t,.side:focus-within .me-chip{opacity:1}
+  .nav-btn{padding:11px 10px}
+  .side:not(:hover):not(:focus-within) .nav-btn .count{position:absolute;top:3px;left:26px;font-size:9px;padding:0 4px}
+}
+@media (min-width:861px) and (hover:hover) and (prefers-reduced-motion:reduce){
+  .side,.logo-name,.logo-cal,.nav-label,.nav-btn .t,.me-chip{transition:none}
+}
