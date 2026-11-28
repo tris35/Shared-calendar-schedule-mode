@@ -132,7 +132,7 @@ export async function setEventDone(id: number, done: boolean, who: string | null
 }
 /** WhatsApp 摘要也算进每个月的用量（event_id 为空） */
 export async function logWaDigest() {
-  await sql`INSERT INTO wa_sent (event_id) VALUES (NULL)`;
+  try { await sql`INSERT INTO wa_sent (event_id) VALUES (NULL)`; } catch { /* WhatsApp 已停用，表已删除 */ }
 }
 export async function updateEvent(id: number, e: any, author?: string | null) {
   const old = await getEvent(id);
@@ -216,13 +216,14 @@ export async function pendingCustomerMessages() {
 // ---------- Schedule Mode：通讯录里的 booking number ----------
 /** 这个帐号的通讯录对照表整个换成新的 */
 export async function replaceContactBookings(userId: number, rows: { booking: string; name: string; phone: string; contact: string }[]) {
+  try { await sql`SELECT 1 FROM contact_bookings LIMIT 1`; } catch { return; } // WhatsApp 已停用，表已删除
   await sql`DELETE FROM contact_bookings WHERE user_id = ${userId}`;
   for (const r of rows)
     await sql`INSERT INTO contact_bookings (user_id, booking, phone, name, contact) VALUES (${userId}, ${r.booking}, ${r.phone}, ${clean(r.name, 80)}, ${clean(r.contact, 200)})
       ON CONFLICT (user_id, booking, phone) DO UPDATE SET name = EXCLUDED.name, contact = EXCLUDED.contact`;
 }
 export async function findContactBookings(booking: string) {
-  return sql`SELECT booking, phone, name, contact FROM contact_bookings WHERE booking = ${booking} ORDER BY phone`;
+  try { return await sql`SELECT booking, phone, name, contact FROM contact_bookings WHERE booking = ${booking} ORDER BY phone`; } catch { return []; }
 }
 /** 未来几天开始的行程（withPast = 也包括今天已经开始的，给清单显示） */
 export async function upcomingForSchedule(days: number, withPast = false) {
@@ -267,11 +268,25 @@ export async function claimCustomerSend(id: number, force = false) {
     : await sql`UPDATE events SET customer_sent_at = NOW(), customer_error = NULL WHERE id = ${id} AND customer_sent_at IS NULL AND customer_error IS NULL RETURNING id`;
   return r.length > 0;
 }
+// WhatsApp 已停用（wa_sent 表已删除）：这些都不会出错，只是不做事
 export async function recordWaSent(eventId: number) {
-  await sql`INSERT INTO wa_sent (event_id) VALUES (${eventId})`;
+  try { await sql`INSERT INTO wa_sent (event_id) VALUES (${eventId})`; } catch { /* 已停用 */ }
 }
 export async function countWaSentSince(since: Date) {
-  return Number((await sql`SELECT COUNT(*)::int AS n FROM wa_sent WHERE sent_at >= ${since.toISOString()}`)[0]?.n ?? 0);
+  try { return Number((await sql`SELECT COUNT(*)::int AS n FROM wa_sent WHERE sent_at >= ${since.toISOString()}`)[0]?.n ?? 0); } catch { return 0; }
+}
+// ---------- 登录错误次数限制 ----------
+export async function loginFailures(email: string, ip: string) {
+  const [r] = await sql`SELECT COUNT(*) FILTER (WHERE email = ${email})::int AS by_email, COUNT(*) FILTER (WHERE ip = ${ip})::int AS by_ip
+    FROM login_attempts WHERE at > NOW() - INTERVAL '15 minutes' AND (email = ${email} OR ip = ${ip})`;
+  return { byEmail: Number(r?.by_email || 0), byIp: Number(r?.by_ip || 0) };
+}
+export async function addLoginFailure(email: string, ip: string) {
+  await sql`INSERT INTO login_attempts (email, ip) VALUES (${email}, ${ip})`;
+  await sql`DELETE FROM login_attempts WHERE at < NOW() - INTERVAL '1 day'`; // 只留一天
+}
+export async function clearLoginFailures(email: string) {
+  await sql`DELETE FROM login_attempts WHERE email = ${email}`;
 }
 export async function setCustomerError(id: number, error: string) {
   await sql`UPDATE events SET customer_sent_at = NULL, customer_error = ${error} WHERE id = ${id}`;

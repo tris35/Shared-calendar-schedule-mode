@@ -17,6 +17,7 @@ const T: [RegExp, Record<Exclude<Lang, "zh">, string>][] = [
   [/^请等 20 秒再要求新的验证码$/, { en: "Please wait 20 seconds before asking for a new code", "zh-TW": "請等 20 秒再要求新的驗證碼", ms: "Sila tunggu 20 saat sebelum meminta kod baharu" }],
   [/^验证码不正确或已过期$/, { en: "The code is wrong or has expired", "zh-TW": "驗證碼不正確或已過期", ms: "Kod salah atau telah tamat tempoh" }],
   [/^Gmail 或密码不正确$/, { en: "Incorrect Gmail or password", "zh-TW": "Gmail 或密碼不正確", ms: "Gmail atau kata laluan salah" }],
+  [/^错误太多次，请 15 分钟后再试$/, { en: "Too many wrong attempts. Please try again in 15 minutes.", "zh-TW": "錯誤太多次，請 15 分鐘後再試", ms: "Terlalu banyak cubaan salah. Sila cuba lagi dalam 15 minit." }],
   [/^请先登录$/, { en: "Please log in first", "zh-TW": "請先登入", ms: "Sila log masuk dahulu" }],
   [/^登录已过期，请重新登录$/, { en: "Your login has expired. Please log in again.", "zh-TW": "登入已過期，請重新登入", ms: "Log masuk anda telah tamat. Sila log masuk semula." }],
   [/^请重新登录$/, { en: "Please log in again", "zh-TW": "請重新登入", ms: "Sila log masuk semula" }],

@@ -112,13 +112,18 @@ export async function resetPassword(body: any) {
 }
 
 /** 登录 */
-export async function login(body: any) {
+export async function login(body: any, ip = "") {
   const email = normalizeEmail(body.email);
+  // 同一个 Gmail 15 分钟内错 10 次、或同一个 IP 错 20 次 → 先锁 15 分钟
+  const f = await db.loginFailures(email || "", ip);
+  if (f.byEmail >= 10 || f.byIp >= 20) { await delay(800); throw new AuthError("错误太多次，请 15 分钟后再试"); }
   const user = email ? await db.getUserByEmail(email) : null;
   if (!user || !(await checkPassword(String(body.password || ""), user.password_hash))) {
+    await db.addLoginFailure(email || "", ip);
     await delay(800); // 减慢猜密码
     throw new AuthError("Gmail 或密码不正确");
   }
+  await db.clearLoginFailures(email || "");
   return { token: await makeToken(user), user: publicUser(user) };
 }
 

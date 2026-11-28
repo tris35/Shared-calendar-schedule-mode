@@ -70,7 +70,10 @@ export async function handleApi(req: Request): Promise<Response> {
     // ---------- 不用登录的 ----------
     if (seg[0] === "auth" && method === "POST") {
       if (seg[1] === "signup") return Response.json(await signup(await body()));
-      if (seg[1] === "login") return Response.json(await login(await body()));
+      if (seg[1] === "login") {
+        const ip = (req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+        return Response.json(await login(await body(), ip));
+      }
       if (seg[1] === "forgot") return Response.json(await forgotPassword(await body(), lang));
       if (seg[1] === "reset") return Response.json(await resetPassword(await body()));
     }
