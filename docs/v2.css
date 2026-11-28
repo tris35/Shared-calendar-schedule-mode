@@ -523,3 +523,20 @@ h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);fo
   .busy-pill{font-size:12.5px;padding:6px 13px 6px 11px}
 }
 @media (max-width:860px){.lab{font-size:12.5px;padding:5px 10px;gap:6px}.lab i{width:9px;height:9px}}
+
+/* 触控屏但画面是电脑版（手机「桌面版网站」、平板）：平时是细图示栏，点 logo 才展开（浮在页面上），点外面就收起 */
+@media (min-width:861px) and (hover:none){
+  .app{grid-template-columns:96px minmax(0,1fr)}
+  .side{width:72px;z-index:30;padding:24px 14px;overflow-x:hidden;margin:14px 0 14px 14px;height:calc(100vh - 28px);top:14px;border:1px solid var(--line);border-radius:26px;background:rgba(9,18,46,.94);box-shadow:0 18px 44px rgba(0,0,0,.5);transition:width .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s}
+  .side.open{width:260px;background:#0a1430;box-shadow:12px 0 40px rgba(0,0,0,.55)}
+  .side .logo{cursor:pointer}
+  .logo-cal,.nav-label,.nav-btn .t,.me-chip{white-space:nowrap}
+  .logo-name{min-width:170px}
+  .logo-name,.logo-cal,.nav-label,.nav-btn .t,.me-chip{opacity:0;transition:opacity .18s}
+  .side.open .logo-name,.side.open .logo-cal,.side.open .nav-label,.side.open .nav-btn .t,.side.open .me-chip{opacity:1}
+  .nav-btn{padding:11px 10px;border-radius:16px;color:var(--muted)}
+  .nav-btn[aria-current="page"]{color:#fff;background:linear-gradient(135deg,#2563eb,#0ea5e9);box-shadow:0 6px 18px rgba(37,99,235,.5)}
+  .side:not(.open) .nav-btn .count{position:absolute;top:3px;left:26px;font-size:9px;padding:0 4px}
+  .cal-grid,.card{border-radius:24px}
+  .top{border-bottom:none}
+}
