@@ -44,6 +44,9 @@ button,select,input,textarea{font:inherit;color:inherit}
 .av-btn{position:relative;display:block;border:0;padding:0;background:none;cursor:pointer;border-radius:50%;color:#fff}
 .av-btn .pen{position:absolute;right:-3px;bottom:-3px;width:28px;height:28px;border-radius:50%;background:var(--panel-solid);border:1px solid var(--line);display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .av-btn .pen svg{width:15px;height:15px}
+.av-panel{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--panel-2)}
+.av-panel[hidden]{display:none}
+.av-panel .lbl{font-size:13px;font-weight:600;color:var(--muted)}
 .av-menu{position:absolute;top:calc(100% + 8px);left:0;z-index:20;background:var(--panel-solid);border:1px solid var(--line);border-radius:12px;padding:4px;display:flex;flex-direction:column;min-width:160px;box-shadow:0 14px 34px rgba(0,0,0,.5)}
 .preview .av-menu{left:50%;transform:translateX(-50%)}
 .av-menu[hidden]{display:none}
