@@ -32,7 +32,7 @@ const T = {
   person_ic: ["负责人", "Person In Charge"], need_person: ["请选择负责人", "Please Choose The Person In Charge"], choose_person: ["选择负责人", "Choose Person"],
   loading: ["读取中…", "Loading…"],
   tick_type: ["类型", "Type"], need_ticks: ["请填好红色 * 的栏位", "Please fill in the fields marked *"],
-  time: ["时间", "Time"], add_title: ["加标题", "Add Title"], pick_tpl_first: ["先在上面选模板（选片 / 了解 / 普通）", "Choose a template above first"],
+  time: ["时间", "Time"], photos_comments: ["照片和留言", "Photos & Comments"], add_post: ["加入", "Add"], add_title: ["加标题", "Add Title"], pick_tpl_first: ["先在上面选模板（选片 / 了解 / 普通）", "Choose a template above first"],
   search: ["搜索", "Search"], search_ph: ["搜索活动标题或备注…", "Search Event Title Or Notes…"], no_results: ["没有找到活动", "No Events Found"],
   nav_calendar: ["Calendar", "Calendar"], nav_photo: ["Photo Selection", "Photo Selection"], nav_sales: ["Sales Analysis", "Sales Analysis"],
   nav_rates: ["Rates 设置", "Rates"], nav_people: ["Label & People", "Label & People"], nav_activity: ["最新动态", "Activity"], analysis: ["Analysis", "Analysis"],
@@ -513,7 +513,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=228"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=229"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -865,12 +865,21 @@ function drawForm() {
         <span class="ef-cap">${t("notes")}</span>
         <textarea class="input ef-notes" id="f-notes" maxlength="5000" placeholder="${t("notes")}" aria-label="${t("notes")}">${esc(f.notes)}</textarea>
       </div></section>
+      ${canEdit() ? `<section class="ef-sec ef-posts"><span class="ef-ico" aria-hidden="true">${ICON.img}</span><div class="ef-main">
+        <span class="ef-cap">${t("photos_comments")}</span>
+        ${(f.posts || []).map((p, i) => `<div class="ef-q"><div class="ef-q-body">${p.text ? `<p class="raw">${esc(p.text)}</p>` : ""}${p.files.length ? `<div class="thumbs">${p.files.map((x) => `<img src="${x.url}" alt="">`).join("")}</div>` : ""}</div><button type="button" class="ef-q-x" data-rmpost="${i}" aria-label="${t("delete")}">✕</button></div>`).join("")}
+        <textarea class="input" id="f-ptext" maxlength="2000" placeholder="${t("post_ph")}" style="min-height:58px">${esc(f.ptext || "")}</textarea>
+        <div class="thumbs" id="f-pthumbs">${(f.pfiles || []).map((x) => `<img src="${x.url}" alt="">`).join("")}</div>
+        <div class="row" style="justify-content:space-between"><label class="btn ghost sm" style="cursor:pointer">${ICON.img}${t("photos")}<input type="file" id="f-pfiles" accept="image/*" multiple hidden></label><button type="button" class="btn sm" id="f-padd">${ICON.plus}${t("add_post")}</button></div>
+      </div></section>` : ""}
       <p class="err" id="f-err"></p>
     </div>
     <div class="dlg-foot"><button type="button" class="btn ghost" data-close>${t("cancel")}</button><button type="submit" class="btn">${t("save")}</button></div></form>`,
   (d) => {
     const fm = $("#ev-form", d);
     fm.addEventListener("click", (e) => {
+      if (e.target.closest("#f-padd")) { readForm(); queuePost(f); return drawForm(); }
+      const rm = e.target.closest("[data-rmpost]"); if (rm) { readForm(); f.posts.splice(Number(rm.dataset.rmpost), 1); return drawForm(); }
       const x = e.target.closest("[data-tpl],[data-tick],[data-lab],#add-lab"); if (!x) return;
       readForm();
       if (x.id === "add-lab") return openLabelDlg((l) => { if (l) { form.label_id = l.id; form.template_id = l.template_id || (state.config.templates || []).find((x) => x.kind === "normal")?.id || form.template_id; } drawForm(); });
@@ -880,15 +889,27 @@ function drawForm() {
       drawForm();
     });
     $("#f-allday", d).onchange = () => { readForm(); drawForm(); };
+    $("#f-pfiles", d)?.addEventListener("change", (ev) => {
+      f.pfiles = [...(f.pfiles || []), ...[...ev.target.files].map((file) => ({ file, url: URL.createObjectURL(file) }))].slice(0, 10);
+      $("#f-pthumbs", d).innerHTML = f.pfiles.map((x) => `<img src="${x.url}" alt="">`).join("");
+    });
     fm.addEventListener("submit", (e) => { e.preventDefault(); saveForm(); });
   });
   if (!f.title) setTimeout(() => $("#f-title")?.focus(), 30);
+}
+// 表单里的「照片和留言」：先放在清单里，按保存后才一笔一笔发到活动
+function queuePost(f) {
+  const text = (f.ptext || "").trim(), files = f.pfiles || [];
+  if (!text && !files.length) return false;
+  (f.posts ||= []).push({ text, files }); f.ptext = ""; f.pfiles = [];
+  return true;
 }
 function readForm() {
   const f = form;
   f.title = $("#f-title").value; f.all_day = $("#f-allday").checked; f.date = $("#f-date").value || f.date;
   if ($("#f-st")) { f.st = $("#f-st").value || f.st; f.et = $("#f-et").value; }
   f.notes = $("#f-notes").value;
+  if ($("#f-ptext")) f.ptext = $("#f-ptext").value;
   if ($("#f-person")) f.person_id = $("#f-person").value;
 }
 async function saveForm() {
@@ -914,6 +935,15 @@ async function saveForm() {
   };
   try {
     const saved = await api(f.id ? `/api/events/${f.id}` : "/api/events", { method: f.id ? "PATCH" : "POST", body });
+    queuePost(f); // 打了字 / 选了照片但没按「加入」的，也一起发
+    for (const p of f.posts || []) {
+      try {
+        const fd = new FormData(); fd.append("text", p.text);
+        for (const x of p.files) fd.append("photos", await shrink(x.file), "photo.jpg");
+        await api(`/api/events/${saved.id}/posts`, { method: "POST", body: fd });
+      } catch (er) { fail(er); }
+    }
+    f.posts = [];
     $("#dlg").close();
     if (f.id) { toast(t("saved")); chime("ok"); } else celebrate();
     state.sel = f.date; state.cursor = f.date.slice(0, 7);
