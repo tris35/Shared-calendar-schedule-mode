@@ -75,7 +75,7 @@
 })();
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap">
 <style>
 /* Layout: fixed sidebar (brand + two analyses) beside a scrolling main column; collapses to a top bar on phones. */
 :root{
@@ -84,7 +84,7 @@
   --fg:#f4f3ff; --muted:#a6a3d8; --faint:#6f6ca6;
   --gold:#ffd166; --violet:#6c5ce7; --cyan:#22d3ee; --lilac:#9b93e8;
   --bad:#ff7a8a; --ok:#5ee6a0;
-  --font:"Montserrat","Noto Sans SC",system-ui,sans-serif;
+  --font:"Inter","Noto Sans SC",system-ui,sans-serif;--font-title:"Plus Jakarta Sans","Noto Sans SC",system-ui,sans-serif;
   --r:14px;
 }
 *{box-sizing:border-box}
@@ -115,13 +115,13 @@ button,select,input{font:inherit;color:inherit}
 .seg button{all:unset;cursor:pointer;padding:6px 14px;border-radius:7px;color:var(--muted);font-weight:500;font-size:14px}
 .seg button[aria-pressed="true"]{background:var(--violet);color:#fff}
 .page{padding-block:28px 48px;padding-left:28px;padding-right:max(28px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:24px;max-width:1180px;width:100%}
-.eyebrow{color:var(--cyan);letter-spacing:.18em;font-weight:600;font-size:14px;text-transform:uppercase}
+.eyebrow{color:var(--cyan);letter-spacing:.08em;font-weight:600;font-size:14px;text-transform:uppercase}
 .title{margin:4px 0 0;font-size:clamp(30px,5vw,46px);font-weight:700;line-height:1.1}
 .note{background:var(--panel-2);color:var(--muted);border-radius:10px;padding:14px 18px;line-height:1.6;margin:0}
 .note.warn{background:rgba(255,122,138,.12);color:var(--bad)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-bottom:4px solid var(--gold);border-radius:var(--r);padding:24px 26px;display:flex;flex-direction:column;gap:8px;min-width:0}
-.kpi-label{color:var(--gold);font-weight:700;letter-spacing:.14em;font-size:13px;text-transform:uppercase}
+.kpi-label{color:var(--gold);font-weight:700;letter-spacing:.02em;font-size:13px;text-transform:uppercase}
 .kpi-val{font-size:clamp(30px,4vw,46px);font-weight:800;color:var(--gold);line-height:1.05;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .kpi-val small{font-size:.45em;font-weight:600;margin-right:6px;color:inherit;opacity:.85}
 .kpi-sub{color:var(--muted);line-height:1.45;font-variant-numeric:tabular-nums}
@@ -190,7 +190,7 @@ body{background:radial-gradient(1100px 600px at 90% -10%,rgba(37,99,235,.38),tra
 .card,.kpi{backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 12px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05);transition:box-shadow .3s,border-color .3s}
 .card:hover,.kpi:hover{border-color:rgba(56,189,248,.45);box-shadow:0 0 24px rgba(56,189,248,.18),0 12px 32px rgba(0,0,0,.45)}
 .kpi{border-bottom:1px solid var(--line);position:relative}
-.kpi-label{color:var(--muted);letter-spacing:.1em}
+.kpi-label{color:var(--muted);letter-spacing:.06em}
 .kpi-val{color:#fff}
 .kpi-ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#38bdf8);box-shadow:0 0 18px rgba(56,189,248,.45);margin-bottom:6px}
 .kpi:nth-child(2) .kpi-ico{background:linear-gradient(135deg,#059669,#34e5a8);box-shadow:0 0 18px rgba(52,229,168,.45)}
@@ -210,10 +210,10 @@ body{background:#050b18}
 
 .app .side{background:var(--side)}
 .app .logo-mark{background:var(--t-ico1);box-shadow:0 0 18px var(--t-glow)}
-.app .logo-name.logo-dash{font-size:19px;font-weight:700;letter-spacing:.14em;background:var(--t-title);-webkit-background-clip:text;background-clip:text;color:transparent}
+.app .logo-name.logo-dash{font-size:19px;font-weight:700;letter-spacing:.02em;background:var(--t-title);-webkit-background-clip:text;background-clip:text;color:transparent}
 .app .nav-btn[aria-current="page"]{background:var(--t-navbg);color:#fff;box-shadow:inset 3px 0 0 var(--t-edge)}
 .app .top{background:var(--t-top)}
-.app .top h1{font-size:clamp(22px,2.6vw,32px);font-weight:700;letter-spacing:.14em}
+.app .top h1{font-size:clamp(22px,2.6vw,32px);font-weight:700;letter-spacing:.02em}
 .app .top h1,.app .title{background:var(--t-title);-webkit-background-clip:text;background-clip:text;color:transparent}
 .app .eyebrow{background:var(--t-sub);-webkit-background-clip:text;background-clip:text;color:transparent}
 .app .seg button[aria-pressed="true"]{background:var(--t-accent);color:var(--t-on);box-shadow:0 0 14px var(--t-glow)}
@@ -245,7 +245,7 @@ body{background:#050b18}
 .app .save-btn:focus-visible,.app .hist-del:focus-visible{outline:2px solid var(--t-edge);outline-offset:2px}
 .app .rf-msg{color:var(--bad)}
 .app .rate-hist{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;margin-top:4px}
-.app .hist-title{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.app .hist-title{font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
 .app .hist-row{display:grid;grid-template-columns:minmax(0,130px) minmax(0,110px) minmax(0,1fr) auto;gap:12px;align-items:center;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--line);font-variant-numeric:tabular-nums}
 .app .hist-row.live{border-color:var(--t-amt);background:var(--t-note)}
 .app .hist-row b{color:var(--t-amt)}
@@ -299,7 +299,7 @@ body{background:#050b18}
 .app .tour-tip{position:fixed;z-index:50;box-sizing:border-box;background:var(--side);border:1px solid var(--t-edge);border-radius:16px;padding:18px 20px;box-shadow:0 18px 40px rgba(0,0,0,.55),0 0 24px var(--t-glow);color:var(--fg)}
 .app .tour-tip h3{margin:4px 0 6px;font-size:19px;font-weight:800}
 .app .tour-tip p{margin:0;color:var(--fg);opacity:.9;line-height:1.6}
-.app .tour-step{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--t-amt)}
+.app .tour-step{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--t-amt)}
 .app .tour-dots{display:flex;gap:5px;margin:14px 0 12px}
 .app .tour-dots i{width:6px;height:6px;border-radius:50%;background:var(--line)}
 .app .tour-dots i.on{width:18px;border-radius:4px;background:var(--t-amt)}
@@ -322,7 +322,7 @@ body{background:#050b18}
 .app .untag-list table th,.app .untag-list table td{text-align:left}
 .app .untag-list table th{color:var(--muted)}
 .app .untag-tip{margin:10px 0 0;color:var(--muted);font-size:13px}
-.app .title{text-transform:uppercase;letter-spacing:.03em}
+.app .title{text-transform:uppercase;letter-spacing:.01em}
 .app .grid1{grid-template-columns:minmax(0,1fr)}
 .app th small{display:block;font-size:10px;letter-spacing:.04em;text-transform:none;font-weight:500;opacity:.75;margin-top:2px}
 .app th.bill,.app td.bill{background:var(--t-note)}
@@ -410,6 +410,9 @@ body{background:#050b18}
 /* 英文每个字的第一个字母大写；活动标题、输入框保持原样 */
 body{text-transform:capitalize}
 input,textarea,select,.raw,.evm-main b{text-transform:none}
+
+/* 字体：标题 Plus Jakarta Sans，内文与数字 Inter（中文 Noto Sans SC） */
+h1,h2,h3,.title,.logo-name,.cal-month,.kpi-val,.tot-val,.tot-head,.rc-now,.sb-card b{font-family:var(--font-title)}
 </style>
 
 </head>
@@ -708,7 +711,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
 
   /* ---------- drawing helpers ---------- */
   const ctx2d = document.createElement('canvas').getContext('2d');
-  function textW(s, weight = 600) { ctx2d.font = `${weight} 13px Montserrat, "Noto Sans SC", sans-serif`; return ctx2d.measureText(s).width; }
+  function textW(s, weight = 600) { ctx2d.font = `${weight} 13px Inter, "Noto Sans SC", sans-serif`; return ctx2d.measureText(s).width; }
   function hbars(el, rows, colors) {
     if (!rows.length) { el.innerHTML = '<p class="empty">这个月份没有活动。</p>'; return; }
     const W = Math.max(260, el.clientWidth || 360), rowH = 36;

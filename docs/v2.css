@@ -5,7 +5,7 @@
   --fg:#eaf2ff;--muted:#8fa6cf;--faint:#5b6f96;--amt:#34e5a8;--cyan:#38bdf8;--blue:#2563eb;--bad:#ff6b8a;--ok:#34e5a8;--warn:#ffd166;
   --accent:linear-gradient(135deg,#2563eb,#0ea5e9);--navbg:linear-gradient(90deg,rgba(37,99,235,.55),rgba(37,99,235,.08));
   --glow:rgba(56,189,248,.45);--title:linear-gradient(90deg,#ffffff 30%,#7dd3fc);
-  --font:"Montserrat","Noto Sans SC",system-ui,sans-serif;--r:14px;
+  --font:"Inter","Noto Sans SC",system-ui,sans-serif;--font-title:"Plus Jakarta Sans","Noto Sans SC",system-ui,sans-serif;--r:14px;
 }
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -21,7 +21,7 @@ button,select,input,textarea{font:inherit;color:inherit}
 .logo{display:flex;align-items:center;gap:12px}
 .logo-mark{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#000;box-shadow:0 0 0 1px rgba(255,190,140,.35),0 0 18px rgba(255,170,110,.35);flex:none}
 .brand-full{width:min(200px,60vw);height:auto;border-radius:20px;box-shadow:0 0 40px rgba(255,170,110,.18)}
-.logo-name{font-size:16px;font-weight:700;letter-spacing:.12em;line-height:1.25;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent;max-width:160px}
+.logo-name{font-size:16px;font-weight:700;letter-spacing:.04em;line-height:1.25;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent;max-width:160px}
 .logo-cal{color:var(--muted);font-size:12px;margin-top:2px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav-group{display:flex;flex-direction:column;gap:4px}
 .nav-label{color:var(--muted);font-size:13px;font-weight:500;padding:0 8px 6px}
@@ -42,7 +42,7 @@ button,select,input,textarea{font:inherit;color:inherit}
 .avatar.sm{width:26px;height:26px;font-size:14px}
 .main{min-width:0;display:flex;flex-direction:column}
 .top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;justify-content:space-between;padding:18px 28px;padding-right:max(28px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(5,11,31,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);z-index:5}
-.top h1{margin:0;font-size:clamp(22px,2.6vw,32px);font-weight:700;letter-spacing:.14em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent;text-transform:uppercase}
+.top h1{margin:0;font-size:clamp(22px,2.6vw,32px);font-weight:700;letter-spacing:.02em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent;text-transform:uppercase}
 .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .page{padding:28px;padding-right:max(28px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:22px;max-width:1240px;width:100%}
 .page.wide{max-width:none}
@@ -84,8 +84,8 @@ textarea.input{min-height:90px;resize:vertical}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:22px 24px;display:flex;flex-direction:column;gap:16px;min-width:0;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 12px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05)}
 .card h2{margin:0;font-size:19px;font-weight:700}
 .card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.eyebrow{color:var(--cyan);letter-spacing:.18em;font-weight:600;font-size:13px;text-transform:uppercase}
-.title{margin:2px 0 0;font-size:clamp(28px,4.4vw,42px);font-weight:700;line-height:1.1;text-transform:uppercase;letter-spacing:.03em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
+.eyebrow{color:var(--cyan);letter-spacing:.08em;font-weight:600;font-size:13px;text-transform:uppercase}
+.title{margin:2px 0 0;font-size:clamp(28px,4.4vw,42px);font-weight:700;line-height:1.1;text-transform:uppercase;letter-spacing:.01em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:18px;align-items:start}
 .empty{color:var(--muted);margin:0}
 .warn-bar{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 18px;border-radius:12px;background:rgba(255,107,138,.1);border:1px solid rgba(255,107,138,.35);color:var(--bad);font-weight:700}
@@ -95,7 +95,7 @@ textarea.input{min-height:90px;resize:vertical}
 .cal-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .cal-month{font-size:26px;font-weight:800;min-width:170px}
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--panel)}
-.cal-dow{padding:12px 8px;font-size:14px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--line);text-align:center}
+.cal-dow{padding:12px 8px;font-size:14px;font-weight:700;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;border-bottom:1px solid var(--line);text-align:center}
 .cal-cell{all:unset;box-sizing:border-box;cursor:pointer;min-height:150px;padding:8px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px;min-width:0;transition:background .2s}
 .cal-cell:nth-child(7n){border-right:none}
 .cal-cell:hover{background:rgba(56,189,248,.06)}
@@ -126,7 +126,7 @@ dialog#dlg-day{max-width:min(560px,calc(100vw - 24px))}
 .day-dlg{overflow:hidden}
 .day-head{display:flex;align-items:center;gap:16px;padding:16px 18px 10px}
 .day-date{display:flex;flex-direction:column;align-items:center;min-width:48px}
-.day-date span{font-size:12px;font-weight:800;letter-spacing:.12em;color:var(--cyan)}
+.day-date span{font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--cyan)}
 .day-date b{font-size:28px;font-weight:800;line-height:1.1;width:46px;height:46px;display:grid;place-items:center;border-radius:50%}
 .day-date b.today{background:var(--accent);color:#fff;box-shadow:0 0 14px var(--glow)}
 .day-month{flex:1;font-size:18px;font-weight:700;color:var(--muted)}
@@ -185,7 +185,7 @@ dialog.sheet .dlg{height:100%;max-height:none;border-radius:18px 0 0 18px}
 }
 .sec{display:flex;flex-direction:column;gap:12px;padding-bottom:18px;border-bottom:1px solid var(--line)}
 .sec:last-child{border-bottom:none}
-.sec h3{margin:0;font-size:14px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan)}
+.sec h3{margin:0;font-size:14px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--cyan)}
 
 /* template + ticks */
 .tpl-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -246,7 +246,7 @@ dialog.sheet .dlg{height:100%;max-height:none;border-radius:18px 0 0 18px}
 .gate-card.wide{width:min(560px,100%)}
 .gate-logo{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
  
-.gate-logo h1{margin:0;font-size:22px;letter-spacing:.14em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
+.gate-logo h1{margin:0;font-size:22px;letter-spacing:.02em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
 .linkish{all:unset;cursor:pointer;color:var(--cyan);font-weight:600;font-size:14px;text-align:center}
 .linkish:hover{text-decoration:underline}
 .linkish:focus-visible{outline:2px solid var(--cyan)}
@@ -260,7 +260,7 @@ dialog.sheet .dlg{height:100%;max-height:none;border-radius:18px 0 0 18px}
 .welcome{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:radial-gradient(circle at center,rgba(37,99,235,.35),rgba(5,11,31,.98) 60%);pointer-events:none}
 .welcome .big{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
 .welcome .avatar{width:120px;height:120px;font-size:64px;box-shadow:0 0 60px var(--glow)}
-.welcome h2{margin:0;font-size:clamp(26px,5vw,40px);letter-spacing:.08em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
+.welcome h2{margin:0;font-size:clamp(26px,5vw,40px);letter-spacing:.04em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
 .spark{position:absolute;width:10px;height:10px;border-radius:50%;left:50%;top:50%}
 @media (prefers-reduced-motion:no-preference){
   .welcome{animation:wIn 2.6s ease forwards}
@@ -277,7 +277,7 @@ dialog.sheet .dlg{height:100%;max-height:none;border-radius:18px 0 0 18px}
 /* ---------- 新增活动成功 ---------- */
 .saved-burst{position:fixed;inset:0;z-index:125;display:grid;place-items:center;pointer-events:none}
 .sb-card{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 38px;border-radius:24px;background:var(--panel-solid);border:1px solid var(--cyan);box-shadow:0 24px 60px rgba(0,0,0,.6),0 0 40px var(--glow)}
-.sb-card b{font-size:clamp(22px,4vw,30px);font-weight:800;letter-spacing:.14em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sb-card b{font-size:clamp(22px,4vw,30px);font-weight:800;letter-spacing:.02em;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
 .sb-card span{font-size:26px;line-height:1}
 .saved-burst i{position:absolute;left:50%;top:50%;font-style:normal;font-size:22px;opacity:0}
 @media (prefers-reduced-motion:no-preference){
@@ -364,3 +364,6 @@ dialog.sheet .dlg{height:100%;max-height:none;border-radius:18px 0 0 18px}
 /* 所有页面：英文每个字的第一个字母大写（中文不受影响）；用户自己输入的内容（标题、备注、留言、Email、输入框）保持原样 */
 body{text-transform:capitalize}
 input,textarea,select,.raw,.ev-title,.notes,.post-body{text-transform:none}
+
+/* 字体：标题 Plus Jakarta Sans，内文与数字 Inter（中文 Noto Sans SC） */
+h1,h2,h3,.title,.logo-name,.cal-month,.kpi-val,.tot-val,.tot-head,.rc-now,.sb-card b{font-family:var(--font-title)}
