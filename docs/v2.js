@@ -449,7 +449,7 @@ function renderApp() {
         <div class="me-chip">${avatar(state.me.emoji, state.me.color, "sm")}<span>${esc(state.me.name)}</span></div></div>
     </aside>
     <div class="main" id="main"></div></div>`;
-  $(".side").addEventListener("click", (e) => { const b = e.target.closest("[data-nav]"); if (b) go(b.dataset.nav); });
+  $(".side").addEventListener("click", (e) => { const b = e.target.closest("[data-nav]"); if (b) { b.blur(); go(b.dataset.nav); } });
   $("#gear").addEventListener("click", () => { chime("gear"); openSettings(); });
   renderPage();
 }
@@ -474,7 +474,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=207"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=208"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
