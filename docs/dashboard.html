@@ -1016,6 +1016,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   const rateFix = (v) => (v == null ? '未设定' : money(Number(v)));
   function fixedRateKpi(rate) {
     if (state.brand !== 'all') return [rateFix(rate?.[state.brand]), state.brand + ' · 固定数据'];
+    if (rate?.Legends == null && rate?.WM == null) return ['未设定', 'Legends / WM · 固定数据'];
     return [`${rateFix(rate?.Legends)} / ${rateFix(rate?.WM)}`, 'Legends / WM · 固定数据'];
   }
   function amountBars(el, rows, emptyMsg) {
