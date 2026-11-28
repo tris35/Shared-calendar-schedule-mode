@@ -63,6 +63,7 @@ const outRow = (r: any) => (r ? { ...r, created_at: iso(r.created_at) } : r);
 // ---------- 行程 ----------
 const EVENT_COLS = `e.*, m.name AS member_name, m.color AS member_color, m.emoji AS member_emoji,
   cu.name AS creator_name, cu.emoji AS creator_emoji, cu.color AS creator_color,
+  pu.name AS person_name, pu.emoji AS person_emoji,
   (SELECT COUNT(*) FROM event_checklist c WHERE c.event_id = e.id)::int AS check_total,
   (SELECT COUNT(*) FROM event_checklist c WHERE c.event_id = e.id AND c.done)::int AS check_done,
   (SELECT COUNT(*) FROM photos p WHERE p.event_id = e.id)::int AS photo_count,
@@ -70,7 +71,7 @@ const EVENT_COLS = `e.*, m.name AS member_name, m.color AS member_color, m.emoji
 
 export async function listEvents({ from, to, q: keyword, calendarId }: { from?: string; to?: string; q?: string; calendarId?: number | null } = {}) {
   const rows = await q(
-    `SELECT ${EVENT_COLS} FROM events e LEFT JOIN members m ON m.id = e.member_id LEFT JOIN users cu ON cu.id = e.created_by_id
+    `SELECT ${EVENT_COLS} FROM events e LEFT JOIN members m ON m.id = e.member_id LEFT JOIN users cu ON cu.id = e.created_by_id LEFT JOIN users pu ON pu.id = e.person_id
      WHERE ($1::timestamptz IS NULL OR COALESCE(e."end", e.start) >= $1) AND ($2::timestamptz IS NULL OR e.start < $2)
        AND ($3::text IS NULL OR e.title ILIKE '%' || $3 || '%' OR e.notes ILIKE '%' || $3 || '%')
        AND ($4::int IS NULL OR e.calendar_id = $4) AND e.deleted_at IS NULL
@@ -81,7 +82,7 @@ export async function listEvents({ from, to, q: keyword, calendarId }: { from?: 
 }
 
 export async function getEvent(id: number) {
-  const rows = await q(`SELECT ${EVENT_COLS} FROM events e LEFT JOIN members m ON m.id = e.member_id LEFT JOIN users cu ON cu.id = e.created_by_id WHERE e.id = $1`, [id]);
+  const rows = await q(`SELECT ${EVENT_COLS} FROM events e LEFT JOIN members m ON m.id = e.member_id LEFT JOIN users cu ON cu.id = e.created_by_id LEFT JOIN users pu ON pu.id = e.person_id WHERE e.id = $1`, [id]);
   return outEvent(rows[0]) ?? null;
 }
 
@@ -650,18 +651,23 @@ export async function setCalendarLabels(id: number, list: any[]) {
   await sql`UPDATE calendars SET labels = ${JSON.stringify(list)}::jsonb WHERE id = ${id}`;
 }
 /** 存模板、勾选、自订标签、负责人（只改有给的栏位） */
-export async function setEventExtra(id: number, f: { template_id?: string | null; brand?: string | null; soft?: string | null; sales_type?: string | null; label_id?: string | null; created_by_id?: number | null }) {
-  const [old] = await sql`SELECT template_id, brand, soft, sales_type, label_id, created_by_id FROM events WHERE id = ${id}`;
+export async function setEventExtra(id: number, f: { template_id?: string | null; brand?: string | null; soft?: string | null; sales_type?: string | null; label_id?: string | null; created_by_id?: number | null; person_id?: number | null }) {
+  const [old] = await sql`SELECT template_id, brand, soft, sales_type, label_id, created_by_id, person_id FROM events WHERE id = ${id}`;
   if (!old) return;
   const v = (k: string) => (k in f ? (f as any)[k] : old[k]);
   await sql`UPDATE events SET template_id = ${v("template_id")}, brand = ${v("brand")}, soft = ${v("soft")}, sales_type = ${v("sales_type")},
-    label_id = ${v("label_id")}, created_by_id = ${v("created_by_id")} WHERE id = ${id}`;
+    label_id = ${v("label_id")}, created_by_id = ${v("created_by_id")}, person_id = ${v("person_id")} WHERE id = ${id}`;
+}
+/** 管理员在 Dashboard 排除 / 加回这个活动（只影响分析） */
+export async function setDashExcluded(id: number, excluded: boolean) {
+  await sql`UPDATE events SET dash_excluded = ${excluded} WHERE id = ${id}`;
 }
 /** Dashboard 要的行程（从 fromDate 开始；date = 当地日期；负责人 = 建立的帐号现在的名字） */
 export async function dashEvents(calendarId: number, fromDate: string, tz: string) {
-  return q(`SELECT to_char(e.start AT TIME ZONE $3, 'YYYY-MM-DD') AS date, e.title, e.template_id, e.brand, e.soft, e.sales_type,
-      COALESCE(u.name, e.created_by) AS person
-    FROM events e LEFT JOIN users u ON u.id = e.created_by_id
+  // 负责人 = 活动上选的 Person in charge（没有选 → 空的，Dashboard 显示 No Person In Charge）
+  return q(`SELECT e.id, to_char(e.start AT TIME ZONE $3, 'YYYY-MM-DD') AS date, e.title, e.template_id, e.brand, e.soft, e.sales_type,
+      u.name AS person, e.dash_excluded AS excluded
+    FROM events e LEFT JOIN users u ON u.id = e.person_id
     WHERE e.calendar_id = $1 AND e.deleted_at IS NULL AND e.start >= ($2::date::timestamp AT TIME ZONE $3)
     ORDER BY e.start`, [calendarId, fromDate, tz]);
 }

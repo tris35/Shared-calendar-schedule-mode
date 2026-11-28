@@ -148,6 +148,16 @@ export async function handleApi(req: Request): Promise<Response> {
       if (!canWhatsApp(me)) { delete b.customer_phone; delete b.customer_note; delete b.customer_auto; delete b.customer_name; delete b.customer_send_at; }
       return b;
     };
+    // 负责人（Person in charge）：选片 / 了解 一定要选；只能选这个日历里的人（包括管理员）
+    const resolvePerson = async (b: any, old: any, ticks: any, creating = false) => {
+      const tid = ticks ? ticks.template_id : old?.template_id;
+      const kind = templates.find((t: any) => t.id === tid)?.kind;
+      const has = "person_id" in b;
+      const pid = has ? (b.person_id ? Number(b.person_id) : null) : old?.person_id ?? null;
+      if (has && pid != null && !(await db.listCalendarPeople(calId)).some((u: any) => u.id === pid)) throw new Error("无效的负责人");
+      if ((kind === "photo" || kind === "sales") && pid == null && (creating || has || ticks)) throw new Error("请选择负责人");
+      return has ? { person_id: pid } : {};
+    };
     const eventDetail = async (eid: number) => {
       // 同时查（不要一个等一个），打开行程更快
       const [e, g, s, feed] = await Promise.all([db.getEvent(eid), db.getEventGoogle(eid, me.id), getSettings(), db.eventFeed(eid)]);
@@ -226,9 +236,10 @@ export async function handleApi(req: Request): Promise<Response> {
           mustEdit();
           const b = await eventInput();
           const ticks = dash.resolveTicks(b, null, templates, true); // 一定要选模板；选片 / 了解要勾选
+          const person = await resolvePerson(b, null, ticks, true);
           dash.applyLabel(b, labelList);
           const e = await db.createEvent({ ...b, calendar_id: calId }, who);
-          await db.setEventExtra(e.id, { ...ticks, ...("label_id" in b ? { label_id: b.label_id } : {}), created_by_id: me.id });
+          await db.setEventExtra(e.id, { ...ticks, ...person, ...("label_id" in b ? { label_id: b.label_id } : {}), created_by_id: me.id });
           await act("event_created", e.title, e.id);
           sync(e.id);
           return Response.json(await db.getEvent(e.id));
@@ -281,12 +292,13 @@ export async function handleApi(req: Request): Promise<Response> {
           const old: any = await db.getEvent(id);
           if (!old) notFound();
           const ticks = dash.resolveTicks(b, old, templates); // 只有送了模板 / 勾选才检查
+          const person = await resolvePerson(b, old, ticks);
           dash.applyLabel(b, labelList);
           const e = await db.updateEvent(id, b, who);
           if (!e) notFound();
           // 从 Google 同步进来的行程没有负责人：第一个在网站里选模板的人就是负责人
           const owner = !old.created_by_id && ticks?.template_id ? { created_by_id: me.id } : {};
-          await db.setEventExtra(id, { ...(ticks || {}), ...("label_id" in b ? { label_id: b.label_id } : {}), ...owner });
+          await db.setEventExtra(id, { ...(ticks || {}), ...person, ...("label_id" in b ? { label_id: b.label_id } : {}), ...owner });
           // 选了 / 换了模板 → 最新动态
           if (ticks?.template_id && ticks.template_id !== old.template_id) await act("event_template", `${e.title} → ${templates.find((t: any) => t.id === ticks.template_id)?.name || ""}`, id);
           sync(id);
@@ -382,6 +394,15 @@ export async function handleApi(req: Request): Promise<Response> {
         const fixed = ((fixedAll as any) || {})[String(calId)] || {};
         const live = rows.filter((x: any) => !fixed[String(x.date).slice(0, 7)]);
         return Response.json({ ...dash.buildEvents(live, manual, templates), fixed, rates: dash.rateHistory(rates), admin: isAdmin(me), dataStart: dash.DASH_START });
+      }
+      // 管理员：把活动排除在分析之外 / 加回来（日历和 Google 日历都不变）
+      if (seg[1] === "exclude" && method === "PUT") {
+        mustAdmin();
+        const b = await body();
+        const eid = Number(b.id);
+        await needEvent(eid, false);
+        await db.setDashExcluded(eid, !!b.excluded);
+        return Response.json({ ok: true, id: eid, excluded: !!b.excluded });
       }
       if (seg[1] === "rates" && method === "PUT") {
         mustAdmin();

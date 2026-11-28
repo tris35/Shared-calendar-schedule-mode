@@ -28,6 +28,8 @@ const T = {
   ob_cal: ["建立或加入日历", "Create or join a calendar"], create: ["建立", "Create"], join: ["加入", "Join"], cal_name: ["日历名称", "Calendar name"],
   invite_link: ["邀请连结", "Invite link"], next: ["下一步", "Next"], skip: ["跳过", "Skip"], done: ["完成", "Done"], welcome: ["欢迎，{name}", "Welcome, {name}"],
   month: ["月", "Month"], day: ["日", "Day"],
+  person_ic: ["负责人", "Person In Charge"], need_person: ["请选择负责人", "Please Choose The Person In Charge"], choose_person: ["选择负责人", "Choose Person"],
+  search: ["搜索", "Search"], search_ph: ["搜索活动标题或备注…", "Search Event Title Or Notes…"], no_results: ["没有找到活动", "No Events Found"],
   nav_calendar: ["Calendar", "Calendar"], nav_photo: ["Photo Selection", "Photo Selection"], nav_sales: ["Sales Analysis", "Sales Analysis"],
   nav_rates: ["Rates 设置", "Rates"], nav_people: ["Label & People", "Label & People"], nav_activity: ["最新动态", "Activity"], analysis: ["Analysis", "Analysis"],
   settings: ["设置", "Settings"], today: ["今天", "Today"], new_event: ["新增活动", "New event"], edit_event: ["编辑活动", "Edit event"],
@@ -186,6 +188,7 @@ const skRows = (n, h = 56) => Array.from({ length: n }, (_, i) => sk("sk-row", `
 
 // ---------------- 图示 ----------------
 const ICON = {
+  search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
   calendar: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   photo: '<svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>',
   sales: '<svg viewBox="0 0 24 24"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M7 15l4-4 3 3 5-6"/></svg>',
@@ -483,6 +486,11 @@ function renderPage() {
   if (p === "activity") return renderActivity();
 }
 document.addEventListener("click", (e) => { if (e.target.closest("#bell")) openBell(); });
+window.addEventListener("message", async (e) => {
+  if (e.origin !== location.origin || e.data?.type !== "open-event") return;
+  await openDetail(Number(e.data.id));
+  $("#dlg").addEventListener("close", () => { try { document.querySelector(".frame-page iframe")?.contentWindow?.TheLegendDashboard?.reload?.(); } catch {} }, { once: true });
+});
 
 // ================= Calendar =================
 async function renderCalendar() {
@@ -490,7 +498,7 @@ async function renderCalendar() {
   state.sel ||= ymdIn(Date.now());
   const [y, m] = state.cursor.split("-").map(Number);
   const monthName = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(loc(), { year: "numeric", month: "long", timeZone: "UTC" });
-  $("#main").innerHTML = topBar(t("nav_calendar"), (canEdit() ? `<button class="icon-btn" id="trash-btn" aria-label="${t("trash")}" title="${t("trash")}">${ICON.trash}</button><button class="btn" id="new-ev">${ICON.plus}${t("new_event")}</button>` : "")) + `
+  $("#main").innerHTML = topBar(t("nav_calendar"), `<button class="icon-btn" id="search-btn" aria-label="${t("search")}" title="${t("search")}">${ICON.search}</button>` + (canEdit() ? `<button class="icon-btn" id="trash-btn" aria-label="${t("trash")}" title="${t("trash")}">${ICON.trash}</button><button class="btn" id="new-ev">${ICON.plus}${t("new_event")}</button>` : "")) + `
     <section class="page wide">
       <button class="warn-bar" id="untag-bar" hidden></button>
       <div class="cal-head">
@@ -507,6 +515,7 @@ async function renderCalendar() {
   $("#today").onclick = () => { state.cursor = ymdIn(Date.now()).slice(0, 7); state.sel = ymdIn(Date.now()); renderCalendar(); };
   $("#new-ev")?.addEventListener("click", () => openForm(null, state.sel));
   $("#trash-btn")?.addEventListener("click", openTrash);
+  $("#search-btn").addEventListener("click", openSearch);
   $("#untag-bar").onclick = openUntagged;
   drawGrid();
   await loadMonth();
@@ -624,7 +633,7 @@ function refreshDay() { const d = $("#dlg-day"); if (d?.open && state.sel) openD
 function evRow(e, withDate = false) {
   const tpl = tplOf(e.template_id), lab = labelOf(e);
   const when = e.all_day ? t("all_day") : fmtTime(e.start);
-  const who = e.creator_name ? `${e.creator_emoji || ""} ${e.creator_name}` : "";
+  const who = e.person_name ? `${e.person_emoji || ""} ${e.person_name}` : e.creator_name ? `${e.creator_emoji || ""} ${e.creator_name}` : "";
   return `<button class="ev-row" data-ev="${e.id}" style="--c:${esc(evColor(e))}">
     <span class="ev-time">${withDate ? esc(fmtDay(ymdIn(e.start))) + "<br>" : ""}${esc(when)}</span>
     <span style="min-width:0"><div class="ev-title">${esc(e.title)}</div><div class="ev-sub">${esc([lab?.name, who].filter(Boolean).join(" · "))}</div></span>
@@ -675,6 +684,28 @@ function openUntagged() {
   (d) => { d.querySelector(".day-list").onclick = (e) => { const r = e.target.closest("[data-ev]"); if (r) openDetail(Number(r.dataset.ev)); }; });
 }
 
+// ---------------- 搜索活动（标题或备注） ----------------
+function openSearch() {
+  showDlg("#dlg", `<div class="dlg"><div class="dlg-head"><h2>${t("search")}</h2><button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
+    <div class="dlg-body"><input class="input" id="s-q" type="search" placeholder="${t("search_ph")}" autocomplete="off"><div class="day-list" id="s-list"></div></div></div>`,
+  (d) => {
+    let timer = null, seq = 0;
+    const run = async () => {
+      const q = $("#s-q", d).value.trim(), my = ++seq, box = $("#s-list", d);
+      if (!q) { box.innerHTML = ""; return; }
+      try {
+        const list = await api(`/api/events?q=${encodeURIComponent(q)}`);
+        if (my !== seq) return;
+        const shown = list.filter((e) => !e.birthday_user_id).reverse().slice(0, 100);
+        box.innerHTML = shown.length ? shown.map((e) => evRow(e, true)).join("") : `<p class="empty">${t("no_results")}</p>`;
+      } catch (er) { fail(er); }
+    };
+    $("#s-q", d).addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(run, 300); });
+    $("#s-list", d).onclick = (ev) => { const r = ev.target.closest("[data-ev]"); if (r) openDetail(Number(r.dataset.ev)); };
+    setTimeout(() => $("#s-q", d).focus(), 30);
+  });
+}
+
 // ---------------- 对话框 ----------------
 function showDlg(sel, html, wire) {
   const d = $(sel);
@@ -688,20 +719,33 @@ function showDlg(sel, html, wire) {
 
 // ---------------- 活动：表单 ----------------
 let form = null;
-function openForm(ev, day, hour = null) {
+// 负责人的选项：这个日历里的所有人（包括管理员）
+let calPeople = null;
+async function ensurePeople(force = false) {
+  if (calPeople && !force) return calPeople;
+  try { calPeople = await api("/api/people"); } catch { calPeople = calPeople || []; }
+  return calPeople;
+}
+document.addEventListener("change", (e) => { if (e.target.matches?.("[data-person]") && form) form.person_id = e.target.value; });
+async function openForm(ev, day, hour = null) {
+  await ensurePeople();
   form = ev ? {
     id: ev.id, title: ev.title, all_day: !!ev.all_day, date: ymdIn(ev.start), st: ev.all_day ? "10:00" : hmIn(ev.start), et: ev.end && !ev.all_day ? hmIn(ev.end) : "",
     template_id: ev.template_id || "", brand: ev.brand || "", soft: ev.soft || "", sales_type: ev.sales_type || "", label_id: ev.label_id || "", notes: ev.notes || "",
+    person_id: ev.person_id ? String(ev.person_id) : "",
   } : { id: null, title: "", all_day: hour == null, date: day || ymdIn(Date.now()), st: hour == null ? "10:00" : `${pad(hour)}:00`, et: hour == null ? "11:00" : `${pad(Math.min(23, hour + 1))}:${hour >= 23 ? "59" : "00"}`,
-      template_id: "", brand: "", soft: "", sales_type: "", label_id: "", notes: "" };
+      template_id: "", brand: "", soft: "", sales_type: "", label_id: "", notes: "", person_id: "" };
   drawForm();
 }
 function tickHtml(f) {
   const tpl = tplOf(f.template_id);
   if (!tpl || tpl.kind === "normal") return "";
   const seg = (key, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-tick="${key}" data-v="${v}" aria-pressed="${f[key] === v}">${esc(l)}</button>`).join("")}</div>`;
+  const ppl = calPeople || [];
+  const personSel = `<div class="field"><label for="f-person">${t("person_ic")} *</label><select class="input" id="f-person" data-person>
+    <option value="">${t("choose_person")}</option>${ppl.map((u) => `<option value="${u.id}"${String(f.person_id || "") === String(u.id) ? " selected" : ""}>${esc((u.emoji ? u.emoji + " " : "") + u.name)}</option>`).join("")}</select></div>`;
   return `<div class="ticks">${seg("brand", [["Legends", "Legends"], ["WM", "WM"]])}
-    ${tpl.kind === "photo" ? seg("soft", [["non_all_soft", "Non-All Soft"], ["all_soft", "All Soft"]]) : seg("sales_type", [["visit", t("visit")], ["vc", t("vc")]])}</div>`;
+    ${tpl.kind === "photo" ? seg("soft", [["non_all_soft", "Non-All Soft"], ["all_soft", "All Soft"]]) : seg("sales_type", [["visit", t("visit")], ["vc", t("vc")]])}</div>${personSel}`;
 }
 // 模板写清楚是做什么的：选片 (Photo Selection)、了解 (Sales)、普通（下面列出它的标签）
 const tplName = (x) => `${x.name}${x.kind === "photo" ? " (Photo Selection)" : x.kind === "sales" ? " (Sales)" : ""}`;
@@ -757,17 +801,21 @@ function readForm() {
   f.title = $("#f-title").value; f.all_day = $("#f-allday").checked; f.date = $("#f-date").value || f.date;
   if ($("#f-st")) { f.st = $("#f-st").value || f.st; f.et = $("#f-et").value; }
   f.notes = $("#f-notes").value;
+  if ($("#f-person")) f.person_id = $("#f-person").value;
 }
 async function saveForm() {
   readForm();
   const f = form, err = (m) => { $("#f-err").textContent = m; chime("bad"); };
   if (!f.title.trim()) return err(t("need_title"));
   if (!f.template_id) return err(t("need_tpl"));
+  const kind = tplOf(f.template_id)?.kind;
+  if ((kind === "photo" || kind === "sales") && !f.person_id) return err(t("need_person"));
   const body = {
     title: f.title.trim(), all_day: f.all_day, notes: f.notes,
     start: wallToIso(f.date, f.all_day ? "00:00" : f.st),
     end: f.all_day ? null : f.et ? wallToIso(f.date, f.et) : null,
     template_id: f.template_id, brand: f.brand || null, soft: f.soft || null, sales_type: f.sales_type || null, label_id: f.label_id || null,
+    person_id: f.person_id ? Number(f.person_id) : null,
   };
   try {
     const saved = await api(f.id ? `/api/events/${f.id}` : "/api/events", { method: f.id ? "PATCH" : "POST", body });
@@ -826,7 +874,7 @@ function openLabelDlg(done, edit = null) {
 // ---------------- 活动：详细 ----------------
 let detail = null, pending = [];
 async function openDetail(id) {
-  try { detail = await api(`/api/events/${id}`); } catch (e) { return fail(e); }
+  try { [detail] = await Promise.all([api(`/api/events/${id}`), ensurePeople()]); } catch (e) { return fail(e); }
   pending = [];
   drawDetail();
 }
@@ -836,7 +884,7 @@ function drawDetail() {
     : `${fmtDay(ymdIn(e.start), { year: "numeric", month: "long", day: "numeric", weekday: "short" })} · ${fmtTime(e.start)}${e.end ? " – " + fmtTime(e.end) : ""}`;
   const tickTxt = tpl && tpl.kind !== "normal" ? [e.brand, tpl.kind === "photo" ? { non_all_soft: "Non-All Soft", all_soft: "All Soft" }[e.soft] : { visit: t("visit"), vc: t("vc") }[e.sales_type]].filter(Boolean).join(" · ") : "";
   const needTpl = untaggedEv(e) && canEdit();
-  if (needTpl) form = { template_id: "", brand: "", soft: "", sales_type: "", label_id: e.label_id || "" };
+  if (needTpl) form = { template_id: "", brand: "", soft: "", sales_type: "", label_id: e.label_id || "", person_id: e.person_id ? String(e.person_id) : "" };
   const posts = (e.feed || []).map((f) => {
     if (f.type === "log") return "";
     const head = `<div class="post-who"><b>${esc(f.author || "—")}</b> · ${esc(ago(f.created_at))}</div>`;
@@ -851,6 +899,7 @@ function drawDetail() {
         <span class="tag">${esc(when)}</span>
         ${lab ? `<span class="tag" style="--c:${esc(labelHex(lab.color))}"><i></i>${esc(lab.name)}</span>` : ""}
         ${tpl ? `<span class="tag ok">${esc(tplName(tpl))}${tickTxt ? " · " + esc(tickTxt) : ""}</span>` : e.birthday_user_id ? "" : `<span class="tag bad">${t("untagged_title")}</span>`}
+        ${e.person_name ? `<span class="tag ok">${t("person_ic")}: ${esc(e.person_emoji || "")} ${esc(e.person_name)}</span>` : tpl && tpl.kind !== "normal" ? `<span class="tag bad">${t("need_person")}</span>` : ""}
         ${e.creator_name ? `<span class="tag">${esc(e.creator_emoji || "")} ${esc(e.creator_name)}</span>` : ""}
       </div>
       ${needTpl ? `<div class="sec" id="fix-tpl"><h3>${t("template")}</h3><div id="tpl-box">${tplPicker(form)}</div><div class="row"><button class="btn sm" id="tpl-save">${t("save")}</button><p class="err" id="tpl-err"></p></div></div>` : ""}
@@ -875,8 +924,10 @@ function drawDetail() {
     });
     $("#tpl-save", d)?.addEventListener("click", async () => {
       if (!form.template_id) { $("#tpl-err").textContent = t("need_tpl"); return; }
+      const k = tplOf(form.template_id)?.kind;
+      if ((k === "photo" || k === "sales") && !form.person_id) { $("#tpl-err").textContent = t("need_person"); return; }
       try {
-        await api(`/api/events/${e.id}`, { method: "PATCH", body: { template_id: form.template_id, brand: form.brand || null, soft: form.soft || null, sales_type: form.sales_type || null, ...(form.label_id ? { label_id: form.label_id } : {}) } });
+        await api(`/api/events/${e.id}`, { method: "PATCH", body: { template_id: form.template_id, brand: form.brand || null, soft: form.soft || null, sales_type: form.sales_type || null, person_id: form.person_id ? Number(form.person_id) : null, ...(form.label_id ? { label_id: form.label_id } : {}) } });
         chime("ok"); toast(t("saved"));
         refreshCalendar();
         // 还有其他未选模板的活动 → 回到清单，继续下一个

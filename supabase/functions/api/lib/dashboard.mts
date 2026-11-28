@@ -133,7 +133,7 @@ export function buildEvents(rows: any[], manual: any[], templates: any[]) {
   for (const r of rows) {
     const month = String(r.date).slice(0, 7);
     if (manualMonths.has(month)) continue;
-    const base = { date: r.date, person: r.person || "—", title: r.title || "" };
+    const base = { id: r.id, date: r.date, person: r.person || "", title: r.title || "", excluded: !!r.excluded };
     const t: any = r.template_id ? byId.get(r.template_id) : null;
     if (!t) { out.push({ ...base, brand: "", type: "未选模板" }); continue; }
     if (t.kind === "normal") continue;

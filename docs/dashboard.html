@@ -19,7 +19,7 @@
     '所选期间有日期还没设定 Photo Selection Rate，那些活动没有计入 Total Amount。请到 Rates 设置。': 'Some days in this period have no Photo Selection rate, so those events are not in the Total Amount. Set it in Rates.',
     '所选期间有日期还没设定 Sales Rate，那些活动没有计入 Total Amount。请到 Rates 设置。': 'Some days in this period have no Sales rate, so those events are not in the Total Amount. Set it in Rates.',
     '负责人': 'Person', '全部场次': 'All events', '不计费': 'not billed', '计费场次': 'billed', 'TOTAL 上门了解': 'TOTAL VISIT', 'TOTAL VC了解': 'TOTAL VC',
-    '上门了解': 'Visit', 'VC了解': 'VC', '次数': 'Count', '合计次数': 'Total count', '计费次数': 'billed', '未设定': 'Not set',
+    '上门了解': 'Visit', 'VC了解': 'VC', '次数': 'Count', '合计次数': 'Total count', '计费次数': 'billed', '未设定': 'Not Set',
     '这个月份没有活动。': 'No events this month.', '每位负责人的场次与 Total Amount': 'Events and Total Amount per person', '还没有任何月份的活动。': 'No events yet.',
     '每月 Total Amount': 'Total Amount per month', '没有活动。': 'No events.', '没有活动': 'No events', '这个期间没有活动。': 'No events in this period.',
     '每位负责人的次数': 'Count per person', '选片 · Photo Selection': 'Photo Selection', '上门了解 + VC了解 · Sales': 'Visit + VC · Sales',
@@ -49,7 +49,7 @@
     [/^Dashboard 读取失败：(.*)$/, 'Could not load the dashboard: $1'],
   ];
   // 句子里面的词（最长的先换）
-  const WORDS = [['含固定数据', 'incl. fixed figures'], ['固定数据', 'fixed figures'], ['Rate 未齐', 'rate missing'], ['按品牌/按月', 'by brand/month'], ['按日期', 'by date'], ['+ 未设定', '+ not set'], ['未设定', 'not set'],
+  const WORDS = [['含固定数据', 'incl. fixed figures'], ['固定数据', 'fixed figures'], ['Rate 未齐', 'rate missing'], ['按品牌/按月', 'by brand/month'], ['按日期', 'by date'], ['+ 未设定', '+ Not Set'], ['未设定', 'Not Set'],
     ['上门了解', 'Visit'], ['VC了解', 'VC'], ['合计', 'Total'], ['场', ' events']];
   function fix(s) {
     const k = s.trim();
@@ -376,6 +376,37 @@ body{background:#050b18}
 .embed .app{grid-template-columns:minmax(0,1fr)}
 .embed .side,.embed .tour-btn,.embed .page > p.note:not(.warn),.embed .page .sub{display:none!important}
 .embed body{background:transparent}
+/* 分析里的活动清单（只有管理员） */
+.ev-card{display:flex;align-items:center;gap:14px;flex-wrap:wrap;width:100%;text-align:left;font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px 24px;cursor:pointer;transition:border-color .2s,box-shadow .2s}
+.ev-card:hover:not(:disabled){border-color:var(--t-hover,var(--gold));box-shadow:0 0 20px var(--t-glow,rgba(56,189,248,.18))}
+.ev-card:disabled{cursor:default;opacity:.75}
+.ev-card .evc-t{font-weight:700;font-size:17px}
+.ev-card .evc-s{color:var(--muted);font-size:14px}
+.ev-card .evc-go{margin-left:auto;color:var(--gold);font-weight:700;font-size:14px}
+.evm{position:fixed;inset:0;z-index:60;background:rgba(2,6,23,.62);display:flex;align-items:flex-start;justify-content:center;padding:4vh 16px}
+.evm[hidden]{display:none}
+.evm-box{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);width:min(860px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.55)}
+.evm-head{display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--line)}
+.evm-head h3{margin:0;font-size:18px;font-weight:700;flex:1;min-width:0}
+.evm-x{background:none;border:0;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:4px 8px}
+.evm-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 22px}
+.evm-search{flex:1;min-width:180px;position:relative}
+.evm-search input{width:100%;box-sizing:border-box;font:inherit;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px 10px 36px}
+.evm-search svg{position:absolute;left:11px;top:50%;width:16px;height:16px;transform:translateY(-50%);fill:none;stroke:var(--muted);stroke-width:2}
+.evm-filter{font:inherit;font-size:13px;font-weight:600;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:9px 14px;cursor:pointer}
+.evm-filter[aria-pressed="true"]{background:var(--gold);color:#0b1020;border-color:var(--gold)}
+.evm-count{color:var(--muted);font-size:13px}
+.evm-list{overflow:auto;padding:4px 14px 16px}
+.evm-row{display:flex;align-items:center;gap:14px;padding:12px 10px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:8px}
+.evm-row:hover{background:var(--panel-2)}
+.evm-row.off{opacity:.55}
+.evm-date{color:var(--muted);font-size:13px;white-space:nowrap;min-width:82px}
+.evm-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.evm-main b{font-weight:600;overflow-wrap:anywhere}
+.evm-main small{color:var(--muted);font-size:12.5px}
+.evm-tag{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--bad);border:1px solid var(--bad);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.evm-btn{flex:none}
+@media (max-width:560px){.evm-row{flex-wrap:wrap}.evm-date{min-width:0}.evm-btn{margin-left:auto}}
 </style>
 
 </head>
@@ -425,6 +456,7 @@ body{background:#050b18}
         <div class="kpi"><span class="kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg></span><div class="kpi-label">Non-All Soft</div><div class="kpi-val" id="p-non">—</div><div class="kpi-sub" id="p-non-sub">—</div></div>
         <div class="kpi total"><span class="kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z"/><circle cx="16" cy="14.5" r="1.3"/></svg></span><div class="kpi-label">Total Amount</div><div class="kpi-val" id="p-amt">—</div><div class="kpi-sub" id="p-amt-sub">—</div></div>
       </div>
+      <button type="button" class="ev-card" data-evcard="photo" hidden></button>
       <p class="note warn" id="p-norate" hidden>所选期间有日期还没设定 Photo Selection Rate，那些活动没有计入 Total Amount。请到 Rates 设置。</p>
       <div class="grid2">
         <div class="card" id="p-donut-card"><div><h2>Total Events</h2><p class="sub" id="p-donut-sub">—</p></div><div class="chart" id="p-donut"></div></div>
@@ -445,6 +477,7 @@ body{background:#050b18}
         <div class="kpi"><span class="kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14a6 6 0 0 1 3.5 6"/></svg></span><div class="kpi-label">Applies To</div><div class="kpi-val" id="s-count">—</div><div class="kpi-sub" id="s-count-sub">—</div></div>
         <div class="kpi total"><span class="kpi-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z"/><circle cx="16" cy="14.5" r="1.3"/></svg></span><div class="kpi-label">Grand Total</div><div class="kpi-val" id="s-amt">—</div><div class="kpi-sub" id="s-amt-sub">—</div></div>
       </div>
+      <button type="button" class="ev-card" data-evcard="sales" hidden></button>
       <p class="note warn" id="s-norate" hidden>所选期间有日期还没设定 Sales Rate，那些活动没有计入 Total Amount。请到 Rates 设置。</p>
       <div class="grid2">
         <div class="tot-card" style="--tc:var(--gold);--tc-ink:var(--t-head0)"><div class="tot-head">TOTAL 上门了解</div><div class="tot-val" id="s-visit-total">—</div><div class="tot-sub" id="s-visit-total-sub">—</div></div>
@@ -469,6 +502,18 @@ body{background:#050b18}
       <datalist id="dl-photo"></datalist><datalist id="dl-sales"></datalist>
     </section>
 
+  </div>
+</div>
+
+<div class="evm" id="evm" hidden role="dialog" aria-modal="true" aria-labelledby="evm-title">
+  <div class="evm-box">
+    <div class="evm-head"><h3 id="evm-title">Events In This Analysis</h3><button type="button" class="evm-x" data-evm-close aria-label="Close">✕</button></div>
+    <div class="evm-tools">
+      <label class="evm-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="search" id="evm-q" placeholder="Search Title, Person, Brand…" aria-label="Search"></label>
+      <button type="button" class="evm-filter" id="evm-ex" aria-pressed="false">Show Excluded Only</button>
+      <span class="evm-count" id="evm-count"></span>
+    </div>
+    <div class="evm-list" id="evm-list"></div>
   </div>
 </div>
 
@@ -498,6 +543,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   let data = { events: [], rates: {}, sample: false, fixed: {} };
   // 固定数据（2026 年 10、11 月）：直接显示给的数字，不算行程；没有人能在 App 里改
   const fx = (m) => (m && data.fixed ? data.fixed[m] : null);
+  const NO_PERSON = 'No Person In Charge';
   const curMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
   let firstLoad = true;
   const state = { page: 'photo', brand: 'all', month: null };
@@ -525,7 +571,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   }
   function persist() { if (data.sample) { try { localStorage.setItem(STORE, JSON.stringify(data.rates)); } catch {} } }
   api.setData = (d) => {
-    data = { events: (d.events || []).map((e) => ({ ...e, month: String(e.date || '').slice(0, 7) })).filter((e) => e.month >= DATA_START), rates: toHistory(d.rates), sample: !!d.sample, fixed: d.fixed || {} };
+    data = { events: (d.events || []).map((e) => ({ ...e, person: e.person || NO_PERSON, excluded: !!e.excluded, month: String(e.date || '').slice(0, 7) })).filter((e) => e.month >= DATA_START), rates: toHistory(d.rates), sample: !!d.sample, fixed: d.fixed || {} };
     if (d.sample) {
       // demo of a mid-month change: Legends photo rate becomes 1,800 from 15 Oct 2026
       const h = hist('Legends', 'photo');
@@ -537,6 +583,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     if (firstLoad || !periodOptions().includes(state.month)) state.month = ms.includes(curMonth()) ? curMonth() : ms[ms.length - 1] || null;
     firstLoad = false;
     render();
+    if (!$('evm').hidden) drawEvList();
   };
   api.getRates = () => JSON.parse(JSON.stringify(data.rates));
   const months = () => [...new Set([...data.events.map((e) => e.month), ...Object.keys(data.fixed || {}), curMonth()].filter((m) => /^\d{4}-\d{2}$/.test(m) && m >= DATA_START))].sort();
@@ -609,7 +656,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     const people = {}, byBrand = {};
     BRANDS.forEach((b) => { byBrand[b] = { a: 0, b: 0, amt: 0, rates: new Set(), counts: new Map(), missing: false }; });
     for (const e of data.events) {
-      if (!set.has(e.month) || !brandsNow().includes(e.brand) || !types.includes(e.type)) continue;
+      if (e.excluded || !set.has(e.month) || !brandsNow().includes(e.brand) || !types.includes(e.type)) continue;
       const p = (people[e.person] ??= { person: e.person, a: 0, b: 0, amount: 0 });
       const first = e.type === types[0], bb = byBrand[e.brand];
       first ? (p.a++, bb.a++) : (p.b++, bb.b++);
@@ -628,7 +675,8 @@ const SAMPLE = { sample: false, events: [], rates: {} };
       fixedAmt ??= 0;
       if (cat === 'photo') {
         for (const b of brandsNow()) { const v = Number(f.brand?.[b]) || 0; byBrand[b].amt = r2(byBrand[b].amt + v); fixedAmt = r2(fixedAmt + v); }
-        if (state.brand === 'all') for (const x of f.people || []) {
+        for (const x of f.people || []) {
+          if (state.brand !== 'all' && x.brand !== state.brand) continue;
           const p = (people[x.person] ??= { person: x.person, a: 0, b: 0, amount: 0 });
           p.fixed = true; if (p.amount != null) p.amount = r2(p.amount + (Number(x.amount) || 0));
         }
@@ -728,7 +776,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     const set = new Set(ms), strict = ms.length === 1, people = {}, rates = new Map();
     let n = 0, amount = 0, missing = false;
     for (const e of data.events) {
-      if (!set.has(e.month) || !brandsNow().includes(e.brand) || e.type !== type) continue;
+      if (e.excluded || !set.has(e.month) || !brandsNow().includes(e.brand) || e.type !== type) continue;
       const p = (people[e.person] ??= { person: e.person, n: 0, amount: 0, rates: new Map() });
       p.n++; n++;
       const rt = rateAt(e.date, e.brand, 'sales');
@@ -894,7 +942,76 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     $('rates').hidden = state.page !== 'rates';
     document.querySelectorAll('.controls > .sel, .controls > .seg').forEach((c) => { c.hidden = state.page === 'rates'; });
     if (state.page === 'photo') renderPhoto(); else if (state.page === 'sales') renderSales(); else renderRates();
+    if (state.page !== 'rates') renderEvCard(state.page);
   }
+  /* ---------- 分析里的活动清单（只有管理员）：搜索、只看排除的、排除 / 加回 ---------- */
+  const evState = { cat: 'photo', q: '', exOnly: false };
+  const catTypes = (cat) => (cat === 'photo' ? PHOTO : SALES);
+  function analysisEvents(cat) {
+    const set = new Set(periodMonths());
+    return data.events.filter((e) => set.has(e.month) && brandsNow().includes(e.brand) && catTypes(cat).includes(e.type))
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.title).localeCompare(String(b.title)));
+  }
+  function renderEvCard(cat) {
+    const el = document.querySelector(`[data-evcard="${cat}"]`);
+    if (!el) return;
+    el.hidden = !isAdmin;
+    if (!isAdmin) return;
+    const pm = periodMonths();
+    if (pm.length && pm.every((m) => fx(m))) {
+      el.disabled = true;
+      el.innerHTML = '<span class="evc-t">Events In This Analysis</span><span class="evc-s">No Event List</span>';
+      return;
+    }
+    el.disabled = false;
+    const list = analysisEvents(cat), ex = list.filter((e) => e.excluded).length;
+    el.innerHTML = `<span class="evc-t">Events In This Analysis</span><span class="evc-s">${int(list.length - ex)} Counted · ${int(ex)} Excluded</span><span class="evc-go">View List ›</span>`;
+  }
+  function drawEvList() {
+    const cat = evState.cat, q = evState.q.trim().toLowerCase();
+    let list = analysisEvents(cat);
+    if (q) list = list.filter((e) => [e.title, e.person, e.brand, e.type, fmtDate(String(e.date))].join(' ').toLowerCase().includes(q));
+    if (evState.exOnly) list = list.filter((e) => e.excluded);
+    $('evm-title').textContent = `${cat === 'photo' ? 'Photo Selection' : 'Sales Analysis'} · ${periodLabel()}`;
+    $('evm-count').textContent = `${int(list.length)} Events`;
+    $('evm-ex').setAttribute('aria-pressed', String(evState.exOnly));
+    $('evm-list').innerHTML = list.length ? list.map((e) => `<div class="evm-row${e.excluded ? ' off' : ''}" data-open="${e.id}" role="button" tabindex="0" title="Open Event">
+        <span class="evm-date">${fmtDate(String(e.date))}</span>
+        <span class="evm-main"><b>${esc(e.title || '—')}</b><small>${esc(e.person)} · ${esc(e.brand)} · ${esc(e.type)}</small></span>
+        ${e.excluded ? '<span class="evm-tag">EXCLUDED</span>' : ''}
+        <button type="button" class="${e.excluded ? 'save-btn' : 'ghost-btn'} evm-btn" data-toggle="${e.id}">${e.excluded ? 'Include' : 'Exclude'}</button></div>`).join('')
+      : `<p class="empty">${evState.exOnly ? 'No Excluded Events.' : 'No Events.'}</p>`;
+  }
+  function openEvList(cat) { evState.cat = cat; evState.q = ''; evState.exOnly = false; $('evm-q').value = ''; $('evm').hidden = false; drawEvList(); $('evm-q').focus(); }
+  function closeEvList() { $('evm').hidden = true; }
+  async function toggleEx(id) {
+    const e = data.events.find((x) => x.id === id);
+    if (!e) return;
+    const nv = !e.excluded;
+    try {
+      await server('/api/dashboard/exclude', { method: 'PUT', body: { id, excluded: nv } });
+      data.events.forEach((x) => { if (x.id === id) x.excluded = nv; });
+      sfx.success(); render(); drawEvList();
+    } catch (err) { sfx.blip(); alert(err.message); }
+  }
+  // 点活动 → 在网站里打开活动详情（跟日历一样）
+  const openEvent = (id) => { try { window.parent.postMessage({ type: 'open-event', id }, location.origin); } catch {} };
+  document.addEventListener('click', (ev) => {
+    const card = ev.target.closest('[data-evcard]');
+    if (card) { if (!card.disabled) openEvList(card.dataset.evcard); return; }
+    if (ev.target.id === 'evm' || ev.target.closest('[data-evm-close]')) return closeEvList();
+    const tg = ev.target.closest('[data-toggle]');
+    if (tg) return void toggleEx(Number(tg.dataset.toggle));
+    const row = ev.target.closest('[data-open]');
+    if (row) openEvent(Number(row.dataset.open));
+  });
+  document.addEventListener('keydown', (ev) => {
+    if ($('evm').hidden) return;
+    if (ev.key === 'Escape') closeEvList();
+    else if (ev.key === 'Enter' && ev.target.matches?.('.evm-row')) openEvent(Number(ev.target.dataset.open));
+  });
+  $('evm-q').addEventListener('input', (ev) => { evState.q = ev.target.value; drawEvList(); });
+  $('evm-ex').addEventListener('click', () => { evState.exOnly = !evState.exOnly; drawEvList(); });
   /* ---------- 固定数据的月份（2026 年 10、11 月） ---------- */
   const rateFix = (v) => (v == null ? '未设定' : money(Number(v)));
   function fixedRateKpi(rate) {
@@ -923,7 +1040,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     const bs = brandsNow(), total = r2(bs.reduce((t, b) => t + (Number(f.brand?.[b]) || 0), 0));
     const [rv, rs] = fixedRateKpi(f.rate);
     $('p-rate').innerHTML = esc(rv); $('p-rate-sub').textContent = rs;
-    const rows = state.brand === 'all' ? (f.people || []).map((x) => ({ person: x.person, amount: Number(x.amount) || 0, n: x.n ?? null })) : [];
+    const rows = (f.people || []).filter((x) => state.brand === 'all' || x.brand === state.brand).map((x) => ({ person: x.person, amount: Number(x.amount) || 0, n: x.n ?? null }));
     const n = rows.some((r) => r.n != null) ? rows.reduce((t, r) => t + (r.n || 0), 0) : null;
     $('p-non').textContent = n == null ? '—' : int(n);
     $('p-non-sub').textContent = n == null ? '固定数据 · 没有场次明细' : `${int(n)} Events · 固定数据`;
@@ -959,9 +1076,8 @@ const SAMPLE = { sample: false, events: [], rates: {} };
       $(`s-${key}-chart`).innerHTML = '<p class="empty">固定数据：没有分 上门了解 / VC了解。</p>';
       $(`s-${key}-rows`).innerHTML = ''; $(`s-${key}-foot`).innerHTML = '';
     }
-    const split = (r) => (r.parts.length > 1 ? `<span class="mix">${esc(r.parts.map(([b, v]) => `${b} ${money(v)}`).join(' + '))}</span>` : esc(r.parts[0][0]));
     $('s-rows').innerHTML = rows.length
-      ? rows.map((r) => `<tr><td>${esc(r.person)}</td><td>${dash}</td><td>${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${split(r)}</td><td class="bill amt"><span class="op">=</span>${esc(money(r.amount))}</td></tr>`).join('')
+      ? rows.map((r) => `<tr><td>${esc(r.person)}</td><td>${dash}</td><td>${dash}</td><td class="bill b-first">${dash}</td><td class="bill"></td><td class="bill amt"><span class="op">=</span>${esc(money(r.amount))}</td></tr>`).join('')
       : '<tr><td colspan="6" style="text-align:left;color:var(--muted)">没有数据。</td></tr>';
     $('s-foot').innerHTML = rows.length ? `<tr><td>合计</td><td>${dash}</td><td>${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${dash}</td><td class="bill amt"><span class="op">=</span>${esc(money(total))}</td></tr>` : '';
   }

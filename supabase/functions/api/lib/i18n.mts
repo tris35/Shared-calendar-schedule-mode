@@ -55,6 +55,8 @@ const T: [RegExp, Record<Exclude<Lang, "zh">, string>][] = [
   [/^Google 日历错误 (\d+)：(.*)$/, { en: "Google Calendar error $1: $2", "zh-TW": "Google 日曆錯誤 $1：$2", ms: "Ralat Kalendar Google $1: $2" }],
   // 第 2 版
   [/^请选择模板$/, { en: "Please choose a template", "zh-TW": "請選擇模板", ms: "Sila pilih templat" }],
+  [/^请选择负责人$/, { en: "Please choose the person in charge", "zh-TW": "請選擇負責人", ms: "Sila pilih orang yang bertanggungjawab" }],
+  [/^无效的负责人$/, { en: "This person is not in the calendar", "zh-TW": "這個人不在日曆裡", ms: "Orang ini tiada dalam kalendar" }],
   [/^无效的模板$/, { en: "Invalid template", "zh-TW": "無效的模板", ms: "Templat tidak sah" }],
   [/^请选择\ Legends\ 或\ WM$/, { en: "Please choose Legends or WM", "zh-TW": "請選擇 Legends 或 WM", ms: "Sila pilih Legends atau WM" }],
   [/^请选择\ All\ Soft\ 或\ Non\-All\ Soft$/, { en: "Please choose All Soft or Non-All Soft", "zh-TW": "請選擇 All Soft 或 Non-All Soft", ms: "Sila pilih All Soft atau Non-All Soft" }],
