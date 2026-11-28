@@ -490,7 +490,7 @@ body{background:#050b18}
           <div class="tw"><table class="mini"><thead><tr><th>Person</th><th>次数</th><th>× Rate</th><th>= Total</th></tr></thead><tbody id="s-vc-rows"></tbody><tfoot id="s-vc-foot"></tfoot></table></div></div>
       </div>
       <div class="card"><h2>Total Amount By Person</h2>
-        <div class="tw"><table><thead><tr><th>负责人</th><th>上门了解</th><th>VC了解</th><th class="bill b-first">合计次数<small>计费次数</small></th><th class="bill">× Rate<small>RM</small></th><th class="bill">= Total Amount<small>RM</small></th></tr></thead><tbody id="s-rows"></tbody><tfoot id="s-foot"></tfoot></table></div></div>
+        <div class="tw"><table><thead><tr><th>负责人</th><th id="s-h1">上门了解</th><th id="s-h2">VC了解</th><th class="bill b-first">合计次数<small>计费次数</small></th><th class="bill">× Rate<small>RM</small></th><th class="bill">= Total Amount<small>RM</small></th></tr></thead><tbody id="s-rows"></tbody><tfoot id="s-foot"></tfoot></table></div></div>
 
     </section>
 
@@ -1076,10 +1076,15 @@ const SAMPLE = { sample: false, events: [], rates: {} };
       $(`s-${key}-chart`).innerHTML = '<p class="empty">固定数据：没有分 上门了解 / VC了解。</p>';
       $(`s-${key}-rows`).innerHTML = ''; $(`s-${key}-foot`).innerHTML = '';
     }
-    $('s-rows').innerHTML = rows.length
-      ? rows.map((r) => `<tr><td>${esc(r.person)}</td><td>${dash}</td><td>${dash}</td><td class="bill b-first">${dash}</td><td class="bill"></td><td class="bill amt"><span class="op">=</span>${esc(money(r.amount))}</td></tr>`).join('')
+    // 固定数据：上门了解 / VC了解 两栏改成 Legends / WM 的金额；Rate 留空
+    $('s-h1').textContent = 'Legends'; $('s-h2').textContent = 'WM';
+    const amtOf = (x, b) => (state.brand !== 'all' && state.brand !== b) || x[b] == null ? '' : esc(money(Number(x[b]) || 0));
+    const src = (f.people || []).filter((x) => rows.some((r) => r.person === x.person));
+    $('s-rows').innerHTML = src.length
+      ? src.map((x) => { const r = rows.find((y) => y.person === x.person); return `<tr><td>${esc(x.person)}</td><td>${amtOf(x, 'Legends')}</td><td>${amtOf(x, 'WM')}</td><td class="bill b-first"></td><td class="bill"></td><td class="bill amt"><span class="op">=</span>${esc(money(r.amount))}</td></tr>`; }).join('')
       : '<tr><td colspan="6" style="text-align:left;color:var(--muted)">没有数据。</td></tr>';
-    $('s-foot').innerHTML = rows.length ? `<tr><td>合计</td><td>${dash}</td><td>${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${dash}</td><td class="bill amt"><span class="op">=</span>${esc(money(total))}</td></tr>` : '';
+    const colTot = (b) => (state.brand !== 'all' && state.brand !== b ? '' : esc(money(byB(b))));
+    $('s-foot').innerHTML = src.length ? `<tr><td>合计</td><td>${colTot('Legends')}</td><td>${colTot('WM')}</td><td class="bill b-first"></td><td class="bill"></td><td class="bill amt"><span class="op">=</span>${esc(money(total))}</td></tr>` : '';
   }
   const fixedNote = (c) => (c.fixedAmt != null ? `  ·  含固定数据 RM ${money(c.fixedAmt)}` : '');
   function renderPhoto() {
@@ -1098,6 +1103,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   }
   function renderSales() {
     if (!isYear() && fx(state.month)) return renderSalesFixed(state.month);
+    $('s-h1').textContent = '上门了解'; $('s-h2').textContent = 'VC了解';
     const c = periodCalc('sales', periodMonths());
     const [rv, rs] = rateKpi('sales', c);
     $('s-rate').innerHTML = esc(rv); $('s-rate-sub').textContent = rs;

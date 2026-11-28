@@ -498,7 +498,7 @@ async function renderCalendar() {
   state.sel ||= ymdIn(Date.now());
   const [y, m] = state.cursor.split("-").map(Number);
   const monthName = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(loc(), { year: "numeric", month: "long", timeZone: "UTC" });
-  $("#main").innerHTML = topBar(t("nav_calendar"), `<button class="icon-btn" id="search-btn" aria-label="${t("search")}" title="${t("search")}">${ICON.search}</button>` + (canEdit() ? `<button class="icon-btn" id="trash-btn" aria-label="${t("trash")}" title="${t("trash")}">${ICON.trash}</button><button class="btn" id="new-ev">${ICON.plus}${t("new_event")}</button>` : "")) + `
+  $("#main").innerHTML = topBar(t("nav_calendar"), `<button class="btn ghost search-btn" id="search-btn">${ICON.search}${t("search")}</button>` + (canEdit() ? `<button class="icon-btn" id="trash-btn" aria-label="${t("trash")}" title="${t("trash")}">${ICON.trash}</button><button class="btn" id="new-ev">${ICON.plus}${t("new_event")}</button>` : "")) + `
     <section class="page wide">
       <button class="warn-bar" id="untag-bar" hidden></button>
       <div class="cal-head">
