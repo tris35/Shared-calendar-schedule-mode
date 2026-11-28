@@ -5,7 +5,7 @@
   --fg:#eaf2ff;--muted:#8fa6cf;--faint:#5b6f96;--amt:#34e5a8;--cyan:#38bdf8;--blue:#2563eb;--bad:#ff6b8a;--ok:#34e5a8;--warn:#ffd166;
   --accent:linear-gradient(135deg,#2563eb,#0ea5e9);--navbg:linear-gradient(90deg,rgba(37,99,235,.55),rgba(37,99,235,.08));
   --glow:rgba(56,189,248,.45);--title:linear-gradient(90deg,#ffffff 30%,#7dd3fc);
-  --font:"Inter","Noto Sans SC",system-ui,sans-serif;--font-title:"Cormorant Garamond","Noto Sans SC",Georgia,serif;--r:14px;
+  --font:"Inter","Noto Sans SC",system-ui,sans-serif;--font-title:"Playfair Display","Noto Sans SC",Georgia,serif;--r:14px;
 }
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -365,7 +365,7 @@ dialog.sheet .dlg{height:100%;max-height:none;border-radius:18px 0 0 18px}
 body{text-transform:capitalize}
 input,textarea,select,.raw,.ev-title,.notes,.post-body{text-transform:none}
 
-/* 字体：标题 Cormorant Garamond（婚礼风格的衬线字），内文与数字 Inter（中文 Noto Sans SC） */
+/* 字体：标题 Playfair Display（婚礼风格的衬线字，c / e 清楚），内文与数字 Inter（中文 Noto Sans SC）；分析页的大标题特别粗 */
 h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);font-weight:700}
 
 /* 电脑（有滑鼠）：左边栏平时是细细的图标栏，滑鼠移过去就展开（浮在页面上，不推动内容）；内容占满整个页面 */
