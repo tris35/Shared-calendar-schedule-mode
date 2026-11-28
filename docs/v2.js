@@ -510,7 +510,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=225"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=226"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -813,7 +813,7 @@ function tickHtml(f) {
     ${req("person_id", t("person_ic"), personSel)}</div>`;
 }
 // 模板写清楚是做什么的：选片 (Photo Selection)、了解 (Sales)、普通（下面列出它的标签）
-const tplName = (x) => `${x.name}${x.kind === "photo" ? " (Photo Selection)" : x.kind === "sales" ? " (Sales)" : ""}`;
+const tplName = (x) => `${x.name}${x.kind === "photo" || x.kind === "sales" ? " (Sales)" : ""}`; // 选片 (Sales)、了解 (Sales)
 const labelsOfTpl = (x) => (state.config.labelList || []).filter((l) => (tplOf(l.template_id)?.kind || "normal") === x.kind);
 function tplPicker(f, withAdd = false) {
   return `<div class="tpl-cards">${(state.config.templates || []).map((x) => {
