@@ -415,6 +415,15 @@ input,textarea,select,.raw,.evm-main b{text-transform:none}
 h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);font-weight:700}
 /* 分析页的大标题（PHOTO SELECTION ANALYSIS、SALES ANALYSIS）：Inter 粗体 */
 .title{font-family:var(--font);font-weight:800;letter-spacing:-.01em}
+/* 手机 / App：Dashboard 顶部只留一排（月份 + 品牌），内容直接出现 */
+@media (max-width:600px){
+  .embed .top h1{display:none}
+  .embed .top{padding-block:10px}
+  .embed .controls{flex-wrap:nowrap;gap:8px;width:100%}
+  .embed .controls .sel{flex:1;min-width:112px}
+  .embed .controls #snd{display:none}
+  .embed .controls .seg button{padding-inline:10px}
+}
 </style>
 
 </head>
