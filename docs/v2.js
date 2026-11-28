@@ -23,7 +23,9 @@ const T = {
   pw_rule: ["密码至少 6 个字，并包含 1 个特殊符号", "At least 6 characters with 1 symbol"], bad_email: ["请输入正确的 Gmail 地址", "Enter a valid Gmail address"],
   send_code: ["寄验证码", "Send code"], code: ["验证码", "Code"], new_pw: ["新密码", "New password"], reset: ["重设密码", "Reset password"], back: ["返回", "Back"],
   code_sent: ["验证码已寄出", "Code sent"],
-  ob_look: ["选择你的 Emoji 和颜色", "Pick your emoji and colour"], ob_name: ["你的名字", "Your name"], ob_bd: ["你的生日", "Your birthday"],
+  ob_look: ["选择你的头像", "Choose your avatar"], ob_look_t: ["上传一张照片，或选 Emoji 和颜色", "Upload a photo, or pick an emoji and colour"],
+  upload_photo: ["上传照片", "Upload Photo"], change_photo: ["换照片", "Change Photo"], remove_photo: ["移除照片", "Remove Photo"],
+  photo_bad: ["这张照片打不开，请换一张", "This photo can't be opened. Please try another."], cf_rm_photo: ["移除头像照片？", "Remove your avatar photo?"], cf_rm_photo_t: ["会改回用你的 Emoji。", "Your emoji will be shown instead."], ob_name: ["你的名字", "Your name"], ob_bd: ["你的生日", "Your birthday"],
   ob_bd_note: ["填写后，每年你的生日会自动加入日历，并同步到 Google 日历，日历里的人都看得到。可以不填。", "If you fill this in, your birthday is added to the calendar every year and synced to Google Calendar, where everyone in the calendar can see it. Optional."],
   ob_cal: ["建立或加入日历", "Create or join a calendar"], create: ["建立", "Create"], join: ["加入", "Join"], cal_name: ["日历名称", "Calendar name"],
   invite_link: ["邀请连结", "Invite link"], next: ["下一步", "Next"], skip: ["跳过", "Skip"], done: ["完成", "Done"], welcome: ["欢迎，{name}", "Welcome, {name}"],
@@ -354,7 +356,7 @@ function celebrate() {
   w.innerHTML = Array.from({ length: 16 }, (_, i) => {
     const a = (i / 16) * Math.PI * 2, r = 110 + Math.random() * 90;
     return `<i style="--x:${Math.cos(a) * r}px;--y:${Math.sin(a) * r}px;animation-delay:${0.08 + Math.random() * 0.15}s">${bits[i % bits.length]}</i>`;
-  }).join("") + `<div class="sb-card">${avatar(state.me?.emoji, state.me?.color, "lg")}<b>EVENT SAVED</b><span>🎉</span></div>`;
+  }).join("") + `<div class="sb-card">${avatar(state.me?.emoji, state.me?.color, "lg", state.me?.avatar)}<b>EVENT SAVED</b><span>🎉</span></div>`;
   document.body.append(w);
   setTimeout(() => w.remove(), 1700);
 }
@@ -446,7 +448,30 @@ const inkOf = (hex) => { const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
 const labelOf = (e) => (state.config?.labelList || []).find((l) => l.id === e.label_id);
 const evColor = (e) => (e.label && state.config?.labels?.[e.label] ? labelHex(e.label) : e.color || "#3b82f6");
 const tplOf = (id) => (state.config?.templates || []).find((x) => x.id === id);
-const avatar = (emoji, color, cls = "") => `<span class="avatar ${cls}" style="--c:${esc(color || "#2563eb")}">${esc(emoji || "🙂")}</span>`;
+// 头像：有上传照片就用照片，不然用 emoji + 颜色
+const avatar = (emoji, color, cls = "", img = "") => img
+  ? `<span class="avatar pic ${cls}" style="--c:${esc(color || "#2563eb")}"><img src="${esc(img)}" alt="" decoding="async"></span>`
+  : `<span class="avatar ${cls}" style="--c:${esc(color || "#2563eb")}">${esc(emoji || "🙂")}</span>`;
+// 选一张头像照片：裁成正方形（直的照片偏上面，比较不会切到头），缩到 256×256（大约 10–40 KB）
+function pickAvatarPhoto() {
+  return new Promise((resolve) => {
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = () => {
+      const f = inp.files?.[0]; if (!f) return resolve(null);
+      const url = URL.createObjectURL(f), im = new Image();
+      im.onload = () => {
+        const w = im.naturalWidth, h = im.naturalHeight, m = Math.min(w, h), c = document.createElement("canvas");
+        c.width = c.height = 256;
+        c.getContext("2d").drawImage(im, (w - m) / 2, h > w ? (h - m) * 0.2 : (h - m) / 2, m, m, 0, 0, 256, 256);
+        let d = c.toDataURL("image/webp", 0.85); if (!d.startsWith("data:image/webp")) d = c.toDataURL("image/jpeg", 0.85);
+        URL.revokeObjectURL(url); resolve(d);
+      };
+      im.onerror = () => { URL.revokeObjectURL(url); toast(t("photo_bad"), true); resolve(null); };
+      im.src = url;
+    };
+    inp.click();
+  });
+}
 const untaggedEv = (e) => !e.template_id && !e.birthday_user_id && ymdIn(e.start) >= DASH_START;
 
 // ---------------- 启动 ----------------
@@ -548,26 +573,28 @@ async function authSubmit(mode) {
     const body = mode === "reset" ? { email, code: $("#a-code").value.trim(), password: pw } : { email, password: pw, name: email.split("@")[0], lang };
     const r = await api(`/api/auth/${mode}`, { method: "POST", body });
     store.set("token", r.token);
+    helloNext = mode === "login";
     boot();
   } catch (e) { err(e.message); } finally { btn.disabled = false; }
 }
 
 // ================= 第一次登录的步骤 =================
-const ob = { step: 0, emoji: null, color: null, name: "", bm: "", bd: "", calMode: "create", calName: "", link: "" };
+const ob = { step: 0, emoji: null, color: null, photo: null, name: "", bm: "", bd: "", calMode: "create", calName: "", link: "" };
 function renderOnboarding() {
-  stopLoops();
+  stopLoops(); helloNext = false;
   if (ob.step === 0 && !ob.emoji) {
-    Object.assign(ob, { emoji: state.me.emoji || EMOJIS[Math.floor(Math.random() * 20)], color: state.me.color || PROFILE_COLORS[0], name: state.me.name || "" });
+    Object.assign(ob, { emoji: state.me.emoji || EMOJIS[Math.floor(Math.random() * 20)], color: state.me.color || PROFILE_COLORS[0], name: state.me.name || "", photo: state.me.avatar || null });
     const j = store.get("join"); if (j) { ob.calMode = "join"; ob.link = j; }
     if (state.cals.length) ob.calMode = "have";
   }
   const steps = [0, 1, 2, 3].map((i) => `<i class="${i <= ob.step ? "on" : ""}"></i>`).join("");
   const body = [
-    () => `<h2 style="margin:0;text-align:center">${t("ob_look")}</h2>
-      <div class="preview">${avatar(ob.emoji, ob.color, "lg")}</div>
+    () => `<h2 style="margin:0;text-align:center">${t("ob_look")}</h2><p class="notice" style="text-align:center;margin:0">${t("ob_look_t")}</p>
+      <div class="preview">${avatar(ob.emoji, ob.color, "lg", ob.photo)}</div>
+      <div class="row" style="justify-content:center"><button type="button" class="btn sm" data-obphoto="up">${ob.photo ? t("change_photo") : t("upload_photo")}</button>${ob.photo ? `<button type="button" class="btn ghost sm" data-obphoto="rm">${t("remove_photo")}</button>` : ""}</div>
       <div class="emojis">${EMOJIS.map((e) => `<button type="button" class="emo" data-emo="${e}" aria-pressed="${e === ob.emoji}">${e}</button>`).join("")}</div>
       <div class="swatches" style="grid-template-columns:repeat(6,1fr)">${PROFILE_COLORS.map((c) => `<button type="button" class="sw" style="--c:${c}" data-col="${c}" aria-pressed="${c === ob.color}" aria-label="${c}"></button>`).join("")}</div>`,
-    () => `<h2 style="margin:0;text-align:center">${t("ob_name")}</h2><div class="preview">${avatar(ob.emoji, ob.color, "lg")}</div>
+    () => `<h2 style="margin:0;text-align:center">${t("ob_name")}</h2><div class="preview">${avatar(ob.emoji, ob.color, "lg", ob.photo)}</div>
       <input class="input" id="ob-name" maxlength="40" value="${esc(ob.name)}" autocomplete="name">`,
     () => `<h2 style="margin:0;text-align:center">${t("ob_bd")}</h2>
       <div class="bd-row">${bdSelects(ob.bm, ob.bd)}</div>
@@ -586,8 +613,10 @@ function renderOnboarding() {
     </div></div></div>`;
   const root = $("#ob");
   root.addEventListener("click", (e) => {
-    const x = e.target.closest("[data-emo],[data-col],[data-cm],[data-ob]"); if (!x) return;
+    const x = e.target.closest("[data-emo],[data-col],[data-cm],[data-ob],[data-obphoto]"); if (!x) return;
     readOb();
+    if (x.dataset.obphoto === "up") return void pickAvatarPhoto().then((d) => { if (d) { ob.photo = d; chime("ok"); renderOnboarding(); } });
+    if (x.dataset.obphoto === "rm") ob.photo = null;
     if (x.dataset.emo) { ob.emoji = x.dataset.emo; chime("ok"); }
     if (x.dataset.col) ob.color = x.dataset.col;
     if (x.dataset.cm) ob.calMode = x.dataset.cm;
@@ -599,6 +628,7 @@ function renderOnboarding() {
   root.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); readOb(); obNext(); } });
   setTimeout(() => $("#ob input")?.focus(), 50);
 }
+const photoBtns = (has) => `<button type="button" class="btn sm" data-sphoto="up">${has ? t("change_photo") : t("upload_photo")}</button>${has ? `<button type="button" class="btn ghost sm" data-sphoto="rm">${t("remove_photo")}</button>` : ""}`;
 function bdSelects(m, d, id = "ob") {
   const days = m ? new Date(Date.UTC(2024, Number(m), 0)).getUTCDate() : 31;
   return `<select class="input" id="${id}-bm" aria-label="${t("month")}"><option value="">${t("month")}</option>${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}" ${String(i + 1) === String(m) ? "selected" : ""}>${new Date(Date.UTC(2024, i, 1)).toLocaleDateString(loc(), { month: "long", timeZone: "UTC" })}</option>`).join("")}</select>
@@ -628,20 +658,23 @@ async function obNext() {
     state.me = { ...state.me, ...(await api("/api/auth/me", { method: "PATCH", body: {
       emoji: ob.emoji, color: ob.color, name: ob.name, birth_month: ob.bm ? Number(ob.bm) : null, birth_day: ob.bd ? Number(ob.bd) : null,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, lang, onboarded: true } })) };
+    if (ob.photo?.startsWith("data:")) state.me = { ...state.me, ...(await api("/api/auth/me/avatar", { method: "PUT", body: { data: ob.photo } })) };
+    else if (!ob.photo && state.me.avatar) state.me = { ...state.me, ...(await api("/api/auth/me/avatar", { method: "DELETE" })) };
     welcome();
   } catch (e) { err(e.message); btn.disabled = false; }
 }
-function welcome() {
+let helloNext = false; // 刚登录 → 进入 App 后显示欢迎（头像弹出来 + 彩色光点）
+function welcome(p = ob, reboot = true) {
   const w = document.createElement("div");
   w.className = "welcome";
   const sparks = Array.from({ length: 26 }, (_, i) => {
     const a = (i / 26) * Math.PI * 2, r = 140 + Math.random() * 160;
     return `<i class="spark" style="--x:${Math.cos(a) * r}px;--y:${Math.sin(a) * r}px;background:${PROFILE_COLORS[i % PROFILE_COLORS.length]};animation-delay:${0.15 + Math.random() * 0.25}s"></i>`;
   }).join("");
-  w.innerHTML = `${sparks}<div class="big">${avatar(ob.emoji, ob.color)}<h2>${t("welcome", { name: ob.name })}</h2></div>`;
+  w.innerHTML = `${sparks}<div class="big">${avatar(p.emoji, p.color, "", p.photo)}<h2>${t("welcome", { name: p.name })}</h2></div>`;
   document.body.append(w);
   chime("note");
-  setTimeout(() => boot(), 900);
+  if (reboot) setTimeout(() => boot(), 900);
   setTimeout(() => w.remove(), 2700);
 }
 
@@ -665,7 +698,7 @@ function renderApp() {
       <nav class="nav-group" aria-label="${t("analysis")}"><div class="nav-label">${t("analysis")}</div>${items.filter((x) => x.group === "analysis").map(btn).join("")}</nav>
       <nav class="nav-group" aria-label="${t("settings")}"><div class="nav-label">${t("settings")}</div>${items.filter((x) => x.group === "settings").map(btn).join("")}</nav>
       <div class="side-foot"><button class="gear" id="gear" aria-label="${t("settings")}" title="${t("settings")}">${ICON.gear}<span class="s">${t("settings")}</span></button>
-        <div class="me-chip">${avatar(state.me.emoji, state.me.color, "sm")}<span>${esc(state.me.name)}</span></div></div>
+        <div class="me-chip">${avatar(state.me.emoji, state.me.color, "sm", state.me.avatar)}<span>${esc(state.me.name)}</span></div></div>
     </aside>
     <div class="main" id="main"></div></div>`;
   $(".side").addEventListener("click", (e) => {
@@ -677,6 +710,7 @@ function renderApp() {
   document.addEventListener("click", (e) => { const side = $(".side"); if (side?.classList.contains("open") && !e.target.closest(".side")) side.classList.remove("open"); });
   $("#gear").addEventListener("click", () => { chime("gear"); openSettings(); });
   renderPage();
+  if (helloNext) { helloNext = false; welcome({ ...state.me, photo: state.me.avatar }, false); }
 }
 function go(page) {
   chime(page);
@@ -699,7 +733,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=240"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=241"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -1295,7 +1329,7 @@ async function renderPeople() {
   let people = [];
   try { people = await api("/api/people"); } catch (e) { return fail(e); }
   const bd = (p) => (p.birth_month ? new Date(Date.UTC(2024, p.birth_month - 1, p.birth_day)).toLocaleDateString(loc(), { month: "long", day: "numeric", timeZone: "UTC" }) : "");
-  $("#people").innerHTML = people.map((p, i) => `<div class="person rise" style="--i:${i}">${avatar(p.emoji, p.color)}
+  $("#people").innerHTML = people.map((p, i) => `<div class="person rise" style="--i:${i}">${avatar(p.emoji, p.color, "", p.avatar)}
     <div class="grow"><div class="person-name">${esc(p.name)}</div><div class="person-sub">${[p.admin ? t("admin") : "", p.role === "viewer" ? t("viewer") : "", bd(p) ? "🎂 " + esc(bd(p)) : ""].filter(Boolean).join(" · ")}</div></div>
     ${isAdmin() && p.id !== state.me.id ? `<button class="btn danger sm" data-rm="${p.id}">${t("remove")}</button>` : ""}</div>`).join("");
   $("#people").onclick = async (e) => {
@@ -1346,8 +1380,9 @@ async function openSettings() {
     <div class="dlg-head"><h2>${t("settings")}</h2><button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
     <div class="dlg-body">
       <div class="sec" id="s-prof"><h3>${t("profile")}</h3>
-        <div class="row" style="align-items:center"><span id="s-av">${avatar(p.emoji, p.color, "lg")}</span>
+        <div class="row" style="align-items:center"><span id="s-av">${avatar(p.emoji, p.color, "lg", me.avatar)}</span>
           <div class="field" style="flex:1"><label for="s-name">${t("name")}</label><input class="input" id="s-name" maxlength="40" value="${esc(me.name)}"></div></div>
+        <div class="row" id="s-photo">${photoBtns(me.avatar)}</div>
         <div class="field"><span class="lbl">Emoji</span><div class="emojis">${EMOJIS.map((e) => `<button type="button" class="emo" data-emo="${e}" aria-pressed="${e === p.emoji}">${e}</button>`).join("")}</div></div>
         <span class="lbl" style="font-size:13px;font-weight:600;color:var(--muted)">${t("colour")}</span>
         <div class="swatches" style="grid-template-columns:repeat(12,minmax(0,1fr))">${PROFILE_COLORS.map((c) => `<button type="button" class="sw" style="--c:${c}" data-col="${c}" aria-pressed="${c === p.color}" aria-label="${c}"></button>`).join("")}</div>
@@ -1386,13 +1421,31 @@ async function openSettings() {
       if (x.dataset.emo) p.emoji = x.dataset.emo; else p.color = x.dataset.col;
       $$("[data-emo]", d).forEach((b) => b.setAttribute("aria-pressed", b.dataset.emo === p.emoji));
       $$("[data-col]", d).forEach((b) => b.setAttribute("aria-pressed", b.dataset.col === p.color));
-      $("#s-av", d).innerHTML = avatar(p.emoji, p.color, "lg");
+      $("#s-av", d).innerHTML = avatar(p.emoji, p.color, "lg", state.me.avatar);
       // emoji 和颜色：一按就保存
       api("/api/auth/me", { method: "PATCH", body: { emoji: p.emoji, color: p.color } }).then((u) => {
         state.me = { ...state.me, ...u }; chime("ok"); toast(t("saved"));
-        $(".me-chip").innerHTML = `${avatar(state.me.emoji, state.me.color, "sm")}<span>${esc(state.me.name)}</span>`;
+        $(".me-chip").innerHTML = `${avatar(state.me.emoji, state.me.color, "sm", state.me.avatar)}<span>${esc(state.me.name)}</span>`;
         if (state.page === "people" || state.page === "activity") renderPage();
       }).catch(fail);
+    });
+    // 头像照片：上传 / 换 / 移除（马上保存）
+    $("#s-photo", d).addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-sphoto]"); if (!b) return;
+      try {
+        if (b.dataset.sphoto === "up") {
+          const data = await pickAvatarPhoto(); if (!data) return;
+          state.me = { ...state.me, ...(await api("/api/auth/me/avatar", { method: "PUT", body: { data } })) };
+        } else {
+          if (!(await confirmBox({ title: t("cf_rm_photo"), text: t("cf_rm_photo_t"), ok: t("remove_photo") }))) return;
+          state.me = { ...state.me, ...(await api("/api/auth/me/avatar", { method: "DELETE" })) };
+        }
+        chime("ok"); toast(t("saved"));
+        $("#s-av", d).innerHTML = avatar(p.emoji, p.color, "lg", state.me.avatar);
+        $("#s-photo", d).innerHTML = photoBtns(state.me.avatar);
+        $(".me-chip").innerHTML = `${avatar(state.me.emoji, state.me.color, "sm", state.me.avatar)}<span>${esc(state.me.name)}</span>`;
+        if (state.page === "people") renderPage();
+      } catch (er) { fail(er); }
     });
     $("#s-bm", d).onchange = () => { const v = $("#s-bd", d).value; $("#s-bm", d).parentElement.innerHTML = bdSelects($("#s-bm", d).value, v, "s"); rewireBd(d); };
     const rewireBd = (dd) => { $("#s-bm", dd).onchange = () => { const v = $("#s-bd", dd).value; $("#s-bm", dd).parentElement.innerHTML = bdSelects($("#s-bm", dd).value, v, "s"); rewireBd(dd); }; };
@@ -1401,7 +1454,7 @@ async function openSettings() {
       if (!!bm !== !!bd) return toast(t("ob_bd"), true);
       try {
         state.me = { ...state.me, ...(await api("/api/auth/me", { method: "PATCH", body: { name: $("#s-name", d).value, emoji: p.emoji, color: p.color, birth_month: bm ? Number(bm) : null, birth_day: bd ? Number(bd) : null } })) };
-        toast(t("saved")); chime("ok"); $(".me-chip").innerHTML = `${avatar(state.me.emoji, state.me.color, "sm")}<span>${esc(state.me.name)}</span>`;
+        toast(t("saved")); chime("ok"); $(".me-chip").innerHTML = `${avatar(state.me.emoji, state.me.color, "sm", state.me.avatar)}<span>${esc(state.me.name)}</span>`;
         refreshCalendar();
       } catch (e) { fail(e); }
     };
@@ -1496,7 +1549,7 @@ async function drawRequests(d) {
   if (!box.children.length) box.innerHTML = skRows(1, 58);
   try {
     const list = await api("/api/admin/requests");
-    box.innerHTML = list.length ? list.map((r) => `<div class="item">${avatar(r.emoji, r.color, "sm")}<div class="grow"><b>${esc(r.name)}</b><div class="sub raw">${esc(r.email)}</div></div>
+    box.innerHTML = list.length ? list.map((r) => `<div class="item">${avatar(r.emoji, r.color, "sm", r.avatar)}<div class="grow"><b>${esc(r.name)}</b><div class="sub raw">${esc(r.email)}</div></div>
       ${isTop() ? `<button class="btn sm" data-ok="${r.id}">${t("approve")}</button><button class="btn danger sm" data-no="${r.id}">${t("reject")}</button>` : ""}</div>`).join("") : `<p class="empty">${t("no_requests")}</p>`;
     box.onclick = async (e) => {
       const b = e.target.closest("[data-ok],[data-no]"); if (!b) return;
@@ -1509,7 +1562,7 @@ async function drawAdmins(d) {
   if (!box.children.length) box.innerHTML = skRows(2, 58);
   try {
     const list = await api("/api/admin/list");
-    box.innerHTML = list.map((a) => `<div class="item">${avatar(a.emoji, a.color, "sm")}<div class="grow"><b>${esc(a.name)}</b> ${a.top ? `<span class="tag ok">${t("top_admin")}</span>` : ""}<div class="sub raw">${esc(a.email)}</div></div>
+    box.innerHTML = list.map((a) => `<div class="item">${avatar(a.emoji, a.color, "sm", a.avatar)}<div class="grow"><b>${esc(a.name)}</b> ${a.top ? `<span class="tag ok">${t("top_admin")}</span>` : ""}<div class="sub raw">${esc(a.email)}</div></div>
       <button class="btn ghost sm" data-top="${a.id}" data-v="${a.top ? "" : "1"}">${a.top ? t("unmake_top") : t("make_top")}</button>
       ${a.fixed ? `<span class="tag">${t("fixed")}</span>` : `<button class="btn danger sm" data-unadmin="${a.id}">${t("remove")}</button>`}</div>`).join("");
     box.onclick = async (e) => {

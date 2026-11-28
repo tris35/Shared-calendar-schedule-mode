@@ -83,4 +83,6 @@ export async function verify(text: string, sig: string) {
   return typeof sig === "string" && sig.length === good.length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(good));
 }
 export const photoSignature = (photoId: number) => sign(`photo:${photoId}`);
+export const avatarSignature = (userId: number) => sign(`avatar:${userId}`);
+export const verifyAvatarSignature = (userId: number, sig: string) => verify(`avatar:${userId}`, sig);
 export const verifyPhotoSignature = (photoId: number, sig: string) => verify(`photo:${photoId}`, sig);

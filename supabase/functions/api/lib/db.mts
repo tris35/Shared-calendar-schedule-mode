@@ -763,7 +763,7 @@ export async function deleteDashRate(calendarId: number, brand: string, cat: str
 }
 
 export async function listCalendarPeople(id: number) {
-  return sql`SELECT u.id, u.name, u.email, u.emoji, u.color, u.birth_month, u.birth_day, cm.role FROM calendar_members cm JOIN users u ON u.id = cm.user_id
+  return sql`SELECT u.id, u.name, u.email, u.emoji, u.color, u.avatar_v, u.birth_month, u.birth_day, cm.role FROM calendar_members cm JOIN users u ON u.id = cm.user_id
     WHERE cm.calendar_id = ${id} ORDER BY (cm.role = 'owner') DESC, u.name`;
 }
 export async function setCalendarRole(id: number, userId: number, role: string) {
@@ -820,6 +820,21 @@ export async function setProfile(id: number, p: { name?: string; emoji?: string 
     timezone = ${v("timezone")}, onboarded = ${v("onboarded")} WHERE id = ${id}`;
   return getUser(id);
 }
+// ---- 头像照片 ----
+export async function setAvatar(userId: number, data: Uint8Array, mime: string) {
+  await sql`INSERT INTO user_avatars (user_id, data, mime, updated_at) VALUES (${userId}, ${data}, ${mime}, NOW())
+    ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, mime = EXCLUDED.mime, updated_at = NOW()`;
+  await sql`UPDATE users SET avatar_v = COALESCE(avatar_v, 0) + 1 WHERE id = ${userId}`;
+  return getUser(userId);
+}
+export async function clearAvatar(userId: number) {
+  await sql`DELETE FROM user_avatars WHERE user_id = ${userId}`;
+  await sql`UPDATE users SET avatar_v = NULL WHERE id = ${userId}`;
+  return getUser(userId);
+}
+export async function getAvatar(userId: number) {
+  return (await sql`SELECT a.data, a.mime FROM user_avatars a JOIN users u ON u.id = a.user_id WHERE a.user_id = ${userId} AND u.removed_at IS NULL`)[0] ?? null;
+}
 export async function activeUsers() {
   return sql`SELECT * FROM users WHERE removed_at IS NULL ORDER BY id`;
 }
@@ -837,6 +852,8 @@ export async function removeUser(id: number) {
   await sql`UPDATE members SET name = ${UNKNOWN_USER} WHERE name = ${u.name} AND calendar_id = ANY(${cals}::int[])`;
   await sql`UPDATE users SET removed_at = NOW(), name = ${UNKNOWN_USER}, email = ${`removed-${id}@removed.invalid`}, password_hash = '!', emoji = NULL, color = NULL,
     birth_month = NULL, birth_day = NULL WHERE id = ${id}`;
+  await sql`DELETE FROM user_avatars WHERE user_id = ${id}`;
+  await sql`UPDATE users SET avatar_v = NULL WHERE id = ${id}`;
   await sql`DELETE FROM calendar_members WHERE user_id = ${id}`;
   await sql`DELETE FROM admin_requests WHERE user_id = ${id} AND status = 'pending'`;
   return true;
@@ -883,7 +900,7 @@ export async function myAdminRequest(userId: number) {
   return (await sql`SELECT id, status, created_at FROM admin_requests WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`)[0] ?? null;
 }
 export async function listAdminRequests() {
-  return (await sql`SELECT r.id, r.created_at, u.id AS user_id, u.name, u.email, u.emoji, u.color FROM admin_requests r JOIN users u ON u.id = r.user_id
+  return (await sql`SELECT r.id, r.created_at, u.id AS user_id, u.name, u.email, u.emoji, u.color, u.avatar_v FROM admin_requests r JOIN users u ON u.id = r.user_id
     WHERE r.status = 'pending' AND u.removed_at IS NULL ORDER BY r.id`).map(outRow);
 }
 export async function decideAdminRequest(id: number, approve: boolean, by: number) {

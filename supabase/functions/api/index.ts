@@ -2,6 +2,7 @@
 // 网址：https://<项目>.supabase.co/functions/v1/api/...
 //   /api/*                    App 的 API（网页呼叫）
 //   /api/p/:id?s=签名          照片公开链接（Google 日历活动说明里用）
+//   /api/av/:id?v=&s=签名      头像照片
 //   /api/cal/<签名>.ics        订阅链接
 //   /api/cron/google-pull     资料库排程：从 Google 日历读回变更
 //   /api/cron/customer-messages  资料库排程：用 booking number 从通讯录找电话，前一天下午 2 点发 WhatsApp
@@ -10,6 +11,7 @@ import { Buffer } from "node:buffer";
 import { handleApi } from "./api.mts";
 import { handleFeed } from "./calendar-feed.mts";
 import { handlePhotoLink } from "./photo-link.mts";
+import { handleAvatarLink } from "./avatar-link.mts";
 import { getSettings } from "./lib/settings.mts";
 import { pullAll, mainUrl, syncEvent, deletePhotoData } from "./lib/gcal.mts";
 import * as db from "./lib/db.mts";
@@ -59,6 +61,7 @@ export async function handle(req: Request): Promise<Response> {
   try {
     const seg = path.split("/").filter(Boolean); // ["api", ...]
     if (seg[1] === "p" && seg[2]) res = await handlePhotoLink(req, seg[2]);
+    else if (seg[1] === "av" && seg[2]) res = await handleAvatarLink(req, seg[2]);
     else if (seg[1] === "cal" && seg[2]) res = await handleFeed(req, seg[2]);
     else if (seg[1] === "cron" && req.method === "POST") {
       if (!(await cronAllowed(req))) res = new Response("forbidden", { status: 403 });

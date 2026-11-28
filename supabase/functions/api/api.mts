@@ -6,7 +6,7 @@ import { apiBase, later } from "./lib/env.mts";
 import { putPhoto, getPhotoData, deletePhotoData } from "./lib/photos.mts";
 import * as db from "./lib/db.mts";
 import * as dash from "./lib/dashboard.mts";
-import { getSettings, saveSettings, sign, photoSignature } from "./lib/settings.mts";
+import { getSettings, saveSettings, sign, photoSignature, avatarSignature } from "./lib/settings.mts";
 import { buildBackup } from "./lib/backup.mts";
 import { chat, claudeEnabled } from "./lib/claude.mts";
 import { syncEvent, deleteGoogleEvents, authUrl, handleCallback, disconnect, clientCredentials, redirectUri, mainUrl, listGoogleCalendars, listSyncCalendars, setCalendarEnabled, switchSyncCalendar, retryFailedSyncs, pullFromGoogle, ensureWatch, pushTarget } from "./lib/gcal.mts";
@@ -53,6 +53,10 @@ async function savePhotos(files: File[], eventId: number | null, author: string 
   return out;
 }
 const strip = (rows: any[]) => rows.map(({ _buf, blob_key, ...p }) => p);
+
+/** 头像照片的公开链接（带签名；v 换了照片就换，浏览器可以长久缓存） */
+const avatarUrl = async (u: any, idKey = "id") => (u?.avatar_v ? `${apiBase()}/api/av/${u[idKey]}?v=${u.avatar_v}&s=${await avatarSignature(u[idKey])}` : null);
+const withAvatar = async (rows: any[], idKey = "id") => Promise.all(rows.map(async ({ avatar_v, ...x }: any) => ({ ...x, avatar: await avatarUrl({ ...x, avatar_v }, idKey) })));
 
 export async function handleApi(req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -177,11 +181,24 @@ export async function handleApi(req: Request): Promise<Response> {
     if (r === "auth") {
       if (seg[1] === "me" && method === "GET") {
         const link = await db.getGoogleLink(me.id);
-        return Response.json({ ...publicUser(me), google: link ? { gmail: link.gmail, appCalendarId: link.app_calendar_id ?? null, calendarName: link.calendar_name || desc(normLang(me.lang), "calendar") } : null });
+        return Response.json({ ...publicUser(me), avatar: await avatarUrl(me), google: link ? { gmail: link.gmail, appCalendarId: link.app_calendar_id ?? null, calendarName: link.calendar_name || desc(normLang(me.lang), "calendar") } : null });
+      }
+      // 头像照片：上传（App 已经裁成正方形、缩小）/ 移除
+      if (seg[1] === "me" && seg[2] === "avatar" && method === "PUT") {
+        const m = /^data:(image\/(?:webp|jpeg|png));base64,([A-Za-z0-9+/=]+)$/.exec(String((await body()).data || ""));
+        if (!m) throw new Error("照片格式不支持");
+        const bytes = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0));
+        if (bytes.length > 300 * 1024) throw new Error("照片太大");
+        const u2: any = await db.setAvatar(me.id, bytes, m[1]);
+        return Response.json({ ...publicUser({ ...u2, lang: me.lang }), avatar: await avatarUrl(u2) });
+      }
+      if (seg[1] === "me" && seg[2] === "avatar" && method === "DELETE") {
+        const u2: any = await db.clearAvatar(me.id);
+        return Response.json({ ...publicUser({ ...u2, lang: me.lang }), avatar: null });
       }
       if (seg[1] === "me" && method === "PATCH") {
         const b = await body();
-        const out: any = { ...publicUser(me) };
+        const out: any = { ...publicUser(me), avatar: await avatarUrl(me) };
         // 个人资料：名字、emoji、颜色、生日（只有月和日，可以不填）、时区
         const prof: any = {};
         if (b.name !== undefined) {
@@ -565,7 +582,7 @@ export async function handleApi(req: Request): Promise<Response> {
     // ---------- 第 2 版：Label & People、申请管理员、通知、最新动态 ----------
     // People：日历里的人（emoji、颜色、名字、生日）；管理员可以移除（离职 → 名字变成「未知用户」，资料保留）
     if (r === "people") {
-      if (!seg[1] && method === "GET") return Response.json((await db.listCalendarPeople(calId)).map((u: any) => ({ ...u, admin: isAdmin(u) })));
+      if (!seg[1] && method === "GET") return Response.json(await withAvatar((await db.listCalendarPeople(calId)).map((u: any) => ({ ...u, admin: isAdmin(u) }))));
       if (seg[1] && method === "DELETE") {
         mustAdmin();
         const uid = Number(seg[1]);
@@ -729,7 +746,7 @@ export async function handleApi(req: Request): Promise<Response> {
         return Response.json({ ok: true });
       }
       // 申请成为管理员：批准 / 拒绝
-      if (seg[1] === "requests" && !seg[2] && method === "GET") return Response.json(await db.listAdminRequests());
+      if (seg[1] === "requests" && !seg[2] && method === "GET") return Response.json(await withAvatar(await db.listAdminRequests(), "user_id"));
       if (seg[1] === "requests" && seg[2] && method === "POST") {
         if (!isTopAdmin(me)) throw new HttpError(403, "只有 Top Admin 可以批准");
         const approve = !!(await body()).approve;
@@ -742,12 +759,12 @@ export async function handleApi(req: Request): Promise<Response> {
           await act("admin_added", u.name, null, null);
         }
         await db.readNotificationsByRef(`admin_request:${seg[2]}`);
-        return Response.json({ ok: true, requests: await db.listAdminRequests() });
+        return Response.json({ ok: true, requests: await withAvatar(await db.listAdminRequests(), "user_id") });
       }
       // 管理员名单（第一批管理员不能移除）
       if (seg[1] === "list" && method === "GET") {
-        return Response.json((await db.activeUsers()).filter((u: any) => isAdmin(u))
-          .map((u: any) => ({ id: u.id, name: u.name, email: u.email, emoji: u.emoji, color: u.color, fixed: fixedAdmins().includes(String(u.email).toLowerCase()), top: isTopAdmin(u) })));
+        return Response.json(await withAvatar((await db.activeUsers()).filter((u: any) => isAdmin(u))
+          .map((u: any) => ({ id: u.id, name: u.name, email: u.email, emoji: u.emoji, color: u.color, avatar_v: u.avatar_v, fixed: fixedAdmins().includes(String(u.email).toLowerCase()), top: isTopAdmin(u) }))));
       }
       // 设定 / 取消 Top Admin（所有管理员都可以；至少要留 1 位）
       if (seg[1] === "list" && seg[2] && seg[3] === "top" && method === "PUT") {
