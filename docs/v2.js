@@ -34,7 +34,7 @@ const T = {
   person_ic: ["负责人", "Person In Charge"], need_person: ["请选择负责人", "Please Choose The Person In Charge"], choose_person: ["选择负责人", "Choose Person"],
   loading: ["读取中…", "Loading…"],
   tick_type: ["类型", "Type"], need_ticks: ["请填好红色 * 的栏位", "Please fill in the fields marked *"],
-  time: ["时间", "Time"], appearance: ["外观", "Appearance"], theme_dark: ["深色", "Dark"], theme_light: ["浅色", "Light"], theme_auto: ["自动", "Auto"],
+  time: ["时间", "Time"], appearance: ["外观", "Appearance"], theme_dark: ["深色", "Dark"], theme_light: ["浅色", "Light"],
   offline_title: ["现在离线中", "You're offline"], got_it: ["知道了", "Got it"],
   offline_text: ["你的修改（包括照片和留言）会先存在这台装置，连接网络后自动同步。如果别人同时修改同一个活动，可能会冲突。画面上的资料是 {time} 保存的。", "Your changes (including photos and comments) are saved on this device and sync automatically when you're back online. If someone else changes the same event at the same time, there may be a conflict. Data shown was saved at {time}."],
   offline_pill: ["离线中", "Offline"], offline_pending: ["{n} 笔修改等待同步", "{n} changes waiting to sync"], back_online: ["已重新连线，资料已更新", "Back online, data updated"],
@@ -740,7 +740,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=242"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=243"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -1398,7 +1398,7 @@ async function openSettings() {
       </div>
       <div class="sec"><div class="row">
         <div class="field"><label for="s-lang">${t("language")}</label><select class="input" id="s-lang">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}" ${k === lang ? "selected" : ""}>${v}</option>`).join("")}</select></div>
-        <div class="field"><span class="lbl">${t("appearance")}</span><div class="seg" role="group" id="s-theme">${["dark", "light", "auto"].map((k) => `<button type="button" data-theme-pick="${k}" aria-pressed="${(store.get("theme") || "dark") === k}">${t("theme_" + k)}</button>`).join("")}</div></div>
+        <div class="field"><span class="lbl">${t("appearance")}</span><div class="seg" role="group" id="s-theme">${["dark", "light"].map((k) => `<button type="button" data-theme-pick="${k}" aria-pressed="${(store.get("theme") === "light" ? "light" : "dark") === k}">${t("theme_" + k)}</button>`).join("")}</div></div>
         <div class="field"><label for="s-tz">${t("timezone")}</label><select class="input" id="s-tz">${tzs.map((z) => `<option ${z === (me.timezone || tz()) ? "selected" : ""}>${esc(z)}</option>`).join("")}</select></div></div>
         ${state.cals.length > 1 ? `<div class="field"><label for="s-cal">${t("calendar")}</label><select class="input" id="s-cal">${state.cals.map((c) => `<option value="${c.id}" ${c.id === cal?.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></div>` : ""}
       </div>
