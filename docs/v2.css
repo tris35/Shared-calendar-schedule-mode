@@ -679,3 +679,15 @@ dialog.confirm-dlg{position:fixed;inset:0;margin:auto;max-height:fit-content}
 .gate-rings{width:96px;height:96px;filter:drop-shadow(0 0 18px rgba(56,189,248,.45)) drop-shadow(0 0 10px rgba(245,196,81,.25))}
 .gate-name{font-family:var(--font-title);font-weight:700;font-size:22px;letter-spacing:.08em;line-height:1.2;text-align:center;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
 @media (max-width:860px){.gate-rings{width:80px;height:80px}.gate-name{font-size:19px}}
+
+/* 读取中：放在画面中间 */
+.busy-pill{top:50%;transform:translate(-50%,-50%) scale(.85)}
+.busy-pill.on{transform:translate(-50%,-50%) scale(1)}
+/* 离线提示：画面中间的卡片；按「知道了」后缩成上面的小胶囊（点一下可以再看说明） */
+.off-card{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:210;width:min(360px,calc(100vw - 32px));background:rgba(9,18,46,.97);border:1px solid var(--line);border-radius:22px;padding:22px 20px 18px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 24px 60px rgba(0,0,0,.6);text-transform:none}
+.off-card b{font-size:17px}
+.off-card p{margin:0;color:var(--muted);font-size:14px;line-height:1.55}
+.off-ico{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,#f59e0b,#ef4444)}
+.off-ico svg{width:24px;height:24px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.off-card.small{top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);width:auto;flex-direction:row;gap:8px;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer}
+.off-dot{width:8px;height:8px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px #f59e0b}

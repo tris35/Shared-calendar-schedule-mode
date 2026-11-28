@@ -33,6 +33,10 @@ const T = {
   loading: ["读取中…", "Loading…"],
   tick_type: ["类型", "Type"], need_ticks: ["请填好红色 * 的栏位", "Please fill in the fields marked *"],
   time: ["时间", "Time"],
+  offline_title: ["现在离线中", "You're offline"], got_it: ["知道了", "Got it"],
+  offline_text: ["只能查看 {time} 保存的资料。连接网络后会自动同步最新资料。离线时不能修改，以免和别人同时修改的资料冲突。", "Showing data saved at {time}. It will sync automatically when you're back online. Editing is off while offline, to avoid clashing with changes others make at the same time."],
+  offline_pill: ["离线中 · 只能查看", "Offline · view only"], back_online: ["已重新连线，资料已更新", "Back online, data updated"],
+  offline_noedit: ["离线中不能修改，请连接网络后再试", "You're offline. Connect to the internet to make changes."], offline_nodata: ["离线中，这一页还没有保存的资料", "You're offline and this page hasn't been saved on this device yet."],
   cf_event: ["确定要删除这个活动吗？", "Delete this event?"], cf_event_t: ["「{n}」会放进回收站，5 天内可以复原；Google 日历里的这一笔也会删除。", "\"{n}\" goes to the Recycle Bin (restorable for 5 days) and is also deleted from Google Calendar."],
   cf_comment: ["确定要删除这则留言吗？", "Delete this comment?"], cf_photo: ["确定要删除这张照片吗？", "Delete this photo?"], cf_cant_undo: ["删除后不能复原。", "This can't be undone."],
   cf_person: ["确定要把 {n} 移出日历吗？", "Remove {n} from the calendar?"], cf_person_t: ["他就不能再看或编辑这个日历。", "They will no longer see or edit this calendar."],
@@ -140,13 +144,57 @@ async function api(path, opts = {}) {
   if (!quiet) busyStart(isSync);
   try { return await apiRaw(path, opts); } finally { if (!quiet) busyEnd(isSync); }
 }
+// ---------------- 离线查看：在线时把读到的资料存一份在这台装置；离线时拿出来看（不能修改） ----------------
+const DATA_CACHE = "tlw-data-v1";
+const cacheKey = (path) => `${location.origin}/__data/${store.get("cal") || "-"}${path}`;
+async function cachePut(path, data) { try { const c = await caches.open(DATA_CACHE); await c.put(cacheKey(path), new Response(JSON.stringify({ at: Date.now(), data }), { headers: { "Content-Type": "application/json" } })); } catch {} }
+async function cacheGet(path) { try { const r = await (await caches.open(DATA_CACHE)).match(cacheKey(path)); return r ? await r.json() : null; } catch { return null; } }
+async function clearDataCache() { try { await caches.delete(DATA_CACHE); } catch {} }
+const offline = { on: false, at: 0, el: null, small: false };
+function offlineOn(at) {
+  offline.at = Math.min(offline.at || at, at); const was = offline.on; offline.on = true;
+  if (!offline.el) { offline.el = document.createElement("div"); offline.el.className = "off-card"; offline.el.setAttribute("role", "alert"); document.body.append(offline.el); }
+  const time = new Date(offline.at).toLocaleString(loc(), { timeZone: tz(), dateStyle: "medium", timeStyle: "short" });
+  offline.el.classList.toggle("small", offline.small);
+  offline.el.innerHTML = offline.small
+    ? `<span class="off-dot"></span>${t("offline_pill")}`
+    : `<div class="off-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 4.2-2.6M9.8 5.2A15 15 0 0 1 22 8.8M5 12.6a10 10 0 0 1 3.9-2.2M15.5 10.4A10 10 0 0 1 19 12.6M8.5 16.1a5 5 0 0 1 7 0M12 20h.01M3 3l18 18"/></svg></div><b>${t("offline_title")}</b><p>${t("offline_text", { time })}</p><button type="button" class="btn sm" id="off-ok">${t("got_it")}</button>`;
+  offline.el.querySelector("#off-ok")?.addEventListener("click", () => { offline.small = true; offlineOn(offline.at); });
+  offline.el.onclick = (e) => { if (offline.small) { offline.small = false; offlineOn(offline.at); } };
+  if (!was) chime("bad");
+}
+function offlineOff() {
+  if (!offline.on) return;
+  offline.on = false; offline.at = 0; offline.small = false; offline.el?.remove(); offline.el = null;
+  toast(t("back_online")); chime("ok");
+  if (state.me) renderPage();
+}
+window.addEventListener("online", () => { if (offline.on) api("/api/auth/me").then(() => offlineOff()).catch(() => {}); });
+window.addEventListener("message", (e) => { if (e.origin === location.origin && e.data?.type === "offline") offlineOn(e.data.at || Date.now()); });
+const NO_CACHE = /^\/api\/(auth\/(login|signup|forgot|reset)|photos\/|admin\/backup)/;
 async function apiRaw(path, opts = {}) {
+  const method = opts.method || "GET";
+  try {
+    const data = await apiNet(path, opts);
+    if (method === "GET" && !NO_CACHE.test(path)) cachePut(path, data);
+    if (offline.on) offlineOff();
+    return data;
+  } catch (e) {
+    if (!(e instanceof TypeError)) throw e; // 不是网络问题（例如密码错）→ 照常显示
+    if (method !== "GET") { offlineOn(Date.now()); throw new Error(t("offline_noedit")); }
+    const c = await cacheGet(path);
+    if (!c) { offlineOn(Date.now()); throw new Error(t("offline_nodata")); }
+    offlineOn(c.at);
+    return c.data;
+  }
+}
+async function apiNet(path, opts = {}) {
   const headers = { "x-lang": lang, ...(token() ? { Authorization: `Bearer ${token()}` } : {}), ...(store.get("cal") ? { "x-cal": store.get("cal") } : {}) };
   let body = opts.body;
   if (body && !(body instanceof FormData)) { headers["Content-Type"] = "application/json"; body = JSON.stringify(body); }
   const res = await fetch(API_BASE + path, { method: opts.method || "GET", headers, body });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && !/^\/api\/auth\/(login|signup|reset|forgot)/.test(path)) { store.set("token", null); boot(); throw new Error(data.error || "401"); }
+  if (res.status === 401 && !/^\/api\/auth\/(login|signup|reset|forgot)/.test(path)) { store.set("token", null); clearDataCache(); boot(); throw new Error(data.error || "401"); }
   if (!res.ok) { const e = new Error(data.error || `Error ${res.status}`); e.status = res.status; throw e; }
   return data;
 }
@@ -544,7 +592,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=236"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=237"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -1258,7 +1306,7 @@ async function openSettings() {
       try { state.me = { ...state.me, ...(await api("/api/auth/me", { method: "PATCH", body: { timezone: e.target.value } })) }; toast(t("saved")); refreshCalendar(); } catch (er) { fail(er); }
     };
     $("#s-cal", d)?.addEventListener("change", async (e) => { store.set("cal", e.target.value); d.close(); await loadConfig(); state.cursor = null; renderApp(); });
-    $("#s-logout", d).onclick = async () => { if (!(await confirmBox({ title: t("cf_logout"), text: t("cf_logout_t"), ok: t("logout"), danger: false }))) return; store.set("token", null); store.set("cal", null); d.close(); Object.assign(ob, { step: 0, emoji: null }); boot(); };
+    $("#s-logout", d).onclick = async () => { if (!(await confirmBox({ title: t("cf_logout"), text: t("cf_logout_t"), ok: t("logout"), danger: false }))) return; await clearDataCache(); store.set("token", null); store.set("cal", null); d.close(); Object.assign(ob, { step: 0, emoji: null }); boot(); };
     if (isAdmin()) wireAdmin(d); else drawApply(d);
   });
 }
