@@ -407,6 +407,9 @@ body{background:#050b18}
 .evm-tag{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--bad);border:1px solid var(--bad);border-radius:999px;padding:2px 8px;white-space:nowrap}
 .evm-btn{flex:none}
 @media (max-width:560px){.evm-row{flex-wrap:wrap}.evm-date{min-width:0}.evm-btn{margin-left:auto}}
+/* 英文每个字的第一个字母大写；活动标题、输入框保持原样 */
+body{text-transform:capitalize}
+input,textarea,select,.raw,.evm-main b{text-transform:none}
 </style>
 
 </head>
@@ -929,7 +932,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     const untagged = data.events.filter((e) => pm.has(e.month) && !BRANDS.includes(e.brand)).length;
     const missingBrand = data.events.filter((e) => pm.has(e.month) && !BRANDS.includes(e.brand)).sort((x, y) => String(x.date).localeCompare(String(y.date)));
     const listHtml = `<div class="untag-list"${ui.untagOpen ? '' : ' hidden'}><div class="tw"><table class="mini"><thead><tr><th>日期</th><th>添加的人</th><th>类型</th><th>活动名称</th></tr></thead><tbody>${
-      missingBrand.map((e) => `<tr><td>${fmtDate(String(e.date))}</td><td>${esc(e.person || '—')}</td><td>${esc(e.type || '—')}</td><td>${esc(e.title || '—')}</td></tr>`).join('')
+      missingBrand.map((e) => `<tr><td>${fmtDate(String(e.date))}</td><td>${esc(e.person || '—')}</td><td>${esc(e.type || '—')}</td><td class="raw">${esc(e.title || '—')}</td></tr>`).join('')
     }</tbody></table></div><p class="untag-tip">请在日历上帮这些活动勾选 Legends 或 WM，勾好后就会自动算进去。</p></div>`;
     document.querySelectorAll('[data-untagged]').forEach((n) => {
       n.hidden = !untagged;

@@ -565,7 +565,7 @@ function drawGrid() {
   grid.innerHTML = dows.map((d) => `<div class="cal-dow">${esc(d)}</div>`).join("") + days.map((d) => {
     const list = state.loadingMonth ? [] : map.get(d) || [];
     const fake = state.loadingMonth ? Array.from({ length: (d.charCodeAt(9) + d.charCodeAt(8)) % 3 }, (_, k) => sk("sk-chip", `animation-delay:${(k * 0.1 + (Number(d.slice(8)) % 7) * 0.05).toFixed(2)}s`)).join("") : "";
-    const chips = fake + list.slice(0, 4).map((e) => `<span class="chip ${untaggedEv(e) ? "untag" : ""}" style="--c:${esc(evColor(e))}"><b>${esc(e.title)}</b></span>`).join("");
+    const chips = fake + list.slice(0, 4).map((e) => `<span class="chip ${untaggedEv(e) ? "untag" : ""}" style="--c:${esc(evColor(e))}"><b class="raw">${esc(e.title)}</b></span>`).join("");
     return `<button class="cal-cell ${d.slice(0, 7) !== state.cursor ? "out" : ""} ${d === today ? "today" : ""} ${d === state.sel ? "sel" : ""}" data-day="${d}" aria-label="${esc(fmtDay(d))}">
       <span class="cal-num">${Number(d.slice(8))}</span>${chips}${list.length > 4 ? `<span class="chip-more">+${list.length - 4}</span>` : ""}</button>`;
   }).join("");
@@ -612,7 +612,7 @@ function openDay(ymd) {
     <div class="day-head"><div class="day-date"><span>${esc(wk)}</span><b class="${isToday ? "today" : ""}">${Number(ymd.slice(8))}</b></div><div class="day-month">${esc(my)}</div>
       <button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
     ${canEdit() ? `<button class="day-new" id="day-new">${ICON.plus}${t("new_event")}</button>` : ""}
-    ${allDay.length ? `<div class="day-allday"><span class="lbl">${t("all_day_short")}</span>${allDay.map((e) => `<button class="chip" data-ev="${e.id}" style="--c:${esc(evColor(e))}"><b>${esc(e.title)}</b></button>`).join("")}</div>` : ""}
+    ${allDay.length ? `<div class="day-allday"><span class="lbl">${t("all_day_short")}</span>${allDay.map((e) => `<button class="chip" data-ev="${e.id}" style="--c:${esc(evColor(e))}"><b class="raw">${esc(e.title)}</b></button>`).join("")}</div>` : ""}
     <div class="day-scroll" id="day-scroll"><div class="tl" style="height:${24 * HOUR_PX}px">
       ${Array.from({ length: 24 }, (_, h) => `<div class="tl-hour" data-hour="${h}" style="top:${h * HOUR_PX}px;height:${HOUR_PX}px"><span>${h ? esc(hourLbl(h)) : ""}</span></div>`).join("")}
       ${nowTop >= 0 ? `<div class="tl-now" style="top:${nowTop}px"></div>` : ""}
@@ -663,7 +663,7 @@ async function openTrash() {
   const draw = (r) => {
     const left = (iso) => { const ms = Date.parse(iso) + r.days * 86400000 - Date.now(), h = Math.max(1, Math.ceil(ms / 3600000)); return h >= 48 ? t("days_left", { n: Math.ceil(h / 24) }) : t("hours_left", { n: h }); };
     return r.items.length ? r.items.map((e, i) => `<div class="item rise" style="--i:${i};border-left:4px solid ${esc(labelHex(e.label))}">
-      <div class="grow"><b>${esc(e.title)}</b><div class="sub">${esc(fmtDay(ymdIn(e.start), { year: "numeric", month: "short", day: "numeric", weekday: "short" }))}${e.all_day ? "" : " · " + esc(fmtTime(e.start))}</div>
+      <div class="grow"><b class="raw">${esc(e.title)}</b><div class="sub">${esc(fmtDay(ymdIn(e.start), { year: "numeric", month: "short", day: "numeric", weekday: "short" }))}${e.all_day ? "" : " · " + esc(fmtTime(e.start))}</div>
       <div class="sub">${t("deleted_by", { who: (e.deleted_by_emoji || "") + " " + e.deleted_by_name })} · ${esc(ago(e.deleted_at))} · ${left(e.deleted_at)}</div></div>
       <button class="btn sm" data-restore="${e.id}">${t("restore")}</button></div>`).join("") : `<p class="empty">${t("trash_empty")}</p>`;
   };
@@ -893,7 +893,7 @@ function drawDetail() {
     return `<div class="post"><span></span><div>${head}${f.caption ? `<div class="post-body">${esc(f.caption)}</div>` : ""}<a href="${photoUrl(f.id)}" target="_blank" rel="noopener"><img src="${photoUrl(f.id)}" alt="" loading="lazy"></a></div>${del}</div>`;
   }).join("");
   showDlg("#dlg", `<div class="dlg">
-    <div class="dlg-head"><h2>${esc(e.title)}</h2><button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
+    <div class="dlg-head"><h2 class="raw">${esc(e.title)}</h2><button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
     <div class="dlg-body">
       <div class="meta">
         <span class="tag">${esc(when)}</span>
@@ -1154,7 +1154,7 @@ async function drawRequests(d) {
   if (!box.children.length) box.innerHTML = skRows(1, 58);
   try {
     const list = await api("/api/admin/requests");
-    box.innerHTML = list.length ? list.map((r) => `<div class="item">${avatar(r.emoji, r.color, "sm")}<div class="grow"><b>${esc(r.name)}</b><div class="sub">${esc(r.email)}</div></div>
+    box.innerHTML = list.length ? list.map((r) => `<div class="item">${avatar(r.emoji, r.color, "sm")}<div class="grow"><b>${esc(r.name)}</b><div class="sub raw">${esc(r.email)}</div></div>
       ${isTop() ? `<button class="btn sm" data-ok="${r.id}">${t("approve")}</button><button class="btn danger sm" data-no="${r.id}">${t("reject")}</button>` : ""}</div>`).join("") : `<p class="empty">${t("no_requests")}</p>`;
     box.onclick = async (e) => {
       const b = e.target.closest("[data-ok],[data-no]"); if (!b) return;
@@ -1167,7 +1167,7 @@ async function drawAdmins(d) {
   if (!box.children.length) box.innerHTML = skRows(2, 58);
   try {
     const list = await api("/api/admin/list");
-    box.innerHTML = list.map((a) => `<div class="item">${avatar(a.emoji, a.color, "sm")}<div class="grow"><b>${esc(a.name)}</b> ${a.top ? `<span class="tag ok">${t("top_admin")}</span>` : ""}<div class="sub">${esc(a.email)}</div></div>
+    box.innerHTML = list.map((a) => `<div class="item">${avatar(a.emoji, a.color, "sm")}<div class="grow"><b>${esc(a.name)}</b> ${a.top ? `<span class="tag ok">${t("top_admin")}</span>` : ""}<div class="sub raw">${esc(a.email)}</div></div>
       <button class="btn ghost sm" data-top="${a.id}" data-v="${a.top ? "" : "1"}">${a.top ? t("unmake_top") : t("make_top")}</button>
       ${a.fixed ? `<span class="tag">${t("fixed")}</span>` : `<button class="btn danger sm" data-unadmin="${a.id}">${t("remove")}</button>`}</div>`).join("");
     box.onclick = async (e) => {
