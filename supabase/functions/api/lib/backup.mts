@@ -56,7 +56,16 @@ export async function buildBackup() {
   return { json, csv, stamp, counts: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v.length])) };
 }
 
-/** 寄备份给 Top Admin；没有设定 Gmail 就在网站里通知 */
+const KEEP = 8; // 保留最近 8 个星期
+/** 每周备份：存在网站里（不寄信），只保留最近 8 份 */
+export async function saveBackup() {
+  const b = await buildBackup();
+  await db.saveBackupRow(b.stamp, b.csv, b.json, b.counts);
+  await db.trimBackups(KEEP);
+  await saveSettings({ lastBackup: new Date().toISOString() } as any);
+  return { ok: true, stamp: b.stamp, counts: b.counts };
+}
+/** （不再使用）寄备份给 Top Admin；没有设定 Gmail 就在网站里通知 */
 export async function sendBackup() {
   const tops = (await db.activeUsers()).filter((u: any) => isTopAdmin(u));
   if (!tops.length) return { ok: false, error: "没有 Top Admin" };

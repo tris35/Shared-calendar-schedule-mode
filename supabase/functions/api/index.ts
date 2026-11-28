@@ -14,7 +14,7 @@ import { getSettings } from "./lib/settings.mts";
 import { pullAll, mainUrl, syncEvent, deletePhotoData } from "./lib/gcal.mts";
 import * as db from "./lib/db.mts";
 import { calLabels } from "./lib/dashboard.mts";
-import { sendBackup } from "./lib/backup.mts";
+import { saveBackup } from "./lib/backup.mts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*", // 登录用 Authorization 标头（不用 cookie），所以可以开放
@@ -64,7 +64,7 @@ export async function handle(req: Request): Promise<Response> {
       if (!(await cronAllowed(req))) res = new Response("forbidden", { status: 403 });
       else if (seg[2] === "google-pull") { await pullAll(mainUrl("")); await birthdays(); await purgeTrash(); res = Response.json({ ok: true }); }
       else if (seg[2] === "customer-messages") res = Response.json({ ok: true, off: "WhatsApp 提醒已停用" }); // 不再读通讯录、不发 WhatsApp
-      else if (seg[2] === "backup") res = Response.json(await sendBackup()); // 每个星期一早上 3 点（马来西亚时间）
+      else if (seg[2] === "backup") res = Response.json(await saveBackup()); // 每个星期一早上 3 点（马来西亚时间）
       else if (seg[2] === "warm") res = Response.json({ ok: true }); // 每分钟叫醒一次，保存时不用等伺服器启动
       else res = new Response("not found", { status: 404 });
     } else if (seg[0] === "api") res = await handleApi(req);

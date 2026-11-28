@@ -75,7 +75,7 @@ const T = {
   approved: ["已批准", "Approved"], rejected: ["已拒绝", "Rejected"],
   show_pw: ["显示密码", "Show password"], hide_pw: ["隐藏密码", "Hide password"], all_day_short: ["全天", "All day"],
   backup: ["备份", "Backup"], dl_csv: ["下载活动清单（Excel）", "Download events (Excel)"], dl_json: ["下载完整备份", "Download full backup"],
-  last_backup: ["上次自动备份：{d}", "Last automatic backup: {d}"], no_backup: ["每个星期一早上 3 点自动寄到 Top Admin 的 Gmail", "Sent to Top Admins' Gmail every Monday at 3 AM"],
+  last_backup: ["上次自动备份：{d}", "Last automatic backup: {d}"], no_backup: ["每个星期一早上 3 点自动备份，存在网站里（保留 8 个星期）", "Saved automatically every Monday at 3 AM, kept for 8 weeks"], saved_backups: ["自动备份", "Automatic backups"], now_data: ["现在的资料", "Current data"],
   trash: ["回收站", "Recycle bin"], restore: ["复原", "Restore"], restored: ["已复原", "Restored"], trash_empty: ["回收站是空的", "The recycle bin is empty"],
   days_left: ["{n} 天后永久删除", "Deleted for good in {n} days"], hours_left: ["{n} 小时后永久删除", "Deleted for good in {n} h"], deleted_by: ["{who} 删除", "Deleted by {who}"],
   a_event_restored: ["{who} 复原了「{t}」", "{who} restored “{t}”"], storage: ["照片空间", "Photo space"], photos_n: ["{n} 张照片", "{n} photos"], fixed: ["固定", "Fixed"], connected_as: ["已连接：{g}", "Connected: {g}"],
@@ -544,7 +544,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=235"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=236"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -1211,7 +1211,9 @@ async function openSettings() {
       <div class="sec" id="s-google"><h3>${t("google")}</h3><div id="g-box"></div></div>
       <div class="sec"><h3>${t("storage")}</h3><div id="st-box">${sk("", "height:46px")}</div></div>
       <div class="sec"><h3>${t("backup")}</h3><div class="sub" id="bk-info">${t("no_backup")}</div>
-        <div class="row"><button class="btn sm" data-dl="csv">${t("dl_csv")}</button><button class="btn ghost sm" data-dl="json">${t("dl_json")}</button></div></div>
+        <div class="lbl" style="margin-top:6px">${t("now_data")}</div>
+        <div class="row"><button class="btn sm" data-dl="csv">${t("dl_csv")}</button><button class="btn ghost sm" data-dl="json">${t("dl_json")}</button></div>
+        <div id="bk-saved"></div></div>
       <div class="sec"><h3>${t("templates")}</h3>
         <div class="tpl-row">${(state.config.templates || []).map((x) => `<input class="input" data-tn="${x.id}" maxlength="20" value="${esc(x.name)}" aria-label="${esc(x.name)}">`).join("")}</div>
         <div class="row"><button class="btn sm" id="tpl-rename">${t("save")}</button></div></div>
@@ -1274,18 +1276,24 @@ async function drawApply(d) {
 }
 function wireAdmin(d) {
   drawRequests(d); drawAdmins(d); drawGoogle(d); drawStorage(d);
-  api("/api/admin/backup/info").then((r) => { if (r.lastBackup) $("#bk-info", d).textContent = t("last_backup", { d: new Date(r.lastBackup).toLocaleString(loc(), { timeZone: tz(), dateStyle: "medium", timeStyle: "short" }) }); }).catch(() => {});
-  d.querySelectorAll("[data-dl]").forEach((b) => b.addEventListener("click", async () => {
+  api("/api/admin/backup/info").then((r) => {
+    // 每周存下来的备份：每一份都可以下载（Excel / 完整）
+    const box = $("#bk-saved", d);
+    if (box && r.saved?.length) box.innerHTML = `<div class="lbl" style="margin-top:12px">${t("saved_backups")}</div><div class="list">${r.saved.map((x) => `<div class="row" style="justify-content:space-between;gap:8px"><span>${esc(x.stamp)}${x.events != null ? ` · ${x.events}` : ""}</span><span class="row" style="gap:6px"><button class="btn sm" data-dl="csv" data-bk="${x.id}">Excel</button><button class="btn ghost sm" data-dl="json" data-bk="${x.id}">JSON</button></span></div>`).join("")}</div>`;
+    box?.querySelectorAll("[data-dl]").forEach(wireDl);
+    if (r.lastBackup) $("#bk-info", d).textContent = t("last_backup", { d: new Date(r.lastBackup).toLocaleString(loc(), { timeZone: tz(), dateStyle: "medium", timeStyle: "short" }) }); }).catch(() => {});
+  const wireDl = (b) => b.addEventListener("click", async () => {
     b.disabled = true;
     try {
-      const res = await fetch(`${API_BASE}/api/admin/backup${b.dataset.dl === "csv" ? "?format=csv" : ""}`, { headers: { Authorization: `Bearer ${token()}`, "x-cal": store.get("cal") || "", "x-lang": lang } });
+      const res = await fetch(`${API_BASE}/api/admin/backup${b.dataset.bk ? `/saved/${b.dataset.bk}` : ""}${b.dataset.dl === "csv" ? "?format=csv" : ""}`, { headers: { Authorization: `Bearer ${token()}`, "x-cal": store.get("cal") || "", "x-lang": lang } });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
       const name = (res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || `the-legend-backup.${b.dataset.dl}`;
       const a = document.createElement("a"); a.href = URL.createObjectURL(await res.blob()); a.download = name; document.body.append(a); a.click(); a.remove();
       chime("ok");
     } catch (e) { fail(e); }
     b.disabled = false;
-  }));
+  });
+  d.querySelectorAll("[data-dl]").forEach(wireDl);
   $("#tpl-rename", d).onclick = async () => {
     try {
       const r = await api("/api/event-templates", { method: "PUT", body: { templates: $$("[data-tn]", d).map((i) => ({ id: i.dataset.tn, name: i.value })) } });

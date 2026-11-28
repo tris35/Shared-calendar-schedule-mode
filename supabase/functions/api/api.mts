@@ -532,7 +532,16 @@ export async function handleApi(req: Request): Promise<Response> {
     // 备份：管理员随时下载（events.csv / backup.json）；Top Admin 可以马上寄一次
     if (r === "admin" && seg[1] === "backup") {
       mustAdmin();
-      if (seg[2] === "info" && method === "GET") return Response.json({ lastBackup: (await getSettings()).lastBackup || null });
+      if (seg[2] === "info" && method === "GET") return Response.json({ lastBackup: (await getSettings()).lastBackup || null, saved: (await db.listBackups()).map((x: any) => ({ id: x.id, stamp: x.stamp, at: x.created_at, events: x.counts?.events ?? null })) });
+      // 每周存下来的备份：下载其中一份
+      if (seg[2] === "saved" && seg[3] && method === "GET") {
+        const b: any = await db.getBackup(Number(seg[3]));
+        if (!b) notFound();
+        const csv = url.searchParams.get("format") === "csv";
+        return new Response(csv ? b.csv : b.json, { headers: {
+          "Content-Type": csv ? "text/csv; charset=utf-8" : "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="the-legend-${csv ? "events" : "backup"}-${b.stamp}.${csv ? "csv" : "json"}"` } });
+      }
       if (!seg[2] && method === "GET") {
         const b = await buildBackup();
         const csv = url.searchParams.get("format") === "csv";

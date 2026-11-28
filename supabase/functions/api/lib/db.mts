@@ -666,6 +666,20 @@ export async function listMyCalendars(userId: number) {
     WHERE cm.user_id = ${userId} ORDER BY (cm.role = 'owner') DESC, c.id`;
 }
 /** 备份用：执行固定的查询（不接受外面的输入） */
+// ---------- 每周备份（存在网站里） ----------
+export async function saveBackupRow(stamp: string, csv: string, json: string, counts: any) {
+  await sql`INSERT INTO saved_backups (stamp, csv, json, counts) VALUES (${stamp}, ${csv}, ${json}, ${JSON.stringify(counts)}::jsonb)`;
+}
+export async function trimBackups(keep: number) {
+  await sql`DELETE FROM saved_backups WHERE id NOT IN (SELECT id FROM saved_backups ORDER BY created_at DESC LIMIT ${keep})`;
+}
+export async function listBackups() {
+  return sql`SELECT id, created_at, stamp, counts FROM saved_backups ORDER BY created_at DESC`;
+}
+export async function getBackup(id: number) {
+  const [r] = await sql`SELECT stamp, csv, json FROM saved_backups WHERE id = ${id}`;
+  return r || null;
+}
 export async function rawQuery(text: string) {
   return (await q(text)).map((r: any) => {
     for (const k of Object.keys(r)) if (r[k] instanceof Date) r[k] = r[k].toISOString();
