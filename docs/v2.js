@@ -32,6 +32,7 @@ const T = {
   person_ic: ["负责人", "Person In Charge"], need_person: ["请选择负责人", "Please Choose The Person In Charge"], choose_person: ["选择负责人", "Choose Person"],
   loading: ["读取中…", "Loading…"],
   tick_type: ["类型", "Type"], need_ticks: ["请填好红色 * 的栏位", "Please fill in the fields marked *"],
+  add_title: ["加标题", "Add Title"], pick_tpl_first: ["先在上面选模板（选片 / 了解 / 普通）", "Choose a template above first"],
   search: ["搜索", "Search"], search_ph: ["搜索活动标题或备注…", "Search Event Title Or Notes…"], no_results: ["没有找到活动", "No Events Found"],
   nav_calendar: ["Calendar", "Calendar"], nav_photo: ["Photo Selection", "Photo Selection"], nav_sales: ["Sales Analysis", "Sales Analysis"],
   nav_rates: ["Rates 设置", "Rates"], nav_people: ["Label & People", "Label & People"], nav_activity: ["最新动态", "Activity"], analysis: ["Analysis", "Analysis"],
@@ -218,6 +219,8 @@ const skRows = (n, h = 56) => Array.from({ length: n }, (_, i) => sk("sk-row", `
 
 // ---------------- 图示 ----------------
 const ICON = {
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  note: '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
   search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
   calendar: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   photo: '<svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>',
@@ -510,7 +513,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=226"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=227"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -831,18 +834,35 @@ function pickLabel(f, el) {
   f.label_id = f.label_id === el.dataset.lab ? "" : el.dataset.lab;
   if (f.label_id) f.template_id = el.dataset.labTpl;
 }
+// 活动表单：分成几段（标题 + 模板 / 时间 / 标签和必填 / 备注），每段左边有小图示；手机上保存按钮在右上角
+function efLabels(f, withAdd) {
+  const tpl = tplOf(f.template_id);
+  if (!tpl) return `<p class="ef-hint">${t("pick_tpl_first")}</p>`;
+  const labs = labelsOfTpl(tpl);
+  return `<div class="labels">${labs.map((l) => `<button type="button" class="lab" data-lab="${esc(l.id)}" data-lab-tpl="${tpl.id}" style="--c:${esc(labelHex(l.color))}" aria-pressed="${f.label_id === l.id}"><i></i>${esc(l.name)}</button>`).join("")}
+    ${withAdd && tpl.kind === "normal" ? `<button type="button" class="lab add" id="add-lab" aria-label="${t("new_label")}" title="${t("new_label")}">+</button>` : ""}</div>${tickHtml(f)}`;
+}
 function drawForm() {
   const f = form;
-  showDlg("#dlg", `<form class="dlg" id="ev-form" novalidate>
-    <div class="dlg-head"><h2>${f.id ? t("edit_event") : t("new_event")}</h2><button type="button" class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
+  showDlg("#dlg", `<form class="dlg ef" id="ev-form" novalidate>
+    <div class="dlg-head"><button type="button" class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button><h2>${f.id ? t("edit_event") : t("new_event")}</h2><button type="submit" class="btn ef-save-top">${t("save")}</button></div>
     <div class="dlg-body">
-      <div class="field"><label for="f-title">${t("title")}</label><input class="input" id="f-title" maxlength="300" value="${esc(f.title)}"></div>
-      <label class="check"><input type="checkbox" id="f-allday" ${f.all_day ? "checked" : ""}>${t("all_day")}</label>
-      <div class="row"><div class="field"><label for="f-date">${t("date")}</label><input class="input" type="date" id="f-date" value="${f.date}"></div>
-        ${f.all_day ? "" : `<div class="field"><label for="f-st">${t("start")}</label><input class="input" type="time" id="f-st" value="${f.st}"></div>
-        <div class="field"><label for="f-et">${t("end")}</label><input class="input" type="time" id="f-et" value="${f.et}"></div>`}</div>
-      <div class="field"><span class="lbl">${t("template")} · ${t("label")}</span><div id="tpl-box">${tplPicker(f, true)}</div></div>
-      <div class="field"><label for="f-notes">${t("notes")}</label><textarea class="input" id="f-notes" maxlength="5000">${esc(f.notes)}</textarea></div>
+      <section class="ef-sec ef-top">
+        <input class="ef-title" id="f-title" maxlength="300" value="${esc(f.title)}" placeholder="${t("add_title")}" aria-label="${t("title")}">
+        <div class="ef-tpls" role="group" aria-label="${t("template")}">${(state.config.templates || []).map((x) => `<button type="button" class="ef-tpl" data-tpl="${x.id}" aria-pressed="${f.template_id === x.id}">${esc(tplName(x))}</button>`).join("")}</div>
+      </section>
+      <section class="ef-sec"><span class="ef-ico" aria-hidden="true">${ICON.clock}</span><div class="ef-main">
+        <label class="ef-switch"><span>${t("all_day")}</span><input type="checkbox" id="f-allday" ${f.all_day ? "checked" : ""}><i aria-hidden="true"></i></label>
+        <div class="ef-row"><label for="f-date">${t("date")}</label><input class="input" type="date" id="f-date" value="${f.date}"></div>
+        ${f.all_day ? "" : `<div class="ef-row"><label for="f-st">${t("start")}</label><input class="input" type="time" id="f-st" value="${f.st}"></div>
+        <div class="ef-row"><label for="f-et">${t("end")}</label><input class="input" type="time" id="f-et" value="${f.et}"></div>`}
+      </div></section>
+      <section class="ef-sec"><span class="ef-ico" aria-hidden="true">${ICON.rates}</span><div class="ef-main" id="tpl-box">
+        <span class="ef-cap">${t("label")}</span>${efLabels(f, true)}
+      </div></section>
+      <section class="ef-sec"><span class="ef-ico" aria-hidden="true">${ICON.note}</span><div class="ef-main">
+        <textarea class="input ef-notes" id="f-notes" maxlength="5000" placeholder="${t("notes")}" aria-label="${t("notes")}">${esc(f.notes)}</textarea>
+      </div></section>
       <p class="err" id="f-err"></p>
     </div>
     <div class="dlg-foot"><button type="button" class="btn ghost" data-close>${t("cancel")}</button><button type="submit" class="btn">${t("save")}</button></div></form>`,
@@ -852,7 +872,7 @@ function drawForm() {
       const x = e.target.closest("[data-tpl],[data-tick],[data-lab],#add-lab"); if (!x) return;
       readForm();
       if (x.id === "add-lab") return openLabelDlg((l) => { if (l) { form.label_id = l.id; form.template_id = l.template_id || (state.config.templates || []).find((x) => x.kind === "normal")?.id || form.template_id; } drawForm(); });
-      if (x.dataset.tpl) f.template_id = x.dataset.tpl;
+      if (x.dataset.tpl) { if (f.template_id !== x.dataset.tpl) { f.template_id = x.dataset.tpl; const l = (state.config.labelList || []).find((y) => y.id === f.label_id); if (l && (tplOf(l.template_id)?.kind || "normal") !== tplOf(f.template_id)?.kind) f.label_id = ""; } }
       if (x.dataset.tick) { f[x.dataset.tick] = x.dataset.v; f.miss?.delete(x.dataset.tick); }
       if (x.dataset.lab) pickLabel(f, x);
       drawForm();
