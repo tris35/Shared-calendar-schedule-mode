@@ -305,7 +305,7 @@ async function apiNet(path, opts = {}) {
   if (!res.ok) { const e = new Error(data.error || `Error ${res.status}`); e.status = res.status; throw e; }
   return data;
 }
-const photoUrl = (id) => (String(id).startsWith("blob:") ? id : `${API_BASE}/api/photos/${id}/file?t=${encodeURIComponent(token())}`);
+const photoUrl = (id) => (String(id).startsWith("blob:") ? id : ""); // 照片网址由服务器给（f.url，不含登录钥匙）；离线新增的照片用这台装置上的档案
 
 // ---------------- 声音、提示 ----------------
 // 每个声音：[频率, 开始(秒), 长度(秒), 波形, 音量]；noise = 快门一样的沙沙声
@@ -699,7 +699,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=238"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=239"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -1200,7 +1200,7 @@ function drawDetail() {
     const head = `<div class="post-who"><b>${esc(f.author || "—")}</b> · ${esc(ago(f.created_at))}</div>`;
     const del = canEdit() ? `<button class="x" data-del-${f.type}="${f.id}" aria-label="${t("delete")}">✕</button>` : "<span></span>";
     if (f.type === "comment") return `<div class="post"><span></span><div>${head}<div class="post-body">${esc(f.body)}</div></div>${del}</div>`;
-    return `<div class="post"><span></span><div>${head}${f.caption ? `<div class="post-body">${esc(f.caption)}</div>` : ""}<a href="${photoUrl(f.id)}" target="_blank" rel="noopener"><img src="${photoUrl(f.id)}" alt="" loading="lazy"></a></div>${del}</div>`;
+    return `<div class="post"><span></span><div>${head}${f.caption ? `<div class="post-body">${esc(f.caption)}</div>` : ""}<a href="${f.url || photoUrl(f.id)}" target="_blank" rel="noopener"><img src="${f.url || photoUrl(f.id)}" alt="" loading="lazy"></a></div>${del}</div>`;
   }).join("");
   showDlg("#dlg", `<div class="dlg">
     <div class="dlg-head"><h2 class="raw">${esc(e.title)}</h2><button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>

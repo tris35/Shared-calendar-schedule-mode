@@ -6,7 +6,7 @@ import { apiBase, later } from "./lib/env.mts";
 import { putPhoto, getPhotoData, deletePhotoData } from "./lib/photos.mts";
 import * as db from "./lib/db.mts";
 import * as dash from "./lib/dashboard.mts";
-import { getSettings, saveSettings, sign } from "./lib/settings.mts";
+import { getSettings, saveSettings, sign, photoSignature } from "./lib/settings.mts";
 import { buildBackup } from "./lib/backup.mts";
 import { chat, claudeEnabled } from "./lib/claude.mts";
 import { syncEvent, deleteGoogleEvents, authUrl, handleCallback, disconnect, clientCredentials, redirectUri, mainUrl, listGoogleCalendars, listSyncCalendars, setCalendarEnabled, switchSyncCalendar, retryFailedSyncs, pullFromGoogle, ensureWatch, pushTarget } from "./lib/gcal.mts";
@@ -166,6 +166,8 @@ export async function handleApi(req: Request): Promise<Response> {
       // 同时查（不要一个等一个），打开行程更快
       const [e, g, s, feed] = await Promise.all([db.getEvent(eid), db.getEventGoogle(eid, me.id), getSettings(), db.eventFeed(eid)]);
       if (!e) notFound();
+      // 照片用自己的永久连结（跟 Google 日历里的一样，只能看那一张），网址里不放登录钥匙
+      for (const f of feed as any[]) if (f.type === "photo") f.url = `${apiBase()}/api/p/${f.id}?s=${await photoSignature(f.id)}`;
       return { ...e, google: g ? { synced_at: g.synced_at, error: g.error } : null, feed,
         customer_send_at: e.start ? sendTimeFor(e, s.timezone, sendHourOf(s)).toISOString() : null, customer_send_custom: !!e.customer_send_at,
         customer_preview: e.customer_note ? fillText(e.customer_note, e, s.timezone) : null,

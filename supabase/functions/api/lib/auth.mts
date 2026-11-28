@@ -129,7 +129,7 @@ export async function login(body: any, ip = "") {
 
 /** 从请求取出登录的人（Authorization: Bearer <token>，或照片网址的 ?t=） */
 export async function currentUser(req: Request, url: URL) {
-  const raw = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "") || url.searchParams.get("t") || "";
+  const raw = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, ""); // 只接受标头里的登录钥匙（网址里不能放，避免外泄）
   const [payload, sig] = raw.split(".");
   if (!payload || !sig) throw new AuthError("请先登录");
   let data: any;
