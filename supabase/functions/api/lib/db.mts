@@ -665,6 +665,13 @@ export async function listMyCalendars(userId: number) {
     FROM calendar_members cm JOIN calendars c ON c.id = cm.calendar_id
     WHERE cm.user_id = ${userId} ORDER BY (cm.role = 'owner') DESC, c.id`;
 }
+/** 备份用：执行固定的查询（不接受外面的输入） */
+export async function rawQuery(text: string) {
+  return (await q(text)).map((r: any) => {
+    for (const k of Object.keys(r)) if (r[k] instanceof Date) r[k] = r[k].toISOString();
+    return r;
+  });
+}
 export async function getCalendar(id: number) {
   return (await sql`SELECT id, name, labels, label_names, event_templates FROM calendars WHERE id = ${id}`)[0] ?? null;
 }

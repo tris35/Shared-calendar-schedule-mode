@@ -74,6 +74,8 @@ const T = {
   a_top_added: ["{who} 把 {t} 设为 Top Admin", "{who} made {t} a Top Admin"], a_top_removed: ["{who} 取消了 {t} 的 Top Admin", "{who} removed {t} as Top Admin"],
   approved: ["已批准", "Approved"], rejected: ["已拒绝", "Rejected"],
   show_pw: ["显示密码", "Show password"], hide_pw: ["隐藏密码", "Hide password"], all_day_short: ["全天", "All day"],
+  backup: ["备份", "Backup"], dl_csv: ["下载活动清单（Excel）", "Download events (Excel)"], dl_json: ["下载完整备份", "Download full backup"],
+  last_backup: ["上次自动备份：{d}", "Last automatic backup: {d}"], no_backup: ["每个星期一早上 3 点自动寄到 Top Admin 的 Gmail", "Sent to Top Admins' Gmail every Monday at 3 AM"],
   trash: ["回收站", "Recycle bin"], restore: ["复原", "Restore"], restored: ["已复原", "Restored"], trash_empty: ["回收站是空的", "The recycle bin is empty"],
   days_left: ["{n} 天后永久删除", "Deleted for good in {n} days"], hours_left: ["{n} 小时后永久删除", "Deleted for good in {n} h"], deleted_by: ["{who} 删除", "Deleted by {who}"],
   a_event_restored: ["{who} 复原了「{t}」", "{who} restored “{t}”"], storage: ["照片空间", "Photo space"], photos_n: ["{n} 张照片", "{n} photos"], fixed: ["固定", "Fixed"], connected_as: ["已连接：{g}", "Connected: {g}"],
@@ -1208,6 +1210,8 @@ async function openSettings() {
       <div class="sec"><h3>${t("admins")}</h3><div class="list" id="adm-list"></div></div>
       <div class="sec" id="s-google"><h3>${t("google")}</h3><div id="g-box"></div></div>
       <div class="sec"><h3>${t("storage")}</h3><div id="st-box">${sk("", "height:46px")}</div></div>
+      <div class="sec"><h3>${t("backup")}</h3><div class="sub" id="bk-info">${t("no_backup")}</div>
+        <div class="row"><button class="btn sm" data-dl="csv">${t("dl_csv")}</button><button class="btn ghost sm" data-dl="json">${t("dl_json")}</button></div></div>
       <div class="sec"><h3>${t("templates")}</h3>
         <div class="tpl-row">${(state.config.templates || []).map((x) => `<input class="input" data-tn="${x.id}" maxlength="20" value="${esc(x.name)}" aria-label="${esc(x.name)}">`).join("")}</div>
         <div class="row"><button class="btn sm" id="tpl-rename">${t("save")}</button></div></div>
@@ -1270,6 +1274,18 @@ async function drawApply(d) {
 }
 function wireAdmin(d) {
   drawRequests(d); drawAdmins(d); drawGoogle(d); drawStorage(d);
+  api("/api/admin/backup/info").then((r) => { if (r.lastBackup) $("#bk-info", d).textContent = t("last_backup", { d: new Date(r.lastBackup).toLocaleString(loc(), { timeZone: tz(), dateStyle: "medium", timeStyle: "short" }) }); }).catch(() => {});
+  d.querySelectorAll("[data-dl]").forEach((b) => b.addEventListener("click", async () => {
+    b.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/backup${b.dataset.dl === "csv" ? "?format=csv" : ""}`, { headers: { Authorization: `Bearer ${token()}`, "x-cal": store.get("cal") || "", "x-lang": lang } });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+      const name = (res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || `the-legend-backup.${b.dataset.dl}`;
+      const a = document.createElement("a"); a.href = URL.createObjectURL(await res.blob()); a.download = name; document.body.append(a); a.click(); a.remove();
+      chime("ok");
+    } catch (e) { fail(e); }
+    b.disabled = false;
+  }));
   $("#tpl-rename", d).onclick = async () => {
     try {
       const r = await api("/api/event-templates", { method: "PUT", body: { templates: $$("[data-tn]", d).map((i) => ({ id: i.dataset.tn, name: i.value })) } });
@@ -1396,7 +1412,7 @@ async function pollNotes() {
     }
   } catch {}
 }
-const NOTE_ICON = { sync_error: "⚠️", admin_request: "🙋", storage: "📦" };
+const NOTE_ICON = { sync_error: "⚠️", admin_request: "🙋", storage: "📦", backup: "💾" };
 function popNote(n) {
   const el = document.createElement("div");
   const rid = reqIdOf(n);
@@ -1404,7 +1420,7 @@ function popNote(n) {
   // 管理员申请：只有「批准」和「拒绝」，按了才会消失
   const acts = rid ? `<button class="btn sm" data-ok>${t("approve")}</button><button class="btn danger sm" data-no>${t("reject")}</button>`
     : `<button class="btn sm" data-open>${t("view")}</button><button class="btn ghost sm" data-x>${t("close")}</button>`;
-  el.innerHTML = `<span style="font-size:22px">${NOTE_ICON[n.kind] || "🔔"}</span><div class="grow"><b>${n.kind === "sync_error" ? t("google") : n.kind === "storage" ? t("storage") : t("requests")}</b>${esc(n.body)}
+  el.innerHTML = `<span style="font-size:22px">${NOTE_ICON[n.kind] || "🔔"}</span><div class="grow"><b>${n.kind === "sync_error" ? t("google") : n.kind === "storage" ? t("storage") : n.kind === "backup" ? t("backup") : t("requests")}</b>${esc(n.body)}
     <div class="pop-acts">${acts}</div></div>`;
   el.onclick = async (e) => {
     const ok = e.target.closest("[data-ok]"), no = e.target.closest("[data-no]");

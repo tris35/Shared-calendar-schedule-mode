@@ -7,6 +7,7 @@ import { putPhoto, getPhotoData, deletePhotoData } from "./lib/photos.mts";
 import * as db from "./lib/db.mts";
 import * as dash from "./lib/dashboard.mts";
 import { getSettings, saveSettings, sign } from "./lib/settings.mts";
+import { buildBackup } from "./lib/backup.mts";
 import { chat, claudeEnabled } from "./lib/claude.mts";
 import { syncEvent, deleteGoogleEvents, authUrl, handleCallback, disconnect, clientCredentials, redirectUri, mainUrl, listGoogleCalendars, listSyncCalendars, setCalendarEnabled, switchSyncCalendar, retryFailedSyncs, pullFromGoogle, ensureWatch, pushTarget } from "./lib/gcal.mts";
 import { AuthError, signup, login, forgotPassword, resetPassword, currentUser, changePassword, publicUser, isAdmin, canWhatsApp, fixedAdmins, isTopAdmin, topAdminEmails } from "./lib/auth.mts";
@@ -526,6 +527,18 @@ export async function handleApi(req: Request): Promise<Response> {
         await act("event_restored", e.title, id);
         sync(id); // Google 上也救回来
         return Response.json({ ok: true, items: await db.listTrash(calId) });
+      }
+    }
+    // 备份：管理员随时下载（events.csv / backup.json）；Top Admin 可以马上寄一次
+    if (r === "admin" && seg[1] === "backup") {
+      mustAdmin();
+      if (seg[2] === "info" && method === "GET") return Response.json({ lastBackup: (await getSettings()).lastBackup || null });
+      if (!seg[2] && method === "GET") {
+        const b = await buildBackup();
+        const csv = url.searchParams.get("format") === "csv";
+        return new Response(csv ? b.csv : b.json, { headers: {
+          "Content-Type": csv ? "text/csv; charset=utf-8" : "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="the-legend-${csv ? "events" : "backup"}-${b.stamp}.${csv ? "csv" : "json"}"` } });
       }
     }
     // 照片空间（管理员看）

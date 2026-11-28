@@ -17,7 +17,8 @@ export type Settings = {
   waOutro?: string;            // 给客户的讯息：自己写的结尾
   waDefault?: string;          // 新行程「给客户的讯息」默认内容
   adminEmails?: string[];      // 在 App「设置」加的管理员（另外还有 Supabase 密钥 ADMIN_EMAILS）
-  topAdmins?: string[];        // Top Admin（可以批准管理员申请、收到弹出通知）；没设定 = 第一批管理员
+  topAdmins?: string[];
+  lastBackup?: string;         // 上次寄出每周备份的时间        // Top Admin（可以批准管理员申请、收到弹出通知）；没设定 = 第一批管理员
   schedule?: Schedule;         // Schedule Mode：用 booking number 从通讯录找电话，自动提醒
 };
 
