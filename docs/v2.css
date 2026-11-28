@@ -648,3 +648,16 @@ h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);fo
 /* 侧栏 logo：两个相扣的细圈 */
 .logo-rings{width:44px;height:44px;flex:none;filter:drop-shadow(0 0 8px rgba(56,189,248,.35))}
 @media (max-width:860px){.logo-rings{width:36px;height:36px}}
+
+/* 所有颜色标签、活动：实心颜色（不要透明背景），字的颜色自动（浅色底用深字，深色底用白字） */
+.lab{background:var(--c,#8fa6cf);border:1px solid transparent;color:var(--ink,#fff);font-weight:700}
+.lab i{display:none}
+.lab:hover{filter:brightness(1.08)}
+.lab[aria-pressed="true"]{background:var(--c);border-color:transparent;box-shadow:0 0 0 2px var(--bg,#050b1f),0 0 0 4px #fff}
+.lab.add{background:transparent;color:var(--cyan);border:1px dashed var(--line)}
+.chip{background:var(--c,#3b82f6);color:var(--ink,#fff)}
+.chip b{color:inherit}
+.tl-ev{background:var(--c,#3b82f6);color:var(--ink,#fff);border:none}
+.tl-ev span{opacity:.85}
+@media (max-width:860px){.chip{background:var(--c,#3b82f6);color:var(--ink,#fff)}}
+.sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--bg,#050b1f),0 0 0 4px #fff}

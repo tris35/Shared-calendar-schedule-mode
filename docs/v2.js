@@ -259,6 +259,8 @@ async function decide(id, approve) {
 const clearPops = () => $$(".pop").forEach((x) => x.remove());
 const canEdit = () => state.config?.calendarRole !== "viewer";
 const labelHex = (color) => state.config?.labels?.[color]?.hex || "#3b82f6";
+// 实心颜色上的字：浅色（例如 Banana）用深色字，深色（例如 Grape）用白字
+const inkOf = (hex) => { const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || "")); if (!m) return "#fff"; const n = parseInt(m[1], 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? "#10131f" : "#fff"; };
 const labelOf = (e) => (state.config?.labelList || []).find((l) => l.id === e.label_id);
 const evColor = (e) => (e.label && state.config?.labels?.[e.label] ? labelHex(e.label) : e.color || "#3b82f6");
 const tplOf = (id) => (state.config?.templates || []).find((x) => x.id === id);
@@ -515,7 +517,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=230"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=231"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -613,7 +615,7 @@ function drawGrid() {
     const list = state.loadingMonth ? [] : map.get(d) || [];
     const fake = state.loadingMonth ? Array.from({ length: (d.charCodeAt(9) + d.charCodeAt(8)) % 3 }, (_, k) => sk("sk-chip", `animation-delay:${(k * 0.1 + (Number(d.slice(8)) % 7) * 0.05).toFixed(2)}s`)).join("") : "";
     const max = PHONE() ? 2 : 4; // 手机：每格只放 2 个小字
-    const chips = fake + list.slice(0, max).map((e) => `<span class="chip ${untaggedEv(e) ? "untag" : ""}" style="--c:${esc(evColor(e))}"><b class="raw">${esc(e.title)}</b></span>`).join("");
+    const chips = fake + list.slice(0, max).map((e) => `<span class="chip ${untaggedEv(e) ? "untag" : ""}" style="--c:${esc(evColor(e))};--ink:${inkOf(evColor(e))}"><b class="raw">${esc(e.title)}</b></span>`).join("");
     return `<button class="cal-cell ${d.slice(0, 7) !== state.cursor ? "out" : ""} ${d === today ? "today" : ""} ${d === state.sel ? "sel" : ""}" data-day="${d}" aria-label="${esc(fmtDay(d))}">
       <span class="cal-num">${Number(d.slice(8))}</span>${chips}${list.length > max ? `<span class="chip-more">+${list.length - max}</span>` : ""}</button>`;
   }).join("");
@@ -661,7 +663,7 @@ function openDay(ymd, dir = 0) {
   const wk = d0.toLocaleDateString(loc(), { weekday: "short", timeZone: "UTC" }).toUpperCase();
   const my = d0.toLocaleDateString(loc(), { month: "long", year: "numeric", timeZone: "UTC" });
   const hourLbl = (h) => new Date(Date.UTC(2024, 0, 1, h)).toLocaleTimeString(lang === "zh" ? "zh-CN" : "en-US", { hour: "numeric", hour12: true, timeZone: "UTC" });
-  const blocks = layoutDay(timed, ymd).map((it, i) => `<button class="tl-ev rise" data-ev="${it.e.id}" style="--i:${i};--c:${esc(evColor(it.e))};top:${it.top}px;height:${it.h}px;left:calc(var(--gut) + (100% - var(--gut) - 8px) * ${it.lane} / ${it.cols});width:calc((100% - var(--gut) - 8px) / ${it.cols} - 3px)">
+  const blocks = layoutDay(timed, ymd).map((it, i) => `<button class="tl-ev rise" data-ev="${it.e.id}" style="--i:${i};--c:${esc(evColor(it.e))};--ink:${inkOf(evColor(it.e))};top:${it.top}px;height:${it.h}px;left:calc(var(--gut) + (100% - var(--gut) - 8px) * ${it.lane} / ${it.cols});width:calc((100% - var(--gut) - 8px) / ${it.cols} - 3px)">
       <b>${esc(it.e.title)}</b><span>${esc(fmtTime(it.e.start))}${it.e.end ? " – " + esc(fmtTime(it.e.end)) : ""}</span></button>`).join("");
   const isToday = ymd === ymdIn(Date.now());
   const nowTop = isToday ? ((Date.now() - Date.parse(wallToIso(ymd))) / 60000) * (HOUR_PX / 60) : -1;
@@ -670,7 +672,7 @@ function openDay(ymd, dir = 0) {
       <button class="icon-btn day-nav" data-step="-1" aria-label="‹">${ICON.left}</button><button class="icon-btn day-nav" data-step="1" aria-label="›">${ICON.right}</button>
       <button class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
     ${canEdit() ? `<button class="day-new" id="day-new" aria-label="${t("new_event")}">${ICON.plus}<span class="t">${t("new_event")}</span></button>` : ""}
-    ${allDay.length ? `<div class="day-allday"><span class="lbl">${t("all_day_short")}</span>${allDay.map((e) => `<button class="chip" data-ev="${e.id}" style="--c:${esc(evColor(e))}"><b class="raw">${esc(e.title)}</b></button>`).join("")}</div>` : ""}
+    ${allDay.length ? `<div class="day-allday"><span class="lbl">${t("all_day_short")}</span>${allDay.map((e) => `<button class="chip" data-ev="${e.id}" style="--c:${esc(evColor(e))};--ink:${inkOf(evColor(e))}"><b class="raw">${esc(e.title)}</b></button>`).join("")}</div>` : ""}
     <div class="day-scroll" id="day-scroll"><div class="tl" style="height:${24 * HOUR_PX}px">
       ${Array.from({ length: 24 }, (_, h) => `<div class="tl-hour" data-hour="${h}" style="top:${h * HOUR_PX}px;height:${HOUR_PX}px"><span>${h ? esc(hourLbl(h)) : ""}</span></div>`).join("")}
       ${nowTop >= 0 ? `<div class="tl-now" style="top:${nowTop}px"></div>` : ""}
@@ -702,7 +704,7 @@ function evRow(e, withDate = false) {
   const tpl = tplOf(e.template_id), lab = labelOf(e);
   const when = e.all_day ? t("all_day") : fmtTime(e.start);
   const who = e.person_name ? `${e.person_emoji || ""} ${e.person_name}` : e.creator_name ? `${e.creator_emoji || ""} ${e.creator_name}` : "";
-  return `<button class="ev-row" data-ev="${e.id}" style="--c:${esc(evColor(e))}">
+  return `<button class="ev-row" data-ev="${e.id}" style="--c:${esc(evColor(e))};--ink:${inkOf(evColor(e))}">
     <span class="ev-time">${withDate ? esc(fmtDay(ymdIn(e.start))) + "<br>" : ""}${esc(when)}</span>
     <span style="min-width:0"><div class="ev-title">${esc(e.title)}</div><div class="ev-sub">${esc([lab?.name, who].filter(Boolean).join(" · "))}</div></span>
     ${untaggedEv(e) ? `<span class="tag bad">${t("untagged_title")}</span>` : tpl ? `<span class="tag">${esc(tpl.name)}</span>` : ""}</button>`;
@@ -825,7 +827,7 @@ function tplPicker(f, withAdd = false) {
     const labs = labelsOfTpl(x);
     return `<div class="tpl-card" data-on="${f.template_id === x.id}">
       <button type="button" class="tpl-btn" data-tpl="${x.id}" aria-pressed="${f.template_id === x.id}">${esc(tplName(x))}</button>
-      <div class="labels">${labs.map((l) => `<button type="button" class="lab" data-lab="${esc(l.id)}" data-lab-tpl="${x.id}" style="--c:${esc(labelHex(l.color))}" aria-pressed="${f.label_id === l.id}"><i></i>${esc(l.name)}</button>`).join("")}
+      <div class="labels">${labs.map((l) => `<button type="button" class="lab" data-lab="${esc(l.id)}" data-lab-tpl="${x.id}" style="--c:${esc(labelHex(l.color))};--ink:${inkOf(labelHex(l.color))}" aria-pressed="${f.label_id === l.id}"><i></i>${esc(l.name)}</button>`).join("")}
         ${withAdd && x.kind === "normal" ? `<button type="button" class="lab add" id="add-lab" aria-label="${t("new_label")}" title="${t("new_label")}">+</button>` : ""}</div>
       ${f.template_id === x.id ? tickHtml(f) : ""}
     </div>`;
@@ -841,7 +843,7 @@ function efLabels(f, withAdd) {
   const tpl = tplOf(f.template_id);
   if (!tpl) return `<p class="ef-hint">${t("pick_tpl_first")}</p>`;
   const labs = labelsOfTpl(tpl);
-  return `<div class="labels">${labs.map((l) => `<button type="button" class="lab" data-lab="${esc(l.id)}" data-lab-tpl="${tpl.id}" style="--c:${esc(labelHex(l.color))}" aria-pressed="${f.label_id === l.id}"><i></i>${esc(l.name)}</button>`).join("")}
+  return `<div class="labels">${labs.map((l) => `<button type="button" class="lab" data-lab="${esc(l.id)}" data-lab-tpl="${tpl.id}" style="--c:${esc(labelHex(l.color))};--ink:${inkOf(labelHex(l.color))}" aria-pressed="${f.label_id === l.id}"><i></i>${esc(l.name)}</button>`).join("")}
     ${withAdd && tpl.kind === "normal" ? `<button type="button" class="lab add" id="add-lab" aria-label="${t("new_label")}" title="${t("new_label")}">+</button>` : ""}</div>${tickHtml(f)}`;
 }
 function drawForm() {
@@ -961,7 +963,7 @@ function openLabelDlg(done, edit = null) {
     <div class="dlg-head"><h2>${edit ? t("edit") : t("new_label")}</h2><button type="button" class="icon-btn" data-close aria-label="${t("close")}">${ICON.x}</button></div>
     <div class="dlg-body">
       <div class="field"><label for="l-name">${t("label_name")}</label><input class="input" id="l-name" maxlength="30" value="${esc(l.name)}"></div>
-      <div class="field"><span class="lbl">${t("colour")}</span><div class="swatches">${Object.keys(state.config.labels).map((c) => `<button type="button" class="sw" style="--c:${esc(labelHex(c))}" data-c="${c}" aria-pressed="${c === l.color}" aria-label="${esc(state.config.labels[c].name)}"></button>`).join("")}</div></div>
+      <div class="field"><span class="lbl">${t("colour")}</span><div class="swatches">${Object.keys(state.config.labels).sort((a, b) => (state.config.labels[a].order || 99) - (state.config.labels[b].order || 99)).map((c) => `<button type="button" class="sw" style="--c:${esc(labelHex(c))}" data-c="${c}" aria-pressed="${c === l.color}" aria-label="${esc(state.config.labels[c].name)}" title="${esc(state.config.labels[c].name)}"></button>`).join("")}</div></div>
       <div class="field"><span class="lbl">${t("template")}</span><div class="seg" role="group"><button type="button" data-t="" aria-pressed="${!l.template_id}">${t("no_tpl")}</button>${(state.config.templates || []).map((x) => `<button type="button" data-t="${x.id}" aria-pressed="${l.template_id === x.id}">${esc(x.name)}</button>`).join("")}</div></div>
       <p class="err" id="l-err"></p>
     </div>
@@ -1122,7 +1124,7 @@ async function renderPeople() {
 }
 function drawLabels() {
   const box = $("#lab-list"); if (!box) return;
-  box.innerHTML = (state.config.labelList || []).map((l) => `<button class="lab" data-l="${esc(l.id)}" style="--c:${esc(labelHex(l.color))}" ${isAdmin() ? "" : "disabled"}><i></i>${esc(l.name)}${l.template_id ? ` <span class="tag" style="padding:1px 7px">${esc(tplOf(l.template_id)?.name || "")}</span>` : ""}</button>`).join("");
+  box.innerHTML = (state.config.labelList || []).map((l) => `<button class="lab" data-l="${esc(l.id)}" style="--c:${esc(labelHex(l.color))};--ink:${inkOf(labelHex(l.color))}" ${isAdmin() ? "" : "disabled"}><i></i>${esc(l.name)}${l.template_id ? ` <span class="tag" style="padding:1px 7px">${esc(tplOf(l.template_id)?.name || "")}</span>` : ""}</button>`).join("");
   box.onclick = (e) => {
     const b = e.target.closest("[data-l]"); if (!b || !isAdmin()) return;
     openLabelDlg(() => drawLabels(), state.config.labelList.find((x) => x.id === b.dataset.l));
