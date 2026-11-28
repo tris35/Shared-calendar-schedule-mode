@@ -644,3 +644,7 @@ h1,h2,h3,.title,.logo-name,.cal-month,.tot-head{font-family:var(--font-title);fo
 .ef-q-x{all:unset;cursor:pointer;color:var(--muted);padding:2px 6px;border-radius:8px}
 .ef-q-x:hover{color:var(--bad)}
 #f-pthumbs:empty{display:none}
+
+/* 侧栏 logo：两个相扣的细圈 */
+.logo-rings{width:44px;height:44px;flex:none;filter:drop-shadow(0 0 8px rgba(56,189,248,.35))}
+@media (max-width:860px){.logo-rings{width:36px;height:36px}}

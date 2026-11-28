@@ -218,6 +218,8 @@ const sk = (cls = "", style = "") => `<span class="sk ${cls}" style="${style}"><
 const skRows = (n, h = 56) => Array.from({ length: n }, (_, i) => sk("sk-row", `height:${h}px;animation-delay:${i * 0.08}s`)).join("");
 
 // ---------------- 图示 ----------------
+// 侧栏的 logo：两个相扣的细圈（蓝 + 金），轻、简单
+const LOGO_RINGS = `<svg class="logo-rings" viewBox="0 0 48 48" width="44" height="44" aria-hidden="true"><defs><linearGradient id="lr-a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7dd3fc"/><stop offset="1" stop-color="#2563eb"/></linearGradient><linearGradient id="lr-b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#f5c451"/></linearGradient></defs><circle cx="19" cy="25" r="10.5" fill="none" stroke="url(#lr-a)" stroke-width="3"/><circle cx="29" cy="25" r="10.5" fill="none" stroke="url(#lr-b)" stroke-width="3"/><circle cx="29" cy="14.6" r="2" fill="#fde68a"/></svg>`;
 const ICON = {
   clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   note: '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
@@ -475,7 +477,7 @@ function renderApp() {
   const btn = (x) => `<button class="nav-btn" data-nav="${x.id}" ${x.id === state.page ? 'aria-current="page"' : ""}>${ICON[x.icon]}<span class="t">${t("nav_" + x.id)}</span><span class="s">${t("short_" + x.id)}</span>${x.id === "calendar" ? '<span class="count" id="untag-count" hidden></span>' : ""}${x.id === "activity" ? `<span class="count" id="act-count" ${state.actUnread ? "" : "hidden"}>${state.actUnread > 99 ? "99+" : state.actUnread}</span>` : ""}</button>`;
   $("#root").innerHTML = `<div class="app">
     <aside class="side">
-      <div class="logo"><img class="logo-mark" src="icons/logo-mark.png" alt="" width="44" height="44"><div><div class="logo-name">THE LEGEND WEDDING</div>${cal?.name && cal.name.trim().toLowerCase() !== "the legend wedding" ? `<div class="logo-cal">${esc(cal.name)}</div>` : ""}</div></div>
+      <div class="logo">${LOGO_RINGS}<div><div class="logo-name">THE LEGEND WEDDING</div>${cal?.name && cal.name.trim().toLowerCase() !== "the legend wedding" ? `<div class="logo-cal">${esc(cal.name)}</div>` : ""}</div></div>
       <nav class="nav-group" aria-label="${t("analysis")}"><div class="nav-label">${t("analysis")}</div>${items.filter((x) => x.group === "analysis").map(btn).join("")}</nav>
       <nav class="nav-group" aria-label="${t("settings")}"><div class="nav-label">${t("settings")}</div>${items.filter((x) => x.group === "settings").map(btn).join("")}</nav>
       <div class="side-foot"><button class="gear" id="gear" aria-label="${t("settings")}" title="${t("settings")}">${ICON.gear}<span class="s">${t("settings")}</span></button>
@@ -513,7 +515,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=229"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=230"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
