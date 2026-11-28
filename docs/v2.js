@@ -357,7 +357,7 @@ function renderAuth(mode, msg = "") {
       <button class="linkish" data-mode="login">${t("back")}</button>`,
   }[mode];
   $("#root").innerHTML = `<div class="gate"><form class="gate-card" id="auth" novalidate>
-    <div class="gate-logo"><img class="brand-full" src="icons/logo-full.jpg" alt="Be the only one" width="200" height="200"></div>
+    <div class="gate-logo">${LOGO_RINGS.replace('class="logo-rings"', 'class="logo-rings gate-rings"')}<div class="gate-name">THE LEGEND<br>WEDDING</div></div>
     <div class="seg" role="group" style="align-self:center">${Object.entries(LANGS).map(([k, v]) => `<button type="button" data-lang="${k}" aria-pressed="${k === lang}">${v}</button>`).join("")}</div>
     ${card}</form></div>`;
   const f = $("#auth");
@@ -544,7 +544,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=234"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=235"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);

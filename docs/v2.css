@@ -674,3 +674,8 @@ dialog.confirm-dlg{max-width:min(380px,calc(100vw - 32px));width:100%;height:aut
 .cf-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin-top:8px}
 .btn.danger-solid{background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 0 14px rgba(239,68,68,.45)}
 dialog.confirm-dlg{position:fixed;inset:0;margin:auto;max-height:fit-content}
+
+/* 登录页 logo：两个相扣的细圈 + 名字 */
+.gate-rings{width:96px;height:96px;filter:drop-shadow(0 0 18px rgba(56,189,248,.45)) drop-shadow(0 0 10px rgba(245,196,81,.25))}
+.gate-name{font-family:var(--font-title);font-weight:700;font-size:22px;letter-spacing:.08em;line-height:1.2;text-align:center;background:var(--title);-webkit-background-clip:text;background-clip:text;color:transparent}
+@media (max-width:860px){.gate-rings{width:80px;height:80px}.gate-name{font-size:19px}}
