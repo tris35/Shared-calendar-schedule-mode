@@ -377,8 +377,11 @@ export async function handleApi(req: Request): Promise<Response> {
     if (r === "dashboard") {
       if (!seg[1] && method === "GET") {
         const tz = (await getSettings()).timezone || "Asia/Kuala_Lumpur";
-        const [rows, manual, rates] = await Promise.all([db.dashEvents(calId, dash.DASH_START, tz), db.dashManual(calId), db.dashRates(calId)]);
-        return Response.json({ ...dash.buildEvents(rows, manual, templates), rates: dash.rateHistory(rates), admin: isAdmin(me), dataStart: dash.DASH_START });
+        const [rows, manual, rates, fixedAll] = await Promise.all([db.dashEvents(calId, dash.DASH_START, tz), db.dashManual(calId), db.dashRates(calId), db.getKv("dash_fixed")]);
+        // 固定数据（例如 2026 年 10、11 月）：只能在资料库改，App 里没有人能改；那几个月不算行程
+        const fixed = ((fixedAll as any) || {})[String(calId)] || {};
+        const live = rows.filter((x: any) => !fixed[String(x.date).slice(0, 7)]);
+        return Response.json({ ...dash.buildEvents(live, manual, templates), fixed, rates: dash.rateHistory(rates), admin: isAdmin(me), dataStart: dash.DASH_START });
       }
       if (seg[1] === "rates" && method === "PUT") {
         mustAdmin();

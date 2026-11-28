@@ -13,7 +13,7 @@ const store = {
 const API_BASE = String(window.APP_CONFIG?.apiBase || "").replace(/\/$/, "");
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordOk = (pw) => pw.length >= 6 && /[^\p{L}\p{N}\s]/u.test(pw);
-const DASH_START = "2026-10-01";
+const DASH_START = "2026-12-01"; // 10、11 月是固定数据，从 12 月开始才算行程
 
 // ---------------- 语言 ----------------
 const LANGS = { zh: "中文", en: "English" };

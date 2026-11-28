@@ -32,6 +32,10 @@
     '声音：开': 'Sound: on', '声音：关': 'Sound: off', '关闭': 'Close', '跳过': 'Skip', '上一步': 'Back', '开始使用': 'Get started', '下一步': 'Next', '完成！': 'Done!',
     '请输入 Rate，并选 2026 年 10 月 1 日或之后的日期。': 'Enter a rate and pick a date on or after 1 Oct 2026.',
     '未选模板': 'No template', '勾选不完整': 'Ticks incomplete', '手动数据': 'Manual data', 'Settings': 'Settings',
+    '固定数据': 'Fixed figures', '固定数据 · 没有场次明细': 'Fixed figures · no event details', '固定数据 · 没有次数明细': 'Fixed figures · no count details',
+    '固定数据：没有 All Soft / Non-All Soft 明细。': 'Fixed figures: no All Soft / Non-All Soft split.',
+    '这个月只有品牌总数（固定数据），没有每个人的明细。': 'This month has brand totals only (fixed figures), no per-person split.',
+    '固定数据：没有分 上门了解 / VC了解': 'Fixed figures: no Visit / VC split', '固定数据：没有分 上门了解 / VC了解。': 'Fixed figures: no Visit / VC split.', '没有数据。': 'No data.',
   };
   const MON = (y, m) => new Date(Date.UTC(+y, +m - 1, 1)).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
   const PAT = [
@@ -45,7 +49,7 @@
     [/^Dashboard 读取失败：(.*)$/, 'Could not load the dashboard: $1'],
   ];
   // 句子里面的词（最长的先换）
-  const WORDS = [['Rate 未齐', 'rate missing'], ['按品牌/按月', 'by brand/month'], ['按日期', 'by date'], ['+ 未设定', '+ not set'], ['未设定', 'not set'],
+  const WORDS = [['含固定数据', 'incl. fixed figures'], ['固定数据', 'fixed figures'], ['Rate 未齐', 'rate missing'], ['按品牌/按月', 'by brand/month'], ['按日期', 'by date'], ['+ 未设定', '+ not set'], ['未设定', 'not set'],
     ['上门了解', 'Visit'], ['VC了解', 'VC'], ['合计', 'Total'], ['场', ' events']];
   function fix(s) {
     const k = s.trim();
@@ -491,7 +495,11 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   const monthLabel = (m) => (m ? `${m.slice(0, 4)}年${Number(m.slice(5, 7))}月` : '—');
   const brandName = (b) => (b === 'all' ? 'The Legend Wedding + WM' : b === 'Legends' ? 'The Legend Wedding' : b);
 
-  let data = { events: [], rates: {}, sample: false };
+  let data = { events: [], rates: {}, sample: false, fixed: {} };
+  // 固定数据（2026 年 10、11 月）：直接显示给的数字，不算行程；没有人能在 App 里改
+  const fx = (m) => (m && data.fixed ? data.fixed[m] : null);
+  const curMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+  let firstLoad = true;
   const state = { page: 'photo', brand: 'all', month: null };
   const api = (window.TheLegendDashboard = window.TheLegendDashboard || {});
 
@@ -517,7 +525,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
   }
   function persist() { if (data.sample) { try { localStorage.setItem(STORE, JSON.stringify(data.rates)); } catch {} } }
   api.setData = (d) => {
-    data = { events: (d.events || []).map((e) => ({ ...e, month: String(e.date || '').slice(0, 7) })).filter((e) => e.month >= DATA_START), rates: toHistory(d.rates), sample: !!d.sample };
+    data = { events: (d.events || []).map((e) => ({ ...e, month: String(e.date || '').slice(0, 7) })).filter((e) => e.month >= DATA_START), rates: toHistory(d.rates), sample: !!d.sample, fixed: d.fixed || {} };
     if (d.sample) {
       // demo of a mid-month change: Legends photo rate becomes 1,800 from 15 Oct 2026
       const h = hist('Legends', 'photo');
@@ -525,11 +533,13 @@ const SAMPLE = { sample: false, events: [], rates: {} };
       try { const saved = JSON.parse(localStorage.getItem(STORE) || 'null'); if (saved) data.rates = saved; } catch {}
     }
     const ms = months();
-    if (!periodOptions().includes(state.month)) state.month = ms[ms.length - 1] || null;
+    // 打开时默认是这个月（用这台装置的日期）
+    if (firstLoad || !periodOptions().includes(state.month)) state.month = ms.includes(curMonth()) ? curMonth() : ms[ms.length - 1] || null;
+    firstLoad = false;
     render();
   };
   api.getRates = () => JSON.parse(JSON.stringify(data.rates));
-  const months = () => [...new Set(data.events.map((e) => e.month).filter((m) => /^\d{4}-\d{2}$/.test(m)))].sort();
+  const months = () => [...new Set([...data.events.map((e) => e.month), ...Object.keys(data.fixed || {}), curMonth()].filter((m) => /^\d{4}-\d{2}$/.test(m) && m >= DATA_START))].sort();
   const years = () => [...new Set(months().map((m) => m.slice(0, 4)))].sort();
   const periodOptions = () => [...months(), ...years().map((y) => 'Y' + y)];
   const isYear = () => String(state.month || '').startsWith('Y');
@@ -572,7 +582,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
       isAdmin = !!d.admin;
       document.querySelectorAll('#nav-rates, .nav-label-2').forEach((x) => { x.hidden = !isAdmin; });
       if (!isAdmin) { for (let i = TOUR.length - 1; i >= 0; i--) if (TOUR[i].page === 'rates') TOUR.splice(i, 1); if (state.page === 'rates') state.page = 'photo'; }
-      api.setData({ events: d.events || [], rates: d.rates || {}, sample: false });
+      api.setData({ events: d.events || [], rates: d.rates || {}, fixed: d.fixed || {}, sample: false });
     } catch (e) { showLoadError('Dashboard 读取失败：' + e.message); }
     try { if (window.parent !== window) window.parent.postMessage('dash-ready', '*'); } catch {}
   }
@@ -610,6 +620,28 @@ const SAMPLE = { sample: false, events: [], rates: {} };
       p.rates ??= new Map(); p.rates.set(rt, (p.rates.get(rt) || 0) + 1);
       if (p.amount != null) p.amount = r2(p.amount + rt);
     }
+    // 固定数据的月份：直接加上给的金额（每个人的金额、品牌总数）
+    let fixedAmt = null;
+    for (const m of ms) {
+      const f = fx(m) && fx(m)[cat];
+      if (!f) continue;
+      fixedAmt ??= 0;
+      if (cat === 'photo') {
+        for (const b of brandsNow()) { const v = Number(f.brand?.[b]) || 0; byBrand[b].amt = r2(byBrand[b].amt + v); fixedAmt = r2(fixedAmt + v); }
+        if (state.brand === 'all') for (const x of f.people || []) {
+          const p = (people[x.person] ??= { person: x.person, a: 0, b: 0, amount: 0 });
+          p.fixed = true; if (p.amount != null) p.amount = r2(p.amount + (Number(x.amount) || 0));
+        }
+      } else {
+        for (const x of f.people || []) {
+          const bs = brandsNow().filter((b) => x[b] != null);
+          if (!bs.length) continue;
+          const p = (people[x.person] ??= { person: x.person, a: 0, b: 0, amount: 0 });
+          p.fixed = true;
+          for (const b of bs) { const v = Number(x[b]) || 0; byBrand[b].amt = r2(byBrand[b].amt + v); fixedAmt = r2(fixedAmt + v); if (p.amount != null) p.amount = r2(p.amount + v); }
+        }
+      }
+    }
     const per = Object.fromEntries(brandsNow().map((b) => {
       const bb = byBrand[b], n = cat === 'photo' ? bb.a : bb.a + bb.b;
       const rate = bb.rates.size === 1 && !bb.missing ? [...bb.rates][0] : null;
@@ -620,7 +652,7 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     const a = brandsNow().reduce((s, b) => s + byBrand[b].a, 0), b = brandsNow().reduce((s, k) => s + byBrand[k].b, 0);
     const missing = vals.some((v) => v.missing);
     const rows = Object.values(people).sort((x, y) => (y.amount ?? -1) - (x.amount ?? -1) || (y.a + y.b) - (x.a + x.b) || x.person.localeCompare(y.person));
-    return { rows, per, a, b, amount, missing };
+    return { rows, per, a, b, amount, missing, fixedAmt };
   }
 
   /* ---------- drawing helpers ---------- */
@@ -863,13 +895,85 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     document.querySelectorAll('.controls > .sel, .controls > .seg').forEach((c) => { c.hidden = state.page === 'rates'; });
     if (state.page === 'photo') renderPhoto(); else if (state.page === 'sales') renderSales(); else renderRates();
   }
+  /* ---------- 固定数据的月份（2026 年 10、11 月） ---------- */
+  const rateFix = (v) => (v == null ? '未设定' : money(Number(v)));
+  function fixedRateKpi(rate) {
+    if (state.brand !== 'all') return [rateFix(rate?.[state.brand]), state.brand + ' · 固定数据'];
+    return [`${rateFix(rate?.Legends)} / ${rateFix(rate?.WM)}`, 'Legends / WM · 固定数据'];
+  }
+  function amountBars(el, rows, emptyMsg) {
+    if (!rows.length) { el.innerHTML = `<p class="empty">${emptyMsg}</p>`; return; }
+    const W = Math.max(260, el.clientWidth || 360), rowH = 36;
+    const lab = (r) => 'RM ' + money(r.amount) + (r.n != null ? `  (${int(r.n)})` : '');
+    const nameW = Math.max(...rows.map((r) => textW(r.person))) + 14;
+    const amtW = Math.max(...rows.map((r) => textW(lab(r), 700))) + 14;
+    const max = Math.max(1, ...rows.map((r) => r.amount)), x0 = nameW, x1 = W - amtW, H = rows.length * rowH;
+    let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Total Amount By Person">`;
+    rows.forEach((r, i) => {
+      const y = i * rowH + 6, h = rowH - 12, cy = y + h / 2, w = (r.amount / max) * (x1 - x0);
+      s += `<text class="lbl" x="${x0 - 10}" y="${cy}" dy="0.35em" text-anchor="end">${esc(r.person)}</text>`;
+      s += `<rect class="gx" style="animation-delay:${(i * 0.09).toFixed(2)}s" x="${x0}" y="${y}" width="${w}" height="${h}" rx="6" fill="var(--gold)"/>`;
+      s += `<text class="amt" x="${x0 + w + 8}" y="${cy}" dy="0.35em">${esc(lab(r))}</text>`;
+    });
+    el.innerHTML = s + '</svg>';
+  }
+  const dash = '<span style="color:var(--muted)">—</span>';
+  function renderPhotoFixed(m) {
+    const f = fx(m).photo || { brand: {}, people: [], rate: {} };
+    const bs = brandsNow(), total = r2(bs.reduce((t, b) => t + (Number(f.brand?.[b]) || 0), 0));
+    const [rv, rs] = fixedRateKpi(f.rate);
+    $('p-rate').innerHTML = esc(rv); $('p-rate-sub').textContent = rs;
+    const rows = state.brand === 'all' ? (f.people || []).map((x) => ({ person: x.person, amount: Number(x.amount) || 0, n: x.n ?? null })) : [];
+    const n = rows.some((r) => r.n != null) ? rows.reduce((t, r) => t + (r.n || 0), 0) : null;
+    $('p-non').textContent = n == null ? '—' : int(n);
+    $('p-non-sub').textContent = n == null ? '固定数据 · 没有场次明细' : `${int(n)} Events · 固定数据`;
+    $('p-amt').innerHTML = rm(total);
+    $('p-amt-sub').textContent = state.brand === 'all' ? `Legends RM ${money(Number(f.brand?.Legends) || 0)} + WM RM ${money(Number(f.brand?.WM) || 0)}` : '固定数据';
+    $('p-norate').hidden = true;
+    $('p-donut').innerHTML = '<p class="empty">固定数据：没有 All Soft / Non-All Soft 明细。</p>';
+    $('p-donut-sub').textContent = `${periodLabel()} · 固定数据`;
+    amountBars($('p-chart'), rows, '这个月只有品牌总数（固定数据），没有每个人的明细。');
+    $('p-rows').innerHTML = rows.length
+      ? rows.map((r) => `<tr><td>${esc(r.person)}</td><td>${r.n == null ? dash : int(r.n)}</td><td class="soft">${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${dash}</td><td class="bill amt"><span class="op">=</span>${esc(money(r.amount))}</td></tr>`).join('')
+      : '<tr><td colspan="6" style="text-align:left;color:var(--muted)">这个月只有品牌总数（固定数据），没有每个人的明细。</td></tr>';
+    $('p-foot').innerHTML = `<tr><td>合计</td><td>${n == null ? dash : int(n)}</td><td class="soft">${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${dash}</td><td class="bill amt"><span class="op">=</span>${esc(money(total))}</td></tr>`;
+  }
+  function renderSalesFixed(m) {
+    const f = fx(m).sales || { people: [], rate: {} };
+    const bs = brandsNow();
+    const rows = (f.people || []).map((x) => {
+      const parts = bs.filter((b) => x[b] != null).map((b) => [b, Number(x[b]) || 0]);
+      return { person: x.person, parts, amount: r2(parts.reduce((t, p) => t + p[1], 0)) };
+    }).filter((r) => r.parts.length);
+    const total = r2(rows.reduce((t, r) => t + r.amount, 0));
+    const byB = (b) => r2((f.people || []).reduce((t, x) => t + (Number(x[b]) || 0), 0));
+    const [rv, rs] = fixedRateKpi(f.rate);
+    $('s-rate').innerHTML = esc(rv); $('s-rate-sub').textContent = rs;
+    $('s-count').textContent = '—'; $('s-count-sub').textContent = '固定数据 · 没有次数明细';
+    $('s-amt').innerHTML = rm(total);
+    $('s-amt-sub').textContent = state.brand === 'all' ? `Legends RM ${money(byB('Legends'))} + WM RM ${money(byB('WM'))}` : '固定数据';
+    $('s-norate').hidden = true;
+    for (const key of ['visit', 'vc']) {
+      $(`s-${key}-total`).textContent = '—'; $(`s-${key}-total-sub`).textContent = '固定数据：没有分 上门了解 / VC了解';
+      $(`s-${key}-sub`).textContent = '固定数据';
+      $(`s-${key}-chart`).innerHTML = '<p class="empty">固定数据：没有分 上门了解 / VC了解。</p>';
+      $(`s-${key}-rows`).innerHTML = ''; $(`s-${key}-foot`).innerHTML = '';
+    }
+    const split = (r) => (r.parts.length > 1 ? `<span class="mix">${esc(r.parts.map(([b, v]) => `${b} ${money(v)}`).join(' + '))}</span>` : esc(r.parts[0][0]));
+    $('s-rows').innerHTML = rows.length
+      ? rows.map((r) => `<tr><td>${esc(r.person)}</td><td>${dash}</td><td>${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${split(r)}</td><td class="bill amt"><span class="op">=</span>${esc(money(r.amount))}</td></tr>`).join('')
+      : '<tr><td colspan="6" style="text-align:left;color:var(--muted)">没有数据。</td></tr>';
+    $('s-foot').innerHTML = rows.length ? `<tr><td>合计</td><td>${dash}</td><td>${dash}</td><td class="bill b-first">${dash}</td><td class="bill">${dash}</td><td class="bill amt"><span class="op">=</span>${esc(money(total))}</td></tr>` : '';
+  }
+  const fixedNote = (c) => (c.fixedAmt != null ? `  ·  含固定数据 RM ${money(c.fixedAmt)}` : '');
   function renderPhoto() {
+    if (!isYear() && fx(state.month)) return renderPhotoFixed(state.month);
     const c = periodCalc('photo', periodMonths());
     const [rv, rs] = rateKpi('photo', c);
     $('p-rate').innerHTML = esc(rv); $('p-rate-sub').textContent = rs;
     $('p-non').textContent = int(c.a);
     $('p-non-sub').textContent = `${c.a + c.b ? Math.round((c.a / (c.a + c.b)) * 100) : 0}% Of ${int(c.a + c.b)} Total Events · ${int(c.b)} All Soft`;
-    $('p-amt').innerHTML = rm(c.amount); $('p-amt-sub').textContent = formula(c);
+    $('p-amt').innerHTML = rm(c.amount); $('p-amt-sub').textContent = formula(c) + fixedNote(c);
     $('p-norate').hidden = !c.missing;
     hbars($('p-chart'), c.rows, ['var(--gold)', 'var(--lilac)']);
     tableRows($('p-rows'), $('p-foot'), c.rows, { label: '合计', a: c.a, b: c.b, amount: c.amount, per: c.per }, 'photo');
@@ -877,12 +981,13 @@ const SAMPLE = { sample: false, events: [], rates: {} };
     $('p-donut-sub').textContent = `${int(c.a + c.b)} Total Events  |  ${int(c.b)} All Soft  |  ${int(c.a)} Non-All Soft`;
   }
   function renderSales() {
+    if (!isYear() && fx(state.month)) return renderSalesFixed(state.month);
     const c = periodCalc('sales', periodMonths());
     const [rv, rs] = rateKpi('sales', c);
     $('s-rate').innerHTML = esc(rv); $('s-rate-sub').textContent = rs;
     $('s-count').textContent = int(c.a + c.b);
     $('s-count-sub').textContent = `上门了解 ${int(c.a)} + VC了解 ${int(c.b)}`;
-    $('s-amt').innerHTML = rm(c.amount); $('s-amt-sub').textContent = formula(c);
+    $('s-amt').innerHTML = rm(c.amount); $('s-amt-sub').textContent = formula(c) + fixedNote(c);
     $('s-norate').hidden = !c.missing;
     tableRows($('s-rows'), $('s-foot'), c.rows, { label: '合计', a: c.a, b: c.b, amount: c.amount, per: c.per }, 'sales');
     typePanel('visit', '上门了解');
