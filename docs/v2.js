@@ -34,9 +34,14 @@ const T = {
   tick_type: ["类型", "Type"], need_ticks: ["请填好红色 * 的栏位", "Please fill in the fields marked *"],
   time: ["时间", "Time"],
   offline_title: ["现在离线中", "You're offline"], got_it: ["知道了", "Got it"],
-  offline_text: ["只能查看 {time} 保存的资料。连接网络后会自动同步最新资料。离线时不能修改，以免和别人同时修改的资料冲突。", "Showing data saved at {time}. It will sync automatically when you're back online. Editing is off while offline, to avoid clashing with changes others make at the same time."],
-  offline_pill: ["离线中 · 只能查看", "Offline · view only"], back_online: ["已重新连线，资料已更新", "Back online, data updated"],
-  offline_noedit: ["离线中不能修改，请连接网络后再试", "You're offline. Connect to the internet to make changes."], offline_nodata: ["离线中，这一页还没有保存的资料", "You're offline and this page hasn't been saved on this device yet."],
+  offline_text: ["你的修改（包括照片和留言）会先存在这台装置，连接网络后自动同步。如果别人同时修改同一个活动，可能会冲突。画面上的资料是 {time} 保存的。", "Your changes (including photos and comments) are saved on this device and sync automatically when you're back online. If someone else changes the same event at the same time, there may be a conflict. Data shown was saved at {time}."],
+  offline_pill: ["离线中", "Offline"], offline_pending: ["{n} 笔修改等待同步", "{n} changes waiting to sync"], back_online: ["已重新连线，资料已更新", "Back online, data updated"],
+  offline_noedit: ["这个操作需要网络，请连接网络后再试", "This needs an internet connection. Please try again when you're online."],
+  synced_n: ["已同步 {n} 笔离线修改", "Synced {n} offline changes"], sync_issues: ["请检查这些活动", "Please check these events"],
+  sync_changed: ["「{n}」在你离线时也被别人修改过，现在用的是你的版本。", "\"{n}\" was also changed by someone else while you were offline; your version was kept."],
+  sync_gone: ["「{n}」在你离线时已经被删除，你的修改没有上传。", "\"{n}\" was deleted while you were offline, so your change was not uploaded."],
+  sync_failed: ["「{n}」无法同步：{e}", "\"{n}\" could not sync: {e}"],
+  cf_logout_pending: ["还有 {n} 笔离线修改没有同步，登出后会不见。确定要登出吗？", "{n} offline changes have not synced yet and will be lost if you log out."], offline_nodata: ["离线中，这一页还没有保存的资料", "You're offline and this page hasn't been saved on this device yet."],
   cf_event: ["确定要删除这个活动吗？", "Delete this event?"], cf_event_t: ["「{n}」会放进回收站，5 天内可以复原；Google 日历里的这一笔也会删除。", "\"{n}\" goes to the Recycle Bin (restorable for 5 days) and is also deleted from Google Calendar."],
   cf_comment: ["确定要删除这则留言吗？", "Delete this comment?"], cf_photo: ["确定要删除这张照片吗？", "Delete this photo?"], cf_cant_undo: ["删除后不能复原。", "This can't be undone."],
   cf_person: ["确定要把 {n} 移出日历吗？", "Remove {n} from the calendar?"], cf_person_t: ["他就不能再看或编辑这个日历。", "They will no longer see or edit this calendar."],
@@ -146,7 +151,7 @@ async function api(path, opts = {}) {
 }
 // ---------------- 离线查看：在线时把读到的资料存一份在这台装置；离线时拿出来看（不能修改） ----------------
 const DATA_CACHE = "tlw-data-v1";
-const cacheKey = (path) => `${location.origin}/__data/${store.get("cal") || "-"}${path}`;
+const cacheKey = (path) => `${location.origin}/__data/${/^\/api\/(auth\/me|calendars)$/.test(path) ? "all" : store.get("cal") || "-"}${path}`; // 帐号资料、日历清单不分日历
 async function cachePut(path, data) { try { const c = await caches.open(DATA_CACHE); await c.put(cacheKey(path), new Response(JSON.stringify({ at: Date.now(), data }), { headers: { "Content-Type": "application/json" } })); } catch {} }
 async function cacheGet(path) { try { const r = await (await caches.open(DATA_CACHE)).match(cacheKey(path)); return r ? await r.json() : null; } catch { return null; } }
 async function clearDataCache() { try { await caches.delete(DATA_CACHE); } catch {} }
@@ -157,10 +162,10 @@ function offlineOn(at) {
   const time = new Date(offline.at).toLocaleString(loc(), { timeZone: tz(), dateStyle: "medium", timeStyle: "short" });
   offline.el.classList.toggle("small", offline.small);
   offline.el.innerHTML = offline.small
-    ? `<span class="off-dot"></span>${t("offline_pill")}`
+    ? `<span class="off-dot"></span>${t("offline_pill")}${oqCount ? ` · ${t("offline_pending", { n: oqCount })}` : ""}`
     : `<div class="off-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 4.2-2.6M9.8 5.2A15 15 0 0 1 22 8.8M5 12.6a10 10 0 0 1 3.9-2.2M15.5 10.4A10 10 0 0 1 19 12.6M8.5 16.1a5 5 0 0 1 7 0M12 20h.01M3 3l18 18"/></svg></div><b>${t("offline_title")}</b><p>${t("offline_text", { time })}</p><button type="button" class="btn sm" id="off-ok">${t("got_it")}</button>`;
   offline.el.querySelector("#off-ok")?.addEventListener("click", () => { offline.small = true; offlineOn(offline.at); });
-  offline.el.onclick = (e) => { if (offline.small) { offline.small = false; offlineOn(offline.at); } };
+  offline.el.onclick = (e) => { if (offline.small && e.isTrusted) { offline.small = false; offlineOn(offline.at); } };
   if (!was) chime("bad");
 }
 function offlineOff() {
@@ -172,21 +177,123 @@ function offlineOff() {
 window.addEventListener("online", () => { if (offline.on) api("/api/auth/me").then(() => offlineOff()).catch(() => {}); });
 window.addEventListener("message", (e) => { if (e.origin === location.origin && e.data?.type === "offline") offlineOn(e.data.at || Date.now()); });
 const NO_CACHE = /^\/api\/(auth\/(login|signup|forgot|reset)|photos\/|admin\/backup)/;
+// ---------------- 离线修改：先排队存在这台装置（IndexedDB，照片也可以），有网络后按顺序自动上传 ----------------
+const OQ_OK = /^\/api\/(events(\/-?\d+(\/posts)?)?|comments\/\d+|photos\/\d+)$/; // 离线可以做的：活动新增 / 修改 / 删除、留言、照片
+function oqDb() {
+  return new Promise((res, rej) => { const r = indexedDB.open("tlw-offline", 1); r.onupgradeneeded = () => r.result.createObjectStore("q", { keyPath: "id", autoIncrement: true }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+}
+async function oqTx(mode, fn) { const db = await oqDb(); return new Promise((res, rej) => { const tx = db.transaction("q", mode); const st = tx.objectStore("q"); const out = fn(st); tx.oncomplete = () => res(out?.result ?? out); tx.onerror = () => rej(tx.error); }); }
+const oqAll = async () => { try { return (await oqTx("readonly", (s) => s.getAll())) || []; } catch { return []; } };
+const oqAdd = (op) => oqTx("readwrite", (s) => s.add(op));
+const oqDel = (id) => oqTx("readwrite", (s) => s.delete(id));
+let oqCount = 0;
+oqAll().then((l) => { oqCount = l.length; if (oqCount && navigator.onLine) setTimeout(flushQueue, 3000); });
+const tmpMap = () => { try { return JSON.parse(store.get("tlw-tmpmap") || "{}"); } catch { return {}; } };
+const fixPath = (p, m) => p.replace(/\/api\/events\/(-\d+)/, (x, id) => (m[id] ? `/api/events/${m[id]}` : x));
+// 离线时：把排队中的修改套在资料上，画面马上看得到
+async function overlay(path, data) {
+  if (!oqCount) return data;
+  const ops = await oqAll(); if (!ops.length) return data;
+  const labOf = (id) => (state.config?.labelList || []).find((l) => l.id === id);
+  const apply = (ev, b) => { Object.assign(ev, b); if ("label_id" in b) { const l = labOf(b.label_id); ev.label = l ? l.color : null; } ev._pending = true; return ev; };
+  const created = (op) => apply({ id: op.tmp, title: "", start: op.body.start, end: null, all_day: 0, notes: "", calendar_id: Number(store.get("cal")) || null, feed: [] }, { ...op.body, all_day: op.body.all_day ? 1 : 0 });
+  const list = /^\/api\/events(\?|$)/.test(path), one = /^\/api\/events\/(-?\d+)$/.exec(path);
+  if (list && Array.isArray(data)) {
+    let out = data.slice();
+    const u = new URL(path, location.origin), from = u.searchParams.get("from"), to = u.searchParams.get("to");
+    for (const op of ops) {
+      const m = /^\/api\/events(?:\/(-?\d+))?$/.exec(op.path); if (!m) continue;
+      if (op.method === "POST" && !m[1]) { const ev = created(op); if ((!from || ev.start >= from) && (!to || ev.start < to)) out.push(ev); }
+      else if (op.method === "PATCH") { const ev = out.find((x) => String(x.id) === m[1]); if (ev) apply(ev, op.body); }
+      else if (op.method === "DELETE") out = out.filter((x) => String(x.id) !== m[1]);
+    }
+    return out.sort((a, b) => String(a.start).localeCompare(String(b.start)));
+  }
+  if (one) {
+    let ev = data ? { ...data, feed: [...(data.feed || [])] } : null;
+    for (const op of ops) {
+      if (op.method === "POST" && op.path === "/api/events" && String(op.tmp) === one[1]) ev = created(op);
+      if (!ev || op.path.replace(/\/posts$/, "") !== `/api/events/${one[1]}`) continue;
+      if (op.method === "PATCH") apply(ev, op.body);
+      if (op.method === "POST" && op.path.endsWith("/posts")) {
+        const text = (op.form || []).find((x) => x.k === "text")?.v || "", pics = (op.form || []).filter((x) => x.k === "photos");
+        if (text) ev.feed.push({ type: "comment", id: `local-${op.id}`, body: text, author: state.me?.name, created_at: new Date(op.at).toISOString(), _pending: true });
+        pics.forEach((p, i) => ev.feed.push({ type: "photo", id: URL.createObjectURL(p.v), caption: "", author: state.me?.name, created_at: new Date(op.at).toISOString(), _pending: true }));
+      }
+    }
+    return ev;
+  }
+  return data;
+}
 async function apiRaw(path, opts = {}) {
   const method = opts.method || "GET";
   try {
     const data = await apiNet(path, opts);
     if (method === "GET" && !NO_CACHE.test(path)) cachePut(path, data);
     if (offline.on) offlineOff();
-    return data;
+    if (oqCount) setTimeout(flushQueue, 50); // 有网络了 → 把排队的修改送出去
+    return method === "GET" ? overlay(path, data) : data;
   } catch (e) {
     if (!(e instanceof TypeError)) throw e; // 不是网络问题（例如密码错）→ 照常显示
-    if (method !== "GET") { offlineOn(Date.now()); throw new Error(t("offline_noedit")); }
+    if (method !== "GET") {
+      offlineOn(Date.now());
+      if (!OQ_OK.test(path)) throw new Error(t("offline_noedit"));
+      return queueWrite(path, opts);
+    }
     const c = await cacheGet(path);
-    if (!c) { offlineOn(Date.now()); throw new Error(t("offline_nodata")); }
-    offlineOn(c.at);
-    return c.data;
+    const tmp = /^\/api\/events\/-\d+$/.test(path); // 离线新增的活动（还没有真正的编号）
+    if (!c && !tmp) { offlineOn(Date.now()); throw new Error(t("offline_nodata")); }
+    offlineOn(c?.at || Date.now());
+    return overlay(path, c?.data ?? null);
   }
+}
+// 离线时的修改 → 排队；回传画面要的资料
+async function queueWrite(path, opts) {
+  const op = { path, method: opts.method, at: Date.now() };
+  if (opts.body instanceof FormData) op.form = [...opts.body.entries()].map(([k, v]) => ({ k, v }));
+  else if (opts.body) op.body = opts.body;
+  if (op.method === "POST" && path === "/api/events") op.tmp = -Date.now();
+  const one = /^\/api\/events\/(\d+)$/.exec(path);
+  if (one && op.method === "PATCH") { const c = await cacheGet(path); op.base = c?.data || null; } // 记下离线前的样子，之后用来检查别人有没有同时改
+  if (one) { const c = await cacheGet(path); op.title = c?.data?.title || ""; }
+  await oqAdd(op); oqCount++;
+  offlineOn(offline.at || Date.now());
+  if (op.tmp) return overlay(`/api/events/${op.tmp}`, null);
+  if (/\/posts$/.test(path)) return overlay(path.replace(/\/posts$/, ""), (await cacheGet(path.replace(/\/posts$/, "")))?.data ?? null);
+  if (one && op.method === "PATCH") return overlay(path, (await cacheGet(path))?.data ?? null);
+  return { ok: true, queued: true };
+}
+// 有网络后：按顺序送出；别人同时改过的、已经被删掉的 → 最后列出来给你看
+let flushing = false;
+async function flushQueue() {
+  if (flushing || !token()) return; flushing = true;
+  const ops = await oqAll(), map = tmpMap(), issues = [];
+  let done = 0;
+  try {
+    for (const op of ops) {
+      const path = fixPath(op.path, map);
+      if (/\/api\/events\/-\d+/.test(path)) { await oqDel(op.id); continue; } // 离线新增后没有成功建立 → 跳过
+      try {
+        if (op.method === "PATCH" && op.base) {
+          const cur = await apiNet(path).catch((e) => { if (e instanceof TypeError) throw e; return null; });
+          const keys = ["title", "start", "end", "notes", "label", "template_id", "brand", "person_id"];
+          if (cur && keys.some((k) => String(cur[k] ?? "") !== String(op.base[k] ?? ""))) issues.push(t("sync_changed", { n: op.title || cur.title }));
+        }
+        let body = op.body;
+        if (op.form) { body = new FormData(); op.form.forEach(({ k, v }) => (v instanceof Blob ? body.append(k, v, "photo.jpg") : body.append(k, v))); }
+        const res = await apiNet(path, { method: op.method, body });
+        if (op.tmp && res?.id) { map[op.tmp] = res.id; store.set("tlw-tmpmap", JSON.stringify(map)); }
+      } catch (e) {
+        if (e instanceof TypeError) break; // 又没网络了 → 下次再送
+        issues.push(e.status === 404 ? t("sync_gone", { n: op.title || "—" }) : t("sync_failed", { n: op.title || op.body?.title || "—", e: e.message }));
+      }
+      await oqDel(op.id); oqCount = Math.max(0, oqCount - 1); done++;
+    }
+  } finally { flushing = false; }
+  if (!done) return;
+  toast(t("synced_n", { n: done })); chime("ok");
+  if (offline.on && !oqCount) offlineOff(); else if (state.me) renderPage();
+  if (issues.length) confirmBox({ title: t("sync_issues"), text: issues.join("\n"), ok: t("got_it"), danger: false });
 }
 async function apiNet(path, opts = {}) {
   const headers = { "x-lang": lang, ...(token() ? { Authorization: `Bearer ${token()}` } : {}), ...(store.get("cal") ? { "x-cal": store.get("cal") } : {}) };
@@ -198,7 +305,7 @@ async function apiNet(path, opts = {}) {
   if (!res.ok) { const e = new Error(data.error || `Error ${res.status}`); e.status = res.status; throw e; }
   return data;
 }
-const photoUrl = (id) => `${API_BASE}/api/photos/${id}/file?t=${encodeURIComponent(token())}`;
+const photoUrl = (id) => (String(id).startsWith("blob:") ? id : `${API_BASE}/api/photos/${id}/file?t=${encodeURIComponent(token())}`);
 
 // ---------------- 声音、提示 ----------------
 // 每个声音：[频率, 开始(秒), 长度(秒), 波形, 音量]；noise = 快门一样的沙沙声
@@ -592,7 +699,7 @@ function renderPage() {
         ${sk("", "width:min(520px,80%);height:46px")}
         <div class="sk-grid3">${sk("sk-card")}${sk("sk-card", "animation-delay:.1s")}${sk("sk-card", "animation-delay:.2s")}</div>
         <div class="sk-grid2">${sk("sk-card tall", "animation-delay:.15s")}${sk("sk-card tall", "animation-delay:.25s")}</div>
-      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=237"></iframe></section>`;
+      </div><iframe title="${t("nav_" + p)}" src="dashboard.html?embed=1&page=${p}&lang=${lang}&v=238"></iframe></section>`;
     const hide = () => { const s = $("#frame-sk"); if (s) { s.classList.add("gone"); setTimeout(() => s.remove(), 400); } };
     const onMsg = (e) => { if (e.data === "dash-ready") { hide(); window.removeEventListener("message", onMsg); } };
     window.addEventListener("message", onMsg);
@@ -1306,7 +1413,7 @@ async function openSettings() {
       try { state.me = { ...state.me, ...(await api("/api/auth/me", { method: "PATCH", body: { timezone: e.target.value } })) }; toast(t("saved")); refreshCalendar(); } catch (er) { fail(er); }
     };
     $("#s-cal", d)?.addEventListener("change", async (e) => { store.set("cal", e.target.value); d.close(); await loadConfig(); state.cursor = null; renderApp(); });
-    $("#s-logout", d).onclick = async () => { if (!(await confirmBox({ title: t("cf_logout"), text: t("cf_logout_t"), ok: t("logout"), danger: false }))) return; await clearDataCache(); store.set("token", null); store.set("cal", null); d.close(); Object.assign(ob, { step: 0, emoji: null }); boot(); };
+    $("#s-logout", d).onclick = async () => { if (!(await confirmBox({ title: t("cf_logout"), text: oqCount ? t("cf_logout_pending", { n: oqCount }) : t("cf_logout_t"), ok: t("logout"), danger: !!oqCount }))) return; await clearDataCache(); store.set("token", null); store.set("cal", null); d.close(); Object.assign(ob, { step: 0, emoji: null }); boot(); };
     if (isAdmin()) wireAdmin(d); else drawApply(d);
   });
 }

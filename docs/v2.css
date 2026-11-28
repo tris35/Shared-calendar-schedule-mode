@@ -691,3 +691,5 @@ dialog.confirm-dlg{position:fixed;inset:0;margin:auto;max-height:fit-content}
 .off-ico svg{width:24px;height:24px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .off-card.small{top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);width:auto;flex-direction:row;gap:8px;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer}
 .off-dot{width:8px;height:8px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px #f59e0b}
+
+.cf p{white-space:pre-line}
